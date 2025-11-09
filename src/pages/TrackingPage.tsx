@@ -24,6 +24,51 @@ interface TrackingItem {
   sellerId?: string;
 }
 
+// Helper function to map Appwrite transaction status to TrackingItem status
+const mapAppwriteStatusToTrackingStatus = (appwriteStatus: string): TrackingItem["status"] => {
+  switch (appwriteStatus) {
+    case "initiated":
+      return "Initiated";
+    case "payment_confirmed_to_developer":
+    case "commission_deducted": // Both are "In Progress" from user's perspective
+      return "In Progress";
+    case "paid_to_seller":
+      return "Completed";
+    case "failed":
+      return "Cancelled";
+    default:
+      return "Pending";
+  }
+};
+
+// Helper function to convert Appwrite transaction document to TrackingItem
+const convertAppwriteTransactionToTrackingItem = (doc: Models.Document, currentUserId: string): TrackingItem => {
+  const transactionDoc = doc as any; // Cast to any for easier property access
+  const isBuyer = transactionDoc.buyerId === currentUserId;
+  const isSeller = transactionDoc.sellerId === currentUserId;
+
+  let description = `Payment for ${transactionDoc.productTitle}`;
+  if (isBuyer) {
+    description = `Purchase of ${transactionDoc.productTitle}`;
+  } else if (isSeller) {
+    description = `Sale of ${transactionDoc.productTitle}`;
+  }
+
+  return {
+    id: transactionDoc.$id,
+    type: "Transaction",
+    description: description,
+    status: mapAppwriteStatusToTrackingStatus(transactionDoc.status),
+    date: new Date(transactionDoc.$createdAt).toLocaleDateString(),
+    productTitle: transactionDoc.productTitle,
+    amount: transactionDoc.amount,
+    sellerName: transactionDoc.sellerName,
+    buyerId: transactionDoc.buyerId,
+    sellerId: transactionDoc.sellerId,
+  };
+};
+
+
 const TrackingPage = () => {
   const { user } = useAuth();
   const [trackingItems, setTrackingItems] = useState<TrackingItem[]>([]);
@@ -38,43 +83,20 @@ const TrackingPage = () => {
 
       setLoading(true);
       try {
-        // Fetch transactions where the current user is the buyer
-        const buyerTransactionsResponse = await databases.listDocuments(
+        // Fetch transactions where the current user is the buyer or seller
+        const response = await databases.listDocuments(
           APPWRITE_DATABASE_ID,
           APPWRITE_TRANSACTIONS_COLLECTION_ID,
-          [Query.equal('buyerId', user.$id)]
+          [
+            Query.or([
+              Query.equal('buyerId', user.$id),
+              Query.equal('sellerId', user.$id)
+            ])
+          ]
         );
 
-        // Fetch transactions where the current user is the seller
-        const sellerTransactionsResponse = await databases.listDocuments(
-          APPWRITE_DATABASE_ID,
-          APPWRITE_TRANSACTIONS_COLLECTION_ID,
-          [Query.equal('sellerId', user.$id)]
-        );
-
-        // Combine and deduplicate transactions
-        const allTransactions = [...buyerTransactionsResponse.documents, ...sellerTransactionsResponse.documents];
-        const uniqueTransactions = Array.from(new Map(allTransactions.map(item => [item.$id, item])).values());
-
-
-        const fetchedTransactions: TrackingItem[] = uniqueTransactions
-          .map((doc: Models.Document) => ({
-            id: doc.$id,
-            type: "Transaction",
-            description: `Payment for ${(doc as any).productTitle}`,
-            status: (doc as any).status === "initiated" ? "Initiated" :
-                    (doc as any).status === "payment_confirmed_to_developer" ? "In Progress" :
-                    (doc as any).status === "commission_deducted" ? "In Progress" :
-                    (doc as any).status === "paid_to_seller" ? "Completed" :
-                    (doc as any).status === "failed" ? "Cancelled" :
-                    "Pending", // Default fallback
-            date: new Date(doc.$createdAt).toLocaleDateString(),
-            productTitle: (doc as any).productTitle,
-            amount: (doc as any).amount,
-            sellerName: (doc as any).sellerName,
-            buyerId: (doc as any).buyerId,
-            sellerId: (doc as any).sellerId,
-          }));
+        const fetchedTransactions: TrackingItem[] = response.documents
+          .map((doc: Models.Document) => convertAppwriteTransactionToTrackingItem(doc, user.$id));
 
         const dummyOtherItems: TrackingItem[] = [
           { id: "t1", type: "Order", description: "Gaming Headset from The Exchange", status: "In Progress", date: "2024-07-20" },
@@ -94,7 +116,44 @@ const TrackingPage = () => {
     };
 
     fetchTrackingItems();
-  }, [user]);
+
+    // Realtime subscription for transactions
+    const unsubscribe = databases.client.subscribe(
+      `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_TRANSACTIONS_COLLECTION_ID}.documents`,
+      (response) => {
+        if (!user?.$id) return; // Ensure user is logged in for real-time updates
+
+        const payload = response.payload as unknown as Models.Document;
+        const transactionPayload = payload as any;
+
+        // Only process if the current user is involved in the transaction
+        if (transactionPayload.buyerId !== user.$id && transactionPayload.sellerId !== user.$id) {
+          return;
+        }
+
+        const newTrackingItem = convertAppwriteTransactionToTrackingItem(payload, user.$id);
+
+        if (response.events.includes("databases.*.collections.*.documents.*.create")) {
+          setTrackingItems((prev) => [newTrackingItem, ...prev]);
+          toast.info(`New activity: "${newTrackingItem.description}"`);
+        } else if (response.events.includes("databases.*.collections.*.documents.*.update")) {
+          setTrackingItems((prev) =>
+            prev.map((item) =>
+              item.id === newTrackingItem.id ? newTrackingItem : item
+            )
+          );
+          toast.info(`Activity updated: "${newTrackingItem.description}" status is now "${newTrackingItem.status}"`);
+        } else if (response.events.includes("databases.*.collections.*.documents.*.delete")) {
+          setTrackingItems((prev) => prev.filter((item) => item.id !== newTrackingItem.id));
+          toast.info(`Activity removed: "${newTrackingItem.description}"`);
+        }
+      }
+    );
+
+    return () => {
+      unsubscribe(); // Unsubscribe on component unmount
+    };
+  }, [user]); // Depend on user to re-run effect if user changes
 
   const getStatusBadgeClass = (status: TrackingItem["status"]) => {
     switch (status) {
@@ -161,8 +220,8 @@ const TrackingPage = () => {
                         {item.status === "Initiated" && (
                           <p className="text-xs text-yellow-500">Awaiting payment confirmation from developer.</p>
                         )}
-                        {item.status === "Payment Confirmed" && item.sellerId === user?.$id && (
-                          <p className="text-xs text-green-500">Developer will pay you ₹{(item.amount || 0) * 0.70} (after 30% commission).</p>
+                        {item.status === "In Progress" && item.sellerId === user?.$id && (
+                          <p className="text-xs text-blue-500">Developer is processing payment. You will receive ₹{(item.amount || 0) * 0.70} (after 30% commission).</p>
                         )}
                       </>
                     )}
