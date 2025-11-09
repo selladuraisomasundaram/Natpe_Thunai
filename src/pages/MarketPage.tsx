@@ -46,8 +46,106 @@ interface Product {
 
 type MarketTabValue = "all" | "buy" | "sell" | "rent" | "gifts" | "sports";
 
+const dummyProducts: Product[] = [
+  {
+    $id: "prod1",
+    imageUrl: "/placeholder.svg",
+    title: "Gaming Laptop (Used)",
+    price: "₹45000",
+    sellerRating: 4.8,
+    sellerBadge: "Top Seller",
+    type: "sell",
+    description: "Lightly used gaming laptop, perfect for college work and casual gaming. Comes with charger.",
+    damages: "Minor scratch on lid.",
+    policies: "7-day return policy if not as described.",
+    condition: "Used - Like New",
+    sellerId: "user123",
+    sellerName: "Alice Smith",
+  },
+  {
+    $id: "prod2",
+    imageUrl: "/placeholder.svg",
+    title: "Mountain Bicycle",
+    price: "₹150/day",
+    sellerRating: 4.5,
+    type: "rent",
+    description: "Rent a sturdy mountain bike for campus commutes or weekend adventures.",
+    policies: "Return by 8 PM. Security deposit required.",
+    condition: "Used - Good",
+    sellerId: "user124",
+    sellerName: "Bob Johnson",
+  },
+  {
+    $id: "prod3",
+    imageUrl: "/placeholder.svg",
+    title: "Handmade Friendship Bracelet",
+    price: "₹200",
+    sellerRating: 5.0,
+    sellerBadge: "Craft Master",
+    type: "gift",
+    description: "Unique, hand-braided friendship bracelet. Customizable colors available.",
+    damages: "None",
+    policies: "No refunds on custom orders.",
+    sellerId: "user125",
+    sellerName: "Charlie Brown",
+  },
+  {
+    $id: "prod4",
+    imageUrl: "/placeholder.svg",
+    title: "Cricket Bat (Willow)",
+    price: "₹2500",
+    sellerRating: 4.7,
+    type: "sports",
+    description: "Good quality English willow cricket bat, suitable for intermediate players.",
+    condition: "Used - Good",
+    sellerId: "user126",
+    sellerName: "David Lee",
+  },
+  {
+    $id: "prod5",
+    imageUrl: "/placeholder.svg",
+    title: "Custom Portrait Sketch Request",
+    price: "₹500-₹1000",
+    sellerRating: 4.9,
+    type: "gift-request",
+    description: "Looking for an artist to sketch a custom portrait from a photo. Budget negotiable.",
+    referenceImageUrl: "https://example.com/portrait_ref.jpg",
+    budget: "₹500-₹1000",
+    contact: "requester@example.com",
+    sellerId: "user127",
+    sellerName: "Eve Davis",
+  },
+  {
+    $id: "prod6",
+    imageUrl: "/placeholder.svg",
+    title: "Textbook: Data Structures",
+    price: "₹700",
+    sellerRating: 4.6,
+    type: "sell",
+    description: "Required textbook for CS301. Good condition, minimal highlighting.",
+    damages: "Cover slightly worn.",
+    policies: "Final sale.",
+    condition: "Used - Good",
+    sellerId: "user123",
+    sellerName: "Alice Smith",
+  },
+  {
+    $id: "prod7",
+    imageUrl: "/placeholder.svg",
+    title: "Badminton Racket",
+    price: "₹50/hour",
+    sellerRating: 4.2,
+    type: "rent",
+    description: "Rent a Yonex badminton racket for a quick game. Shuttlecocks not included.",
+    policies: "Handle with care. Late return fee applies.",
+    condition: "Used - Fair",
+    sellerId: "user124",
+    sellerName: "Bob Johnson",
+  },
+];
+
 const MarketPage = () => {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>(dummyProducts); // Initialize with dummy data
   const [isSellFormOpen, setIsSellFormOpen] = useState(false);
   const [isRentFormOpen, setIsRentFormOpen] = useState(false);
   const [isGiftFormOpen, setIsGiftFormOpen] = useState(false);
@@ -72,11 +170,21 @@ const MarketPage = () => {
       if (!Array.isArray(response.documents)) {
         throw new Error("Appwrite response documents is not an array.");
       }
-      setProducts(response.documents as unknown as Product[]);
+      // Merge fetched products with dummy data, prioritizing fetched if IDs overlap
+      const fetchedMap = new Map(response.documents.map(doc => [doc.$id, doc as unknown as Product]));
+      const mergedProducts = dummyProducts.map(dummy => fetchedMap.get(dummy.$id) || dummy);
+      response.documents.forEach(doc => {
+        if (!fetchedMap.has(doc.$id)) {
+          mergedProducts.push(doc as unknown as Product);
+        }
+      });
+
+      setProducts(mergedProducts);
     } catch (error: any) { // Explicitly type error as any for broader logging
       console.error("Error fetching products from Appwrite:", error);
       console.error("Error details:", error.message, error.code, error.response); // Log more details
       toast.error(`Failed to load market listings: ${error.message || 'Unknown error'}`);
+      // If fetching fails, we still want to display dummy data, so no need to clear products
     } finally {
       setLoadingProducts(false);
     }
