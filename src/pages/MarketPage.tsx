@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { PlusCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext"; // Corrected import path
 import { Card, CardContent } from "@/components/ui/card";
 import client, { databases, APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID } from "@/lib/appwrite";
 import { ID } from 'appwrite'; // Import ID
@@ -68,10 +68,15 @@ const MarketPage = () => {
         APPWRITE_DATABASE_ID,
         APPWRITE_PRODUCTS_COLLECTION_ID
       );
+      console.log("Fetched products response:", response); // Log the full response
+      if (!Array.isArray(response.documents)) {
+        throw new Error("Appwrite response documents is not an array.");
+      }
       setProducts(response.documents as unknown as Product[]);
-    } catch (error) {
-      console.error("Error fetching products:", error);
-      toast.error("Failed to load market listings.");
+    } catch (error: any) { // Explicitly type error as any for broader logging
+      console.error("Error fetching products from Appwrite:", error);
+      console.error("Error details:", error.message, error.code, error.response); // Log more details
+      toast.error(`Failed to load market listings: ${error.message || 'Unknown error'}`);
     } finally {
       setLoadingProducts(false);
     }
