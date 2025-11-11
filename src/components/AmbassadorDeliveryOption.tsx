@@ -27,7 +27,7 @@ const AmbassadorDeliveryOption: React.FC<AmbassadorDeliveryOptionProps> = ({
           onCheckedChange={(checked) => setAmbassadorDelivery(checked as boolean)}
           className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground"
         />
-        <Label htmlFor="ambassador-delivery" className="text-sm text-primary-foreground font-medium">
+        <Label htmlFor="ambassador-delivery" className="text-sm text-foreground font-medium">
           Opt for Ambassador-mediated delivery
         </Label>
       </div>
@@ -36,7 +36,7 @@ const AmbassadorDeliveryOption: React.FC<AmbassadorDeliveryOptionProps> = ({
       </p>
       {ambassadorDelivery && (
         <div>
-          <Label htmlFor="ambassador-message" className="text-primary-foreground">Message for Ambassador (Optional)</Label>
+          <Label htmlFor="ambassador-message" className="text-foreground">Message for Ambassador (Optional)</Label>
           <Textarea
             id="ambassador-message"
             placeholder="e.g., Please pick up from hostel room 301, available after 6 PM."

@@ -32,13 +32,13 @@ const DailyQuestCard = () => {
       <Dialog open={isQuestDialogOpen} onOpenChange={setIsQuestDialogOpen}>
         <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
           <DialogHeader>
-            <DialogTitle className="text-primary-foreground">Today's Daily Quest</DialogTitle>
+            <DialogTitle className="text-foreground">Today's Daily Quest</DialogTitle>
             <DialogDescription className="text-muted-foreground">
               Here's what you need to do to earn your rewards!
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-4">
-            <p className="text-primary-foreground font-medium">Quest: List 2 items on The Exchange market.</p>
+            <p className="text-foreground font-medium">Quest: List 2 items on The Exchange market.</p>
             <p className="text-sm text-muted-foreground">Reward: +50 XP, 100 Coins</p>
             <p className="text-sm text-muted-foreground">Status: In Progress</p>
           </div>
