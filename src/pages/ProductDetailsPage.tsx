@@ -15,6 +15,7 @@ import { useAuth } from "@/context/AuthContext";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, APPWRITE_USER_PROFILES_COLLECTION_ID } from "@/lib/appwrite";
 import { ID, Query } from 'appwrite';
 import { dummyProducts } from "./MarketPage"; // Import dummy products
+import { containsBlockedWords } from "@/lib/moderation"; // Import moderation utility
 
 interface Product {
   $id: string; // Appwrite document ID
@@ -37,14 +38,6 @@ interface Product {
   sellerName: string;
   sellerUpiId?: string;
 }
-
-// Simulated Blocked Word List (In a real app, this would come from an API/Database)
-const BLOCKED_WORDS = ["badword", "spam", "scam", "fraud", "abuse", "hate"];
-
-const containsBlockedWords = (text: string): boolean => {
-  const lowerText = text.toLowerCase();
-  return BLOCKED_WORDS.some(word => lowerText.includes(word));
-};
 
 const ProductDetailsPage = () => {
   const { productId } = useParams<{ productId: string }>();

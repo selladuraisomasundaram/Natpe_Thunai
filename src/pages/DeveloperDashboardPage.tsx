@@ -8,13 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, account, APPWRITE_USER_PROFILES_COLLECTION_ID } from "@/lib/appwrite";
-import { useAuth } from "@/context/Auth/AuthContext";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, APPWRITE_USER_PROFILES_COLLECTION_ID } from "@/lib/appwrite";
+import { useAuth } from "@/context/AuthContext";
 import { Loader2, DollarSign, Users, Shield, Trash2, Ban, UserCheck, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import ChangeUserRoleForm from "@/components/forms/ChangeUserRoleForm";
 import { Query } from "appwrite";
+import { BLOCKED_WORDS as STATIC_BLOCKED_WORDS } from "@/lib/moderation"; // Import static list
 
 interface Transaction {
   $id: string;
@@ -39,14 +40,15 @@ const DeveloperDashboardPage = () => {
   const { userProfile, user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [blockedWords, setBlockedWords] = useState<string[]>(["badword", "spam", "scam", "fraud"]); // Local state for blocked words
+  // Use local state to manage the blocked words list for demonstration purposes
+  const [blockedWords, setBlockedWords] = useState<string[]>(STATIC_BLOCKED_WORDS); 
   const [newBlockedWord, setNewBlockedWord] = useState("");
+  const [targetUserIdAction, setTargetUserIdAction] = useState("");
 
   const isDeveloper = userProfile?.role === "developer";
 
   useEffect(() => {
     if (!isDeveloper) {
-      toast.error("Access Denied: You must be a developer to view this page.");
       setLoading(false);
       return;
     }
@@ -98,7 +100,7 @@ const DeveloperDashboardPage = () => {
     if (word && !blockedWords.includes(word)) {
       setBlockedWords((prev) => [...prev, word]);
       setNewBlockedWord("");
-      toast.success(`Word "${word}" added to blocked list.`);
+      toast.success(`Word "${word}" added to blocked list (local simulation).`);
     } else if (word) {
       toast.warning(`Word "${word}" is already blocked.`);
     }
@@ -106,7 +108,7 @@ const DeveloperDashboardPage = () => {
 
   const handleRemoveBlockedWord = (wordToRemove: string) => {
     setBlockedWords((prev) => prev.filter((word) => word !== wordToRemove));
-    toast.info(`Word "${wordToRemove}" removed from blocked list.`);
+    toast.info(`Word "${wordToRemove}" removed from blocked list (local simulation).`);
   };
 
   // --- User Management Handlers ---
@@ -289,20 +291,20 @@ const DeveloperDashboardPage = () => {
             <p className="text-xs text-muted-foreground mb-2">
               Enter the target user's Appwrite User ID to manage their account status.
             </p>
-            <form className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Input
                 id="targetUserIdAction"
                 type="text"
                 placeholder="Enter target User ID"
+                value={targetUserIdAction}
+                onChange={(e) => setTargetUserIdAction(e.target.value)}
                 className="flex-grow bg-input text-foreground border-border focus:ring-ring focus:border-ring"
               />
               <Button
                 type="button"
                 variant="destructive"
-                onClick={() => {
-                  const userId = (document.getElementById('targetUserIdAction') as HTMLInputElement)?.value;
-                  if (userId) handleDeleteUser(userId);
-                }}
+                onClick={() => handleDeleteUser(targetUserIdAction)}
+                disabled={!targetUserIdAction}
                 className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 <Trash2 className="mr-2 h-4 w-4" /> Delete User
@@ -310,15 +312,16 @@ const DeveloperDashboardPage = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => {
-                  const userId = (document.getElementById('targetUserIdAction') as HTMLInputElement)?.value;
-                  if (userId) handleSuspendUser(userId);
-                }}
+                onClick={() => handleSuspendUser(targetUserIdAction)}
+                disabled={!targetUserIdAction}
                 className="w-full sm:w-auto border-yellow-500 text-yellow-500 hover:bg-yellow-500/10"
               >
                 <Ban className="mr-2 h-4 w-4" /> Suspend User
               </Button>
-            </form>
+            </div>
+            <p className="text-xs text-destructive-foreground mt-1">
+              Note: Deletion and Suspension are simulated on the client side due to Appwrite SDK limitations.
+            </p>
           </CardContent>
         </Card>
 
@@ -328,12 +331,12 @@ const DeveloperDashboardPage = () => {
         <Card className="bg-card text-card-foreground shadow-lg border-border">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
-              <Shield className="h-5 w-5 text-secondary-neon" /> Content Moderation (Word Blocking)
+              <Shield className="h-5 w-5 text-secondary-neon" /> Content Moderation (Blocked Words)
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
             <p className="text-sm text-muted-foreground">
-              Manage the list of words blocked from user-submitted content (feedback, reports, etc.) to maintain a safe community environment.
+              This list is used to filter inappropriate language in user feedback and reports. (List is static/local for demonstration).
             </p>
             <div className="flex gap-2">
               <Input
@@ -375,7 +378,7 @@ const DeveloperDashboardPage = () => {
             {transactions.length === 0 ? (
               <p className="text-center text-muted-foreground py-4">No transactions found.</p>
             ) : (
-              <Table className="min-w-[800px]">
+              <Table className="min-w-[1000px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-foreground">Product</TableHead>
@@ -404,7 +407,7 @@ const DeveloperDashboardPage = () => {
                           {tx.status.replace(/_/g, ' ')}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right space-y-1">
+                      <TableCell className="text-right space-y-1 min-w-[150px]">
                         {tx.status === "payment_confirmed_to_developer" && (
                           <Button
                             variant="secondary"
