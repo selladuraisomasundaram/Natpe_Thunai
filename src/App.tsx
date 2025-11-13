@@ -41,6 +41,7 @@ import PostJobPage from "./pages/PostJobPage";
 
 // Import new Market sub-pages
 import ProductDetailsPage from "./pages/ProductDetailsPage";
+import PaymentConfirmationPage from "./pages/PaymentConfirmationPage"; // New Import
 
 // Import new Auth-related pages
 import VerifyEmailPage from "./pages/VerifyEmailPage";
@@ -125,6 +126,7 @@ const AppContent = () => {
         <Route path="/home" element={<HomePage />} />
         <Route path="/market" element={<MarketPage />} />
         <Route path="/market/product/:productId" element={<ProductDetailsPage />} />
+        <Route path="/market/confirm-payment/:transactionId" element={<PaymentConfirmationPage />} /> {/* New Route */}
         <Route path="/services" element={<ServicesPage />} />
         <Route path="/activity" element={<ActivityPage />} />
         <Route path="/profile" element={<ProfilePage />} />

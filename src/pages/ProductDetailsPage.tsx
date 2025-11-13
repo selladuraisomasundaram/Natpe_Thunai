@@ -49,6 +49,7 @@ const ProductDetailsPage = () => {
   const [feedbackText, setFeedbackText] = useState("");
   const [reportText, setReportText] = useState("");
   const [rating, setRating] = useState(0);
+  const [isInitiatingPayment, setIsInitiatingPayment] = useState(false); // New state for payment button loading
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -120,6 +121,7 @@ const ProductDetailsPage = () => {
       return;
     }
 
+    setIsInitiatingPayment(true);
     const developerUpiId = "8903480105@superyes"; // Updated developer UPI ID
     const amount = parseFloat(product.price.replace(/[^0-9.]/g, ''));
     const transactionNote = `${action === "buy" ? "Purchase" : "Rent"} of ${product.title} from Natpe🤝Thunai.`;
@@ -134,6 +136,7 @@ const ProductDetailsPage = () => {
 
       if (sellerProfiles.documents.length === 0) {
         toast.error("Seller profile not found. Cannot proceed with transaction.");
+        setIsInitiatingPayment(false);
         return;
       }
       const sellerProfile = sellerProfiles.documents[0] as any;
@@ -161,30 +164,24 @@ const ProductDetailsPage = () => {
           productTitle: product.title,
         }
       );
-      toast.info("Transaction initiated. Redirecting to your banking app for payment.");
-      toast.info("Remember: You pay the developers first. They will take their commission and then pay the seller.");
-
+      
       // 2. Construct UPI deep link
       const upiDeepLink = `upi://pay?pa=${developerUpiId}&pn=NatpeThunaiDevelopers&am=${amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
 
       // 3. Open UPI deep link
       window.open(upiDeepLink, "_blank");
 
-      // Simulate payment processing time and update status
-      setTimeout(async () => {
-        await databases.updateDocument(
-          APPWRITE_DATABASE_ID,
-          APPWRITE_TRANSACTIONS_COLLECTION_ID,
-          newTransaction.$id,
-          { status: "payment_confirmed_to_developer" }
-        );
-        toast.success("Payment confirmed to developer! Transaction status updated.");
-        navigate("/activity/tracking");
-      }, 5000);
+      toast.info("Transaction initiated. Please complete the payment in your banking app.");
+      toast.info("Remember: You pay the developers first. They will take their commission and then pay the seller.");
+
+      // 4. Redirect to confirmation page
+      navigate(`/market/confirm-payment/${newTransaction.$id}`);
 
     } catch (error: any) {
       console.error("Error during payment initiation:", error);
       toast.error(error.message || "Failed to initiate payment. Please try again.");
+    } finally {
+      setIsInitiatingPayment(false);
     }
   };
 
@@ -279,8 +276,13 @@ const ProductDetailsPage = () => {
               <Button
                 className="flex-1 bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90"
                 onClick={() => handlePayment(product.type === "rent" ? "rent" : "buy")}
+                disabled={isInitiatingPayment}
               >
-                {product.type === "rent" ? "Rent Now" : "Buy Now"}
+                {isInitiatingPayment ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  product.type === "rent" ? "Rent Now" : "Buy Now"
+                )}
               </Button>
               <Button
                 variant="outline"
