@@ -27,6 +27,7 @@ interface AuthContextType {
   isLoading: boolean;
   user: AppwriteUser | null;
   userProfile: UserProfile | null;
+  isVerified: boolean; // Added verification status
   login: () => Promise<void>;
   logout: () => void;
   updateUserProfile: (profileId: string, data: Partial<UserProfile>) => Promise<void>;
@@ -40,6 +41,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AppwriteUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const navigate = useNavigate();
+
+  const isVerified = user?.emailVerification ?? false; // Calculate verification status
 
   const fetchUserProfile = useCallback(async (userId: string) => {
     try {
@@ -126,7 +129,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, userProfile, login: loginUser, logout, updateUserProfile }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, userProfile, isVerified, login: loginUser, logout, updateUserProfile }}>
       {children}
     </AuthContext.Provider>
   );

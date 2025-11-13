@@ -18,6 +18,7 @@ import Header from "./components/layout/Header";
 import React from "react";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react"; // Import Loader2
+import VerificationBanner from "./components/VerificationBanner"; // Import VerificationBanner
 
 // Import new Activity sub-pages
 import TrackingPage from "./pages/TrackingPage";
@@ -52,7 +53,7 @@ import DeveloperDashboardPage from "./pages/DeveloperDashboardPage";
 const queryClient = new QueryClient();
 
 const AppLayout = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isVerified } = useAuth();
 
   if (!isAuthenticated) {
     // If not authenticated, redirect to auth page
@@ -62,6 +63,7 @@ const AppLayout = () => {
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
+      {!isVerified && <VerificationBanner />}
       <div className="flex-grow">
         <Outlet />
       </div>
