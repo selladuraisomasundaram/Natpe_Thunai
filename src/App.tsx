@@ -19,6 +19,7 @@ import React from "react";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react"; // Import Loader2
 import VerificationBanner from "./components/VerificationBanner"; // Import VerificationBanner
+import { useOnlineStatus } from "./hooks/useOnlineStatus"; // Import useOnlineStatus
 
 // Import new Activity sub-pages
 import TrackingPage from "./pages/TrackingPage";
@@ -48,6 +49,9 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 // Import new Developer Dashboard page
 import DeveloperDashboardPage from "./pages/DeveloperDashboardPage";
+
+// Import Offline Page
+import OfflinePage from "./pages/OfflinePage";
 
 
 const queryClient = new QueryClient();
@@ -101,6 +105,61 @@ const DeveloperLayout = () => {
 };
 
 
+const AppContent = () => {
+  const isOnline = useOnlineStatus();
+
+  if (!isOnline) {
+    return <OfflinePage />;
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<Index />} />
+      <Route path="/auth" element={<AuthPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      
+      {/* Protected Routes for all authenticated users */}
+      <Route element={<AppLayout />}>
+        <Route path="/home" element={<HomePage />} />
+        <Route path="/market" element={<MarketPage />} />
+        <Route path="/market/product/:productId" element={<ProductDetailsPage />} />
+        <Route path="/services" element={<ServicesPage />} />
+        <Route path="/activity" element={<ActivityPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/tournaments" element={<TournamentPage />} />
+
+        {/* Activity Sub-pages */}
+        <Route path="/activity/tracking" element={<TrackingPage />} />
+        <Route path="/activity/cash-exchange" element={<CashExchangePage />} />
+
+        {/* Profile Sub-pages */}
+        <Route path="/profile/details" element={<ProfileDetailsPage />} />
+        <Route path="/profile/wallet" element={<WalletPage />} />
+        <Route path="/profile/policies" element={<PoliciesPage />} />
+
+        {/* Services Sub-pages */}
+        <Route path="/services/freelance" element={<FreelancePage />} />
+        <Route path="/services/errands" element={<ErrandsPage />} />
+        <Route path="/services/short-term" element={<ShortTermNeedsPage />} />
+        <Route path="/services/food-wellness" element={<FoodWellnessPage />} />
+        <Route path="/services/ticket-booking" element={<TicketBookingPage />} />
+        <Route path="/services/collaborators" element={<CollaboratorsPage />} />
+        <Route path="/services/post-job" element={<PostJobPage />} />
+      </Route>
+
+      {/* Protected Routes for Developers Only */}
+      <Route element={<DeveloperLayout />}>
+        <Route path="/developer-dashboard" element={<DeveloperDashboardPage />} />
+      </Route>
+
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
+
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -108,49 +167,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<AuthPage />} />
-            <Route path="/verify-email" element={<VerifyEmailPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            
-            {/* Protected Routes for all authenticated users */}
-            <Route element={<AppLayout />}>
-              <Route path="/home" element={<HomePage />} />
-              <Route path="/market" element={<MarketPage />} />
-              <Route path="/market/product/:productId" element={<ProductDetailsPage />} />
-              <Route path="/services" element={<ServicesPage />} />
-              <Route path="/activity" element={<ActivityPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/tournaments" element={<TournamentPage />} />
-
-              {/* Activity Sub-pages */}
-              <Route path="/activity/tracking" element={<TrackingPage />} />
-              <Route path="/activity/cash-exchange" element={<CashExchangePage />} />
-
-              {/* Profile Sub-pages */}
-              <Route path="/profile/details" element={<ProfileDetailsPage />} />
-              <Route path="/profile/wallet" element={<WalletPage />} />
-              <Route path="/profile/policies" element={<PoliciesPage />} />
-
-              {/* Services Sub-pages */}
-              <Route path="/services/freelance" element={<FreelancePage />} />
-              <Route path="/services/errands" element={<ErrandsPage />} />
-              <Route path="/services/short-term" element={<ShortTermNeedsPage />} />
-              <Route path="/services/food-wellness" element={<FoodWellnessPage />} />
-              <Route path="/services/ticket-booking" element={<TicketBookingPage />} />
-              <Route path="/services/collaborators" element={<CollaboratorsPage />} />
-              <Route path="/services/post-job" element={<PostJobPage />} />
-            </Route>
-
-            {/* Protected Routes for Developers Only */}
-            <Route element={<DeveloperLayout />}>
-              <Route path="/developer-dashboard" element={<DeveloperDashboardPage />} />
-            </Route>
-
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <AppContent />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
