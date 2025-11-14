@@ -8,6 +8,7 @@ import { Briefcase, Edit, Video, PenTool, PlusCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import PostServiceForm from "@/components/forms/PostServiceForm"; // Import the new form
+import { Link } from "react-router-dom"; // Import Link
 
 interface ServicePost {
   id: string;
@@ -19,28 +20,22 @@ interface ServicePost {
   datePosted: string;
 }
 
-const dummyFreelanceServices: ServicePost[] = [
-  { id: "fs1", title: "Resume & Cover Letter Writing", description: "Crafting professional resumes and cover letters to help you land your dream job.", category: "Resume Building", price: "₹300-₹800", contact: "writer@example.com", datePosted: "2024-07-20" },
-  { id: "fs2", title: "Basic Video Editing", description: "Editing short videos for projects, social media, or personal use.", category: "Video Editing", price: "₹200/min", contact: "editor@example.com", datePosted: "2024-07-18" },
+// Define service categories and their icons
+const serviceCategories = [
+  { name: "Resume Building", icon: Edit, path: "/services/freelance/resume-building" },
+  { name: "Video Editing", icon: Video, path: "/services/freelance/video-editing" },
+  { name: "Content Writing", icon: PenTool, path: "/services/freelance/content-writing" },
+  { name: "Graphic Design", icon: PenTool, path: "/services/freelance/graphic-design" },
 ];
 
 const FreelancePage = () => {
   const [isPostServiceDialogOpen, setIsPostServiceDialogOpen] = useState(false);
-  const [postedServices, setPostedServices] = useState<ServicePost[]>(dummyFreelanceServices);
 
-  const handleServiceClick = (serviceName: string) => {
-    toast.info(`You selected "${serviceName}". Feature coming soon!`);
-    // In a real app, this would navigate to a service detail page or a booking form.
-  };
-
+  // We no longer need local state for postedServices as they are handled by the new ServiceListingPage
   const handlePostService = (data: Omit<ServicePost, "id" | "datePosted">) => {
-    const newService: ServicePost = {
-      ...data,
-      id: `fs${postedServices.length + 1}`,
-      datePosted: new Date().toISOString().split('T')[0],
-    };
-    setPostedServices((prev) => [newService, ...prev]);
-    toast.success(`Your service "${newService.title}" has been posted!`);
+    // This function is now primarily for posting a service without navigating immediately, 
+    // but we should encourage users to post via the specific category page.
+    toast.info(`Service "${data.title}" posted! Check the relevant category page.`);
     setIsPostServiceDialogOpen(false);
   };
 
@@ -51,41 +46,30 @@ const FreelancePage = () => {
         <Card className="bg-card text-card-foreground shadow-lg border-border">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
-              <Briefcase className="h-5 w-5 text-secondary-neon" /> Available Services
+              <Briefcase className="h-5 w-5 text-secondary-neon" /> Choose a Service Category
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-3">
             <p className="text-sm text-muted-foreground">
               Find and offer various freelance services within the campus community.
             </p>
-            <Button
-              className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleServiceClick("Resume Building")}
-            >
-              <Edit className="mr-2 h-4 w-4" /> Resume Building
-            </Button>
-            <Button
-              className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleServiceClick("Video Editing")}
-            >
-              <Video className="mr-2 h-4 w-4" /> Video Editing
-            </Button>
-            <Button
-              className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleServiceClick("Content Writing")}
-            >
-              <PenTool className="mr-2 h-4 w-4" /> Content Writing
-            </Button>
-            <Button
-              className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleServiceClick("Graphic Design")}
-            >
-              <PenTool className="mr-2 h-4 w-4" /> Graphic Design
-            </Button>
+            
+            {serviceCategories.map((item) => (
+              <Button
+                key={item.name}
+                asChild
+                className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Link to={item.path}>
+                  <item.icon className="mr-2 h-4 w-4" /> {item.name}
+                </Link>
+              </Button>
+            ))}
+
             <Dialog open={isPostServiceDialogOpen} onOpenChange={setIsPostServiceDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 mt-4">
-                  <PlusCircle className="mr-2 h-4 w-4" /> Post Your Service
+                  <PlusCircle className="mr-2 h-4 w-4" /> Post Your Service (General)
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
@@ -97,28 +81,8 @@ const FreelancePage = () => {
             </Dialog>
           </CardContent>
         </Card>
-
-        <Card className="bg-card text-card-foreground shadow-lg border-border">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xl font-semibold text-card-foreground">Recently Posted Services</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 space-y-4">
-            {postedServices.length > 0 ? (
-              postedServices.map((service) => (
-                <div key={service.id} className="p-3 border border-border rounded-md bg-background">
-                  <h3 className="font-semibold text-foreground">{service.title}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Category: <span className="font-medium text-foreground">{service.category}</span></p>
-                  <p className="text-xs text-muted-foreground">Price: <span className="font-medium text-foreground">{service.price}</span></p>
-                  <p className="text-xs text-muted-foreground">Contact: <span className="font-medium text-foreground">{service.contact}</span></p>
-                  <p className="text-xs text-muted-foreground">Posted: {service.datePosted}</p>
-                </div>
-              ))
-            ) : (
-              <p className="text-center text-muted-foreground py-4">No services posted yet. Be the first!</p>
-            )}
-          </CardContent>
-        </Card>
+        
+        {/* Removed the "Recently Posted Services" card as it's now handled dynamically */}
       </div>
       <MadeWithDyad />
     </div>

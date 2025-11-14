@@ -38,6 +38,7 @@ import FoodWellnessPage from "./pages/FoodWellnessPage";
 import TicketBookingPage from "./pages/TicketBookingPage";
 import CollaboratorsPage from "./pages/CollaboratorsPage";
 import PostJobPage from "./pages/PostJobPage";
+import ServiceListingPage from "./pages/ServiceListingPage"; // New Import
 
 // Import new Market sub-pages
 import ProductDetailsPage from "./pages/ProductDetailsPage";
@@ -143,6 +144,7 @@ const AppContent = () => {
 
         {/* Services Sub-pages */}
         <Route path="/services/freelance" element={<FreelancePage />} />
+        <Route path="/services/freelance/:category" element={<ServiceListingPage />} /> {/* New Dynamic Route */}
         <Route path="/services/errands" element={<ErrandsPage />} />
         <Route path="/services/short-term" element={<ShortTermNeedsPage />} />
         <Route path="/services/food-wellness" element={<FoodWellnessPage />} />
