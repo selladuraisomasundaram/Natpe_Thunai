@@ -8,6 +8,9 @@ import RentListingForm from "./RentListingForm";
 import GiftCraftListingForm from "./GiftCraftListingForm";
 import SportsGearListingForm from "./SportsGearListingForm";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID } from "@/lib/appwrite";
+import { ID } from 'appwrite';
 
 interface MarketListingFormWrapperProps {
   onClose: () => void;
@@ -15,12 +18,58 @@ interface MarketListingFormWrapperProps {
 
 const MarketListingFormWrapper: React.FC<MarketListingFormWrapperProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<"sell" | "rent" | "gift" | "sports">("sell");
+  const { user, userProfile } = useAuth();
 
-  const handleListingSubmit = (data: any, type: string) => {
-    console.log(`New ${type} listing submitted:`, data);
-    toast.success(`New ${type} listing created successfully!`);
-    // In a real app, this data would be sent to Appwrite databases.
-    onClose();
+  const handleListingSubmit = async (data: any, type: "Sell" | "Rent" | "Gift/Craft" | "Sports Gear") => {
+    if (!user || !userProfile) {
+      toast.error("You must be logged in and have a complete profile to create a listing.");
+      return;
+    }
+
+    const productType = type === "Sell" ? "sell" : type === "Rent" ? "rent" : type === "Gift/Craft" ? "gift" : "sports";
+    
+    const newProductData = {
+      // Core Product Fields
+      title: data.title,
+      price: data.price, // e.g., "₹450.00" or "₹15.00/day"
+      description: data.description,
+      imageUrl: data.imageUrl,
+      type: productType,
+      
+      // Seller Info (from Auth Context)
+      sellerId: user.$id,
+      sellerName: user.name,
+      sellerUpiId: userProfile.upiId,
+      
+      // Mocked/Default Fields
+      sellerRating: 5.0, // Default high rating for new sellers
+      location: "Campus Area", // Placeholder location
+      
+      // Type-specific fields (using null for fields not applicable to the current type)
+      category: data.category || null, // Used by Sell
+      damages: data.damages || null, // Used by Sell/Sports
+      condition: data.condition || null, // Used by Sports
+      policies: data.policies || null, // Used by Rent
+      
+      // Delivery/Ambassador Info
+      ambassadorDelivery: data.ambassadorDelivery,
+      ambassadorMessage: data.ambassadorMessage || null,
+    };
+
+    try {
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_PRODUCTS_COLLECTION_ID,
+        ID.unique(),
+        newProductData
+      );
+      
+      toast.success(`New ${type} listing created successfully!`);
+      onClose();
+    } catch (error: any) {
+      console.error(`Error creating ${type} listing:`, error);
+      toast.error(error.message || `Failed to create ${type} listing. Check Appwrite permissions and schema.`);
+    }
   };
 
   return (
