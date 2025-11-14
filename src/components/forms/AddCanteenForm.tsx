@@ -8,23 +8,22 @@ import { DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 interface AddCanteenFormProps {
-  onSubmit: (canteenName: string) => void;
+  onSubmit: (canteenName: string) => Promise<void>; // Changed to return Promise<void>
   onCancel: () => void;
+  loading: boolean; // Added loading prop
 }
 
-const AddCanteenForm: React.FC<AddCanteenFormProps> = ({ onSubmit, onCancel }) => {
+const AddCanteenForm: React.FC<AddCanteenFormProps> = ({ onSubmit, onCancel, loading }) => {
   const [canteenName, setCanteenName] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canteenName.trim()) {
       toast.error("Canteen name cannot be empty.");
       return;
     }
-    setLoading(true);
-    onSubmit(canteenName.trim());
-    // Note: onSubmit handles setting loading=false and closing the dialog on success/failure
+    await onSubmit(canteenName.trim());
+    setCanteenName(""); // Clear input after submission attempt
   };
 
   return (

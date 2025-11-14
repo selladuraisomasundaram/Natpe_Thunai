@@ -31,7 +31,8 @@ const CanteenManagerWidget = () => {
   const [loading, setLoading] = useState(true);
   const [newItemName, setNewItemName] = useState("");
   const [isAddingItem, setIsAddingItem] = useState(false);
-  const [isAddingCanteen, setIsAddingCanteen] = useState(false);
+  const [isAddCanteenDialogOpen, setIsAddCanteenDialogOpen] = useState(false); // Dialog state
+  const [isAddingCanteen, setIsAddingCanteen] = useState(false); // Loading state for submission
   const [isUpdating, setIsUpdating] = useState(false);
 
   const selectedCanteen = allCanteens.find(c => c.$id === selectedCanteenId);
@@ -103,12 +104,12 @@ const CanteenManagerWidget = () => {
       setAllCanteens(prev => [...prev, newDoc]);
       setSelectedCanteenId(newDoc.$id);
       toast.success(`Canteen "${canteenName}" added successfully!`);
-      setIsAddingCanteen(false);
-      setIsAddingCanteen(false); // Close dialog
+      setIsAddCanteenDialogOpen(false); // Close dialog on success
     } catch (e: any) {
       console.error("Error adding canteen:", e);
       toast.error(e.message || "Failed to add new canteen.");
-      setIsAddingCanteen(false);
+    } finally {
+      setIsAddingCanteen(false); // Stop loading regardless of outcome
     }
   };
 
@@ -176,7 +177,7 @@ const CanteenManagerWidget = () => {
           <UtensilsCrossed className="h-5 w-5 text-secondary-neon" /> Canteen Manager
         </CardTitle>
         <div className="flex items-center gap-2">
-          <Dialog open={isAddingCanteen} onOpenChange={setIsAddingCanteen}>
+          <Dialog open={isAddCanteenDialogOpen} onOpenChange={setIsAddCanteenDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-secondary-neon" disabled={isUpdating}>
                 <Plus className="h-4 w-4" />
@@ -187,7 +188,11 @@ const CanteenManagerWidget = () => {
               <DialogHeader>
                 <DialogTitle className="text-foreground">Add New Canteen</DialogTitle>
               </DialogHeader>
-              <AddCanteenForm onSubmit={handleAddCanteen} onCancel={() => setIsAddingCanteen(false)} />
+              <AddCanteenForm 
+                onSubmit={handleAddCanteen} 
+                onCancel={() => setIsAddCanteenDialogOpen(false)} 
+                loading={isAddingCanteen}
+              />
             </DialogContent>
           </Dialog>
           <Button variant="ghost" size="icon" onClick={handleRefresh} className="text-muted-foreground hover:text-secondary-neon" disabled={isUpdating}>
@@ -255,6 +260,11 @@ const CanteenManagerWidget = () => {
                 </ul>
 
                 <Dialog open={isAddingItem} onOpenChange={setIsAddingItem}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full mt-4 border-secondary-neon text-secondary-neon hover:bg-secondary-neon/10" disabled={isUpdating}>
+                      <Plus className="mr-2 h-4 w-4" /> Add New Item
+                    </Button>
+                  </DialogTrigger>
                   <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
                     <DialogHeader>
                       <DialogTitle className="text-foreground">Add New Food Item to {selectedCanteen.name}</DialogTitle>
@@ -285,9 +295,23 @@ const CanteenManagerWidget = () => {
         ) : (
           <div className="text-center space-y-4 py-4">
             <p className="text-muted-foreground">No canteens found. Be the first to add one!</p>
-            <Button onClick={() => setIsAddingCanteen(true)} className="bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-              <Plus className="mr-2 h-4 w-4" /> Add First Canteen
-            </Button>
+            <Dialog open={isAddCanteenDialogOpen} onOpenChange={setIsAddCanteenDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
+                  <Plus className="mr-2 h-4 w-4" /> Add First Canteen
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
+                <DialogHeader>
+                  <DialogTitle className="text-foreground">Add New Canteen</DialogTitle>
+                </DialogHeader>
+                <AddCanteenForm 
+                  onSubmit={handleAddCanteen} 
+                  onCancel={() => setIsAddCanteenDialogOpen(false)} 
+                  loading={isAddingCanteen}
+                />
+              </DialogContent>
+            </Dialog>
           </div>
         )}
       </CardContent>
