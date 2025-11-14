@@ -52,8 +52,15 @@ const AuthPage = () => {
   const [gender, setGender] = useState<"male" | "female" | "prefer-not-to-say">("prefer-not-to-say"); // New state for gender
   const [userType, setUserType] = useState<"student" | "staff">("student"); // New state for user type
 
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth(); // Destructure isAuthenticated and isLoading
   const navigate = useNavigate();
+
+  // Redirect if already authenticated
+  React.useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      navigate("/home", { replace: true });
+    }
+  }, [isLoading, isAuthenticated, navigate]);
 
   React.useEffect(() => {
     if (!isLogin && generatedUsernames.length === 0) {
@@ -69,7 +76,7 @@ const AuthPage = () => {
         await account.createEmailPasswordSession(email, password);
         login();
         toast.success("Logged in successfully!");
-        navigate("/home", { replace: true });
+        // Redirection handled by useEffect now, but we keep the login call
       } else {
         if (!termsAccepted) {
           toast.error("You must accept the terms and conditions.");
@@ -146,8 +153,8 @@ const AuthPage = () => {
         await account.createEmailPasswordSession(email, password);
         login();
         toast.success("You are now logged in!");
-        navigate("/home", { replace: true });
-
+        // Redirection handled by useEffect now
+        
         setFirstName("");
         setLastName("");
         setAge("");
