@@ -4,45 +4,58 @@ import React, { useState } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ShoppingBag, NotebookPen, Bike, PlusCircle } from "lucide-react";
+import { ShoppingBag, NotebookPen, Bike, PlusCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import PostErrandForm from "@/components/forms/PostErrandForm"; // Import the new form
+import PostErrandForm from "@/components/forms/PostErrandForm";
+import { useErrandListings, ErrandPost } from "@/hooks/useErrandListings";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_ERRANDS_COLLECTION_ID } from "@/lib/appwrite";
+import { ID } from 'appwrite';
+import { useAuth } from "@/context/AuthContext";
 
-interface ErrandPost {
-  id: string;
-  title: string;
-  description: string;
-  type: string;
-  compensation: string;
-  deadline?: string;
-  contact: string;
-  datePosted: string;
-}
-
-const dummyErrands: ErrandPost[] = [
-  { id: "e1", title: "Note-taking for CS101 Lecture", description: "Need someone to take detailed notes for CS101 lectures on Tuesdays and Thursdays.", type: "Note-writing/Transcription", compensation: "₹100/lecture", contact: "studentA@example.com", datePosted: "2024-07-22" },
-  { id: "e2", title: "Help moving books to new hostel room", description: "Require assistance moving 3 boxes of books from old hostel to new room. Should take about an hour.", type: "Small Job (e.g., moving books)", compensation: "Lunch + ₹50", contact: "studentB@example.com", datePosted: "2024-07-21" },
-];
+// Errand types specific to this page
+const ERRAND_TYPES = ["note-writing", "small-job", "delivery"];
 
 const ErrandsPage = () => {
+  const { user, userProfile } = useAuth();
   const [isPostErrandDialogOpen, setIsPostErrandDialogOpen] = useState(false);
-  const [postedErrands, setPostedErrands] = useState<ErrandPost[]>(dummyErrands);
+  
+  // Fetch only standard errands
+  const { errands: postedErrands, isLoading, error } = useErrandListings(ERRAND_TYPES);
+
+  // Content is age-gated if user is 25 or older
+  const isAgeGated = (userProfile?.age ?? 0) >= 25; 
 
   const handleErrandClick = (errandType: string) => {
-    toast.info(`You selected "${errandType}". Feature coming soon!`);
-    // In a real app, this would navigate to a form to post an errand.
+    toast.info(`You selected "${errandType}". Post your errand using the button below.`);
   };
 
-  const handlePostErrand = (data: Omit<ErrandPost, "id" | "datePosted">) => {
-    const newErrand: ErrandPost = {
-      ...data,
-      id: `e${postedErrands.length + 1}`,
-      datePosted: new Date().toISOString().split('T')[0],
-    };
-    setPostedErrands((prev) => [newErrand, ...prev]);
-    toast.success(`Your errand "${newErrand.title}" has been posted!`);
-    setIsPostErrandDialogOpen(false);
+  const handlePostErrand = async (data: Omit<ErrandPost, "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId" | "posterId" | "posterName">) => {
+    if (!user || !userProfile) {
+      toast.error("You must be logged in to post an errand.");
+      return;
+    }
+
+    try {
+      const newErrandData = {
+        ...data,
+        posterId: user.$id,
+        posterName: user.name,
+      };
+
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_ERRANDS_COLLECTION_ID,
+        ID.unique(),
+        newErrandData
+      );
+      
+      toast.success(`Your errand "${data.title}" has been posted!`);
+      setIsPostErrandDialogOpen(false);
+    } catch (e: any) {
+      console.error("Error posting errand:", e);
+      toast.error(e.message || "Failed to post errand listing.");
+    }
   };
 
   return (
@@ -79,7 +92,7 @@ const ErrandsPage = () => {
             </Button>
             <Dialog open={isPostErrandDialogOpen} onOpenChange={setIsPostErrandDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 mt-4">
+                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 mt-4" disabled={isAgeGated}>
                   <PlusCircle className="mr-2 h-4 w-4" /> Post Your Errand
                 </Button>
               </DialogTrigger>
@@ -101,16 +114,23 @@ const ErrandsPage = () => {
             <CardTitle className="text-xl font-semibold text-card-foreground">Recently Posted Errands</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
-            {postedErrands.length > 0 ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
+                <p className="ml-3 text-muted-foreground">Loading errands...</p>
+              </div>
+            ) : error ? (
+              <p className="text-center text-destructive py-4">Error loading errands: {error}</p>
+            ) : postedErrands.length > 0 ? (
               postedErrands.map((errand) => (
-                <div key={errand.id} className="p-3 border border-border rounded-md bg-background">
+                <div key={errand.$id} className="p-3 border border-border rounded-md bg-background">
                   <h3 className="font-semibold text-foreground">{errand.title}</h3>
                   <p className="text-sm text-muted-foreground mt-1">{errand.description}</p>
                   <p className="text-xs text-muted-foreground mt-1">Type: <span className="font-medium text-foreground">{errand.type}</span></p>
                   <p className="text-xs text-muted-foreground">Compensation: <span className="font-medium text-foreground">{errand.compensation}</span></p>
                   {errand.deadline && <p className="text-xs text-muted-foreground">Deadline: <span className="font-medium text-foreground">{errand.deadline}</span></p>}
                   <p className="text-xs text-muted-foreground">Contact: <span className="font-medium text-foreground">{errand.contact}</span></p>
-                  <p className="text-xs text-muted-foreground">Posted: {errand.datePosted}</p>
+                  <p className="text-xs text-muted-foreground">Posted: {new Date(errand.$createdAt).toLocaleDateString()}</p>
                 </div>
               ))
             ) : (

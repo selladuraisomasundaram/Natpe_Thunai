@@ -4,64 +4,121 @@ import React, { useState } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Soup, HeartPulse, ShieldCheck, PlusCircle, Utensils } from "lucide-react"; // Added Utensils icon
+import { Soup, HeartPulse, ShieldCheck, PlusCircle, Utensils, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import PostServiceForm from "@/components/forms/PostServiceForm"; // Import the new form
+import PostServiceForm from "@/components/forms/PostServiceForm";
+import { useServiceListings, ServicePost } from "@/hooks/useServiceListings";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_SERVICES_COLLECTION_ID } from "@/lib/appwrite";
+import { ID } from 'appwrite';
+import { useAuth } from "@/context/AuthContext";
 
-interface ServicePost {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  price: string;
-  contact: string;
-  datePosted: string;
-  customOrderDescription?: string; // New optional field
-  isCustomRequest?: boolean; // New field to differentiate custom requests
-}
-
-const dummyFoodWellnessOfferings: ServicePost[] = [
-  { id: "fw1", title: "Homemade Healthy Lunchboxes", description: "Nutritious and delicious lunchboxes prepared fresh daily. Customizable options available.", category: "Homemade Meals", price: "₹150/meal", contact: "chef@example.com", datePosted: "2024-07-21" },
-  { id: "fw2", title: "Herbal Immunity Boosters", description: "Natural herbal remedies to boost your immunity and well-being.", category: "Wellness Remedies", price: "₹200/pack", contact: "herbalist@example.com", datePosted: "2024-07-19" },
-];
-
-const dummyCustomRequests: ServicePost[] = [
-  { id: "cr1", title: "Vegan Meal Prep Request", description: "Looking for someone to prepare vegan meals for a week.", category: "Homemade Meals", price: "₹1000-₹1500", contact: "veganuser@example.com", datePosted: "2024-07-23", customOrderDescription: "No nuts, gluten-free, high protein. Deliver to hostel room 205.", isCustomRequest: true },
-];
+// Service categories specific to this page
+const OFFERING_CATEGORIES = ["homemade-meals", "wellness-remedies"];
 
 const FoodWellnessPage = () => {
+  const { user, userProfile } = useAuth();
   const [isPostServiceDialogOpen, setIsPostServiceDialogOpen] = useState(false);
-  const [isPostCustomOrderDialogOpen, setIsPostCustomOrderDialogOpen] = useState(false); // New state
-  const [postedOfferings, setPostedOfferings] = useState<ServicePost[]>(dummyFoodWellnessOfferings);
-  const [postedCustomRequests, setPostedCustomRequests] = useState<ServicePost[]>(dummyCustomRequests); // New state
+  const [isPostCustomOrderDialogOpen, setIsPostCustomOrderDialogOpen] = useState(false);
+  
+  // Fetch all food/wellness related posts
+  const { services: allPosts, isLoading, error } = useServiceListings(undefined); 
+
+  const postedOfferings = allPosts.filter(p => !p.isCustomOrder && OFFERING_CATEGORIES.includes(p.category));
+  const postedCustomRequests = allPosts.filter(p => p.isCustomOrder);
 
   const handleServiceClick = (serviceName: string) => {
-    toast.info(`You selected "${serviceName}". Feature coming soon!`);
+    toast.info(`You selected "${serviceName}". Post your offering using the button below.`);
   };
 
-  const handlePostService = (data: Omit<ServicePost, "id" | "datePosted">) => {
-    const newOffering: ServicePost = {
-      ...data,
-      id: `fw${postedOfferings.length + 1}`,
-      datePosted: new Date().toISOString().split('T')[0],
-      isCustomRequest: false,
-    };
-    setPostedOfferings((prev) => [newOffering, ...prev]);
-    toast.success(`Your offering "${newOffering.title}" has been posted!`);
-    setIsPostServiceDialogOpen(false);
+  const handlePostService = async (data: Omit<ServicePost, "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId" | "posterId" | "posterName">) => {
+    if (!user || !userProfile) {
+      toast.error("You must be logged in to post.");
+      return;
+    }
+
+    try {
+      const newPostData = {
+        ...data,
+        posterId: user.$id,
+        posterName: user.name,
+        isCustomOrder: false,
+      };
+
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_SERVICES_COLLECTION_ID,
+        ID.unique(),
+        newPostData
+      );
+      
+      toast.success(`Your offering "${data.title}" has been posted!`);
+      setIsPostServiceDialogOpen(false);
+    } catch (e: any) {
+      console.error("Error posting service:", e);
+      toast.error(e.message || "Failed to post offering.");
+    }
   };
 
-  const handlePostCustomOrder = (data: Omit<ServicePost, "id" | "datePosted">) => {
-    const newRequest: ServicePost = {
-      ...data,
-      id: `cr${postedCustomRequests.length + 1}`,
-      datePosted: new Date().toISOString().split('T')[0],
-      isCustomRequest: true,
-    };
-    setPostedCustomRequests((prev) => [newRequest, ...prev]);
-    toast.success(`Your custom order request "${newRequest.title}" has been posted!`);
-    setIsPostCustomOrderDialogOpen(false);
+  const handlePostCustomOrder = async (data: Omit<ServicePost, "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId" | "posterId" | "posterName">) => {
+    if (!user || !userProfile) {
+      toast.error("You must be logged in to post a custom request.");
+      return;
+    }
+
+    try {
+      const newRequest: Omit<ServicePost, "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId"> = {
+        ...data,
+        posterId: user.$id,
+        posterName: user.name,
+        isCustomOrder: true,
+      };
+
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_SERVICES_COLLECTION_ID,
+        ID.unique(),
+        newRequest
+      );
+      
+      toast.success(`Your custom order request "${data.title}" has been posted!`);
+      setIsPostCustomOrderDialogOpen(false);
+    } catch (e: any) {
+      console.error("Error posting custom request:", e);
+      toast.error(e.message || "Failed to post custom request.");
+    }
+  };
+
+  const renderListings = (list: ServicePost[], title: string) => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
+          <p className="ml-3 text-muted-foreground">Loading {title.toLowerCase()}...</p>
+        </div>
+      );
+    }
+    if (error) {
+      return <p className="text-center text-destructive py-4">Error loading {title.toLowerCase()}: {error}</p>;
+    }
+    if (list.length === 0) {
+      return <p className="text-center text-muted-foreground py-4">No {title.toLowerCase()} posted yet. Be the first!</p>;
+    }
+
+    return list.map((post) => (
+      <div key={post.$id} className="p-3 border border-border rounded-md bg-background">
+        <h3 className="font-semibold text-foreground">{post.title}</h3>
+        <p className="text-sm text-muted-foreground mt-1">{post.description}</p>
+        {post.isCustomOrder && post.customOrderDescription && (
+          <p className="text-xs text-muted-foreground mt-1">Details: <span className="font-medium text-foreground">{post.customOrderDescription}</span></p>
+        )}
+        <p className="text-xs text-muted-foreground mt-1">Category: <span className="font-medium text-foreground">{post.category}</span></p>
+        <p className="text-xs text-muted-foreground">{post.isCustomOrder ? "Budget" : "Price"}: <span className="font-medium text-foreground">{post.price}</span></p>
+        <p className="text-xs text-muted-foreground">Contact: <span className="font-medium text-foreground">{post.contact}</span></p>
+        <p className="text-xs text-muted-foreground">Posted by: {post.posterName}</p>
+        <p className="text-xs text-muted-foreground">Posted: {new Date(post.$createdAt).toLocaleDateString()}</p>
+      </div>
+    ));
   };
 
   return (
@@ -129,20 +186,7 @@ const FoodWellnessPage = () => {
             <CardTitle className="text-xl font-semibold text-card-foreground">Recently Posted Offerings</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
-            {postedOfferings.length > 0 ? (
-              postedOfferings.map((offering) => (
-                <div key={offering.id} className="p-3 border border-border rounded-md bg-background">
-                  <h3 className="font-semibold text-foreground">{offering.title}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{offering.description}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Category: <span className="font-medium text-foreground">{offering.category}</span></p>
-                  <p className="text-xs text-muted-foreground">Price: <span className="font-medium text-foreground">{offering.price}</span></p>
-                  <p className="text-xs text-muted-foreground">Contact: <span className="font-medium text-foreground">{offering.contact}</span></p>
-                  <p className="text-xs text-muted-foreground">Posted: {offering.datePosted}</p>
-                </div>
-              ))
-            ) : (
-              <p className="text-center text-muted-foreground py-4">No offerings posted yet. Be the first!</p>
-            )}
+            {renderListings(postedOfferings, "Offerings")}
           </CardContent>
         </Card>
 
@@ -153,23 +197,7 @@ const FoodWellnessPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
-            {postedCustomRequests.length > 0 ? (
-              postedCustomRequests.map((request) => (
-                <div key={request.id} className="p-3 border border-border rounded-md bg-background">
-                  <h3 className="font-semibold text-foreground">{request.title}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{request.description}</p>
-                  {request.customOrderDescription && (
-                    <p className="text-xs text-muted-foreground mt-1">Details: <span className="font-medium text-foreground">{request.customOrderDescription}</span></p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-1">Category: <span className="font-medium text-foreground">{request.category}</span></p>
-                  <p className="text-xs text-muted-foreground">Budget: <span className="font-medium text-foreground">{request.price}</span></p>
-                  <p className="text-xs text-muted-foreground">Contact: <span className="font-medium text-foreground">{request.contact}</span></p>
-                  <p className="text-xs text-muted-foreground">Posted: {request.datePosted}</p>
-                </div>
-              ))
-            ) : (
-              <p className="text-center text-muted-foreground py-4">No custom order requests yet. Be the first to request!</p>
-            )}
+            {renderListings(postedCustomRequests, "Custom Order Requests")}
           </CardContent>
         </Card>
       </div>

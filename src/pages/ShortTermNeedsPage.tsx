@@ -4,45 +4,58 @@ import React, { useState } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, Zap, PlusCircle } from "lucide-react";
+import { Clock, Zap, PlusCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import PostErrandForm from "@/components/forms/PostErrandForm"; // Import the new form
+import PostErrandForm from "@/components/forms/PostErrandForm";
+import { useErrandListings, ErrandPost } from "@/hooks/useErrandListings";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_ERRANDS_COLLECTION_ID } from "@/lib/appwrite";
+import { ID } from 'appwrite';
+import { useAuth } from "@/context/AuthContext";
 
-interface ErrandPost {
-  id: string;
-  title: string;
-  description: string;
-  type: string;
-  compensation: string;
-  deadline?: string;
-  contact: string;
-  datePosted: string;
-}
-
-const dummyUrgentRequests: ErrandPost[] = [
-  { id: "st1", title: "Urgent: Laptop Charger Needed!", description: "My laptop charger broke, need a Type-C charger for a few hours ASAP.", type: "Instant Help", compensation: "₹50 + coffee", contact: "studentC@example.com", datePosted: "2024-07-23" },
-  { id: "st2", title: "Emergency: Medicine Delivery", description: "Need paracetamol delivered to hostel room 404 within 30 minutes.", type: "Emergency Deliveries", compensation: "₹100", contact: "studentD@example.com", datePosted: "2024-07-23" },
-];
+// Errand types specific to this page (Urgent/Short-Term)
+const URGENT_TYPES = ["instant-help", "emergency-delivery"];
 
 const ShortTermNeedsPage = () => {
+  const { user, userProfile } = useAuth();
   const [isPostErrandDialogOpen, setIsPostErrandDialogOpen] = useState(false);
-  const [postedUrgentRequests, setPostedUrgentRequests] = useState<ErrandPost[]>(dummyUrgentRequests);
+  
+  // Fetch only urgent requests
+  const { errands: postedUrgentRequests, isLoading, error } = useErrandListings(URGENT_TYPES);
+
+  // Content is age-gated if user is 25 or older
+  const isAgeGated = (userProfile?.age ?? 0) >= 25; 
 
   const handleNeedClick = (needType: string) => {
-    toast.info(`You selected "${needType}". Feature coming soon!`);
-    // In a real app, this would navigate to a form to post an urgent request.
+    toast.info(`You selected "${needType}". Post your urgent request using the button below.`);
   };
 
-  const handlePostErrand = (data: Omit<ErrandPost, "id" | "datePosted">) => {
-    const newRequest: ErrandPost = {
-      ...data,
-      id: `st${postedUrgentRequests.length + 1}`,
-      datePosted: new Date().toISOString().split('T')[0],
-    };
-    setPostedUrgentRequests((prev) => [newRequest, ...prev]);
-    toast.success(`Your urgent request "${newRequest.title}" has been posted!`);
-    setIsPostErrandDialogOpen(false);
+  const handlePostErrand = async (data: Omit<ErrandPost, "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId" | "posterId" | "posterName">) => {
+    if (!user || !userProfile) {
+      toast.error("You must be logged in to post an urgent request.");
+      return;
+    }
+
+    try {
+      const newRequestData = {
+        ...data,
+        posterId: user.$id,
+        posterName: user.name,
+      };
+
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_ERRANDS_COLLECTION_ID,
+        ID.unique(),
+        newRequestData
+      );
+      
+      toast.success(`Your urgent request "${data.title}" has been posted!`);
+      setIsPostErrandDialogOpen(false);
+    } catch (e: any) {
+      console.error("Error posting urgent request:", e);
+      toast.error(e.message || "Failed to post urgent request listing.");
+    }
   };
 
   return (
@@ -73,7 +86,7 @@ const ShortTermNeedsPage = () => {
             </Button>
             <Dialog open={isPostErrandDialogOpen} onOpenChange={setIsPostErrandDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 mt-4">
+                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 mt-4" disabled={isAgeGated}>
                   <PlusCircle className="mr-2 h-4 w-4" /> Post Urgent Request
                 </Button>
               </DialogTrigger>
@@ -95,16 +108,23 @@ const ShortTermNeedsPage = () => {
             <CardTitle className="text-xl font-semibold text-card-foreground">Recently Posted Urgent Requests</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
-            {postedUrgentRequests.length > 0 ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
+                <p className="ml-3 text-muted-foreground">Loading urgent requests...</p>
+              </div>
+            ) : error ? (
+              <p className="text-center text-destructive py-4">Error loading requests: {error}</p>
+            ) : postedUrgentRequests.length > 0 ? (
               postedUrgentRequests.map((request) => (
-                <div key={request.id} className="p-3 border border-border rounded-md bg-background">
+                <div key={request.$id} className="p-3 border border-border rounded-md bg-background">
                   <h3 className="font-semibold text-foreground">{request.title}</h3>
                   <p className="text-sm text-muted-foreground mt-1">{request.description}</p>
                   <p className="text-xs text-muted-foreground mt-1">Type: <span className="font-medium text-foreground">{request.type}</span></p>
                   <p className="text-xs text-muted-foreground">Compensation: <span className="font-medium text-foreground">{request.compensation}</span></p>
                   {request.deadline && <p className="text-xs text-muted-foreground">Deadline: <span className="font-medium text-foreground">{request.deadline}</span></p>}
                   <p className="text-xs text-muted-foreground">Contact: <span className="font-medium text-foreground">{request.contact}</span></p>
-                  <p className="text-xs text-muted-foreground">Posted: {request.datePosted}</p>
+                  <p className="text-xs text-muted-foreground">Posted: {new Date(request.$createdAt).toLocaleDateString()}</p>
                 </div>
               ))
             ) : (

@@ -7,53 +7,65 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, PlusCircle, Search } from "lucide-react";
+import { Users, PlusCircle, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-
-interface ProjectPost {
-  id: string;
-  title: string;
-  description: string;
-  skillsNeeded: string;
-  contact: string;
-  datePosted: string;
-}
-
-const dummyProjectPosts: ProjectPost[] = [
-  { id: "p1", title: "React Native App for Event Management", description: "Looking for a mobile developer to help build a campus event app.", skillsNeeded: "React Native, Firebase", contact: "dev.team@example.com", datePosted: "2024-07-20" },
-  { id: "p2", title: "Research Assistant for AI Ethics", description: "Need help with literature review and data analysis for an AI ethics paper.", skillsNeeded: "Research, Python, Ethics", contact: "prof.smith@example.com", datePosted: "2024-07-18" },
-];
+import { useCollaboratorPosts, CollaboratorPost } from "@/hooks/useCollaboratorPosts";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_COLLABORATORS_COLLECTION_ID } from "@/lib/appwrite";
+import { ID } from 'appwrite';
+import { useAuth } from "@/context/AuthContext";
 
 const CollaboratorsPage = () => {
+  const { user, userProfile } = useAuth();
+  const { posts: projectPosts, isLoading, error } = useCollaboratorPosts();
   const [isPostDialogOpen, setIsPostDialogOpen] = useState(false);
   const [postTitle, setPostTitle] = useState("");
   const [postDescription, setPostDescription] = useState("");
   const [postSkills, setPostSkills] = useState("");
   const [postContact, setPostContact] = useState("");
+  const [isPosting, setIsPosting] = useState(false);
 
-  const handlePostSubmit = (e: React.FormEvent) => {
+  const handlePostSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user || !userProfile) {
+      toast.error("You must be logged in to post a project.");
+      return;
+    }
     if (!postTitle || !postDescription || !postSkills || !postContact) {
       toast.error("Please fill in all required fields.");
       return;
     }
 
-    const newPost: ProjectPost = {
-      id: `p${dummyProjectPosts.length + 1}`,
-      title: postTitle,
-      description: postDescription,
-      skillsNeeded: postSkills,
-      contact: postContact,
-      datePosted: new Date().toISOString().split('T')[0],
-    };
-    dummyProjectPosts.unshift(newPost); // Add to the beginning for visibility
-    toast.success(`Your project "${newPost.title}" has been posted!`);
-    setIsPostDialogOpen(false);
-    setPostTitle("");
-    setPostDescription("");
-    setPostSkills("");
-    setPostContact("");
+    setIsPosting(true);
+    try {
+      const newPostData = {
+        title: postTitle,
+        description: postDescription,
+        skillsNeeded: postSkills,
+        contact: postContact,
+        posterId: user.$id,
+        posterName: user.name,
+      };
+
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_COLLABORATORS_COLLECTION_ID,
+        ID.unique(),
+        newPostData
+      );
+
+      toast.success(`Your project "${postTitle}" has been posted!`);
+      setIsPostDialogOpen(false);
+      setPostTitle("");
+      setPostDescription("");
+      setPostSkills("");
+      setPostContact("");
+    } catch (e: any) {
+      console.error("Error posting collaborator project:", e);
+      toast.error(e.message || "Failed to post project.");
+    } finally {
+      setIsPosting(false);
+    }
   };
 
   return (
@@ -91,14 +103,22 @@ const CollaboratorsPage = () => {
             <CardTitle className="text-xl font-semibold text-card-foreground">Recent Project Posts</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
-            {dummyProjectPosts.length > 0 ? (
-              dummyProjectPosts.map((post) => (
-                <div key={post.id} className="p-3 border border-border rounded-md bg-background">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
+                <p className="ml-3 text-muted-foreground">Loading posts...</p>
+              </div>
+            ) : error ? (
+              <p className="text-center text-destructive py-4">Error loading posts: {error}</p>
+            ) : projectPosts.length > 0 ? (
+              projectPosts.map((post) => (
+                <div key={post.$id} className="p-3 border border-border rounded-md bg-background">
                   <h3 className="font-semibold text-foreground">{post.title}</h3>
                   <p className="text-sm text-muted-foreground mt-1">{post.description}</p>
                   <p className="text-xs text-muted-foreground mt-1">Skills: <span className="font-medium text-foreground">{post.skillsNeeded}</span></p>
                   <p className="text-xs text-muted-foreground">Contact: <span className="font-medium text-foreground">{post.contact}</span></p>
-                  <p className="text-xs text-muted-foreground">Posted: {post.datePosted}</p>
+                  <p className="text-xs text-muted-foreground">Posted by: {post.posterName}</p>
+                  <p className="text-xs text-muted-foreground">Posted: {new Date(post.$createdAt).toLocaleDateString()}</p>
                 </div>
               ))
             ) : (
@@ -127,6 +147,7 @@ const CollaboratorsPage = () => {
                 className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
                 placeholder="e.g., AI Research Project"
                 required
+                disabled={isPosting}
               />
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
@@ -140,6 +161,7 @@ const CollaboratorsPage = () => {
                 className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
                 placeholder="Briefly describe your project and what you need help with."
                 required
+                disabled={isPosting}
               />
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
@@ -153,6 +175,7 @@ const CollaboratorsPage = () => {
                 className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
                 placeholder="e.g., Python, Data Analysis, UI/UX"
                 required
+                disabled={isPosting}
               />
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
@@ -167,11 +190,15 @@ const CollaboratorsPage = () => {
                 className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
                 placeholder="your.email@example.com"
                 required
+                disabled={isPosting}
               />
             </div>
             <DialogFooter className="pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsPostDialogOpen(false)} className="border-border text-primary-foreground hover:bg-muted">Cancel</Button>
-              <Button type="submit" className="bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">Post Project</Button>
+              <Button type="button" variant="outline" onClick={() => setIsPostDialogOpen(false)} disabled={isPosting} className="border-border text-primary-foreground hover:bg-muted">Cancel</Button>
+              <Button type="submit" className="bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90" disabled={isPosting}>
+                {isPosting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                Post Project
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
