@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, ShieldCheck, ScrollText } from "lucide-react";
+import { FileText, ShieldCheck, ScrollText, TrendingUp } from "lucide-react"; // Added TrendingUp
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
@@ -59,6 +59,38 @@ const policyContent = {
       <p class="text-sm text-muted-foreground mb-4">Cancellation policies for services vary by provider. Please check the specific service listing for details. A 30% commission may still apply to services partially rendered or cancelled late.</p>
     `,
   },
+  commissionPolicy: {
+    title: "Dynamic Commission Policy",
+    description: "Details on how the developer commission rate is calculated based on your user level and engagement.",
+    fullText: `
+      <h3 class="text-lg font-semibold mb-2 text-foreground">1. Commission Structure Overview</h3>
+      <p class="text-sm text-muted-foreground mb-4">Natpe🤝Thunai operates on a dynamic commission model designed to reward active and engaged users. The commission rate deducted from successful transactions starts at <strong>11.32%</strong> for new users (Level 1) and decreases as your user level increases, reaching a minimum rate of <strong>6.40%</strong> at Level 10.</p>
+      
+      <h3 class="text-lg font-semibold mb-2 text-foreground">2. Leveling and XP</h3>
+      <p class="text-sm text-muted-foreground mb-4">Your user level increases by earning XP (Experience Points). XP is gained by completing daily quests, successfully completing transactions, and actively engaging with the application's features.</p>
+      
+      <h3 class="text-lg font-semibold mb-2 text-foreground">3. Commission Reduction Schedule</h3>
+      <p class="text-sm text-muted-foreground mb-4">The commission rate is reduced linearly between Level 1 (11.32%) and Level 10 (6.40%). Users at Level 10 and above benefit from the lowest possible commission rate of 6.40%.</p>
+      
+      <table class="min-w-full divide-y divide-border mt-4 mb-4">
+        <thead>
+          <tr>
+            <th class="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Level</th>
+            <th class="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Commission Rate</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-border">
+          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">1</td><td class="px-4 py-2 whitespace-nowrap">11.32%</td></tr>
+          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">2</td><td class="px-4 py-2 whitespace-nowrap">~10.80%</td></tr>
+          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">...</td><td class="px-4 py-2 whitespace-nowrap">...</td></tr>
+          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">10+</td><td class="px-4 py-2 whitespace-nowrap">6.40%</td></tr>
+        </tbody>
+      </table>
+      
+      <h3 class="text-lg font-semibold mb-2 text-foreground">4. Transaction Process</h3>
+      <p class="text-sm text-muted-foreground">The calculated commission is deducted by the developer upon successful payment confirmation from the buyer, before the net amount is transferred to the seller.</p>
+    `,
+  },
 };
 
 const PoliciesPage = () => {
@@ -103,6 +135,12 @@ const PoliciesPage = () => {
               onClick={() => handleViewPolicy("refundPolicy")}
             >
               <FileText className="mr-2 h-4 w-4" /> Refund Policy
+            </Button>
+            <Button
+              className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={() => handleViewPolicy("commissionPolicy")}
+            >
+              <TrendingUp className="mr-2 h-4 w-4" /> Dynamic Commission Policy
             </Button>
           </CardContent>
         </Card>

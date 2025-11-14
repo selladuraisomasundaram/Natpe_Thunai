@@ -11,6 +11,7 @@ import { AlertTriangle, MapPin, Star, DollarSign, MessageSquare } from 'lucide-r
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID } from '@/lib/appwrite';
+import { calculateCommissionRate } from '@/utils/commission'; // Import commission calculator
 
 // Developer UPI ID for all payments (as per DeveloperChatbox.tsx)
 const DEVELOPER_UPI_ID = "8903480105@superyes"; 
@@ -41,7 +42,7 @@ export default function ProductDetailsPage() {
   }, [productId]);
 
   const handleInitiatePayment = async (isBargain: boolean = false) => {
-    if (!user || !userProfile || !product) {
+    if (!user || !userProfile) {
       toast.error("Please log in to proceed with a transaction.");
       navigate("/auth");
       return;

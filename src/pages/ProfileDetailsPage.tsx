@@ -5,13 +5,14 @@ import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Star, UserCheck, Award, TrendingUp, Edit, User, Briefcase } from "lucide-react"; // Added User and Briefcase icons
+import { Star, UserCheck, Award, TrendingUp, Edit, User, Briefcase, DollarSign } from "lucide-react"; // Added DollarSign
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import EditProfileForm from "@/components/forms/EditProfileForm"; // Import the new form
 import { useAuth } from "@/context/AuthContext"; // Import useAuth
 import { generateAvatarUrl } from "@/utils/avatarGenerator"; // Import new avatar generator
+import { calculateCommissionRate, formatCommissionRate } from "@/utils/commission"; // Import commission utils
 
 const ProfileDetailsPage = () => {
   const { user, userProfile, updateUserProfile } = useAuth();
@@ -21,11 +22,15 @@ const ProfileDetailsPage = () => {
   const publicUsername = user?.name || "CampusExplorer";
   const userEmail = user?.email || "N/A"; // Define userEmail here
   
-  const userLevel = 5; // Placeholder, assuming level is not in Appwrite profile yet
-  const currentXp = 75; // Placeholder
-  const maxXp = 100; // Placeholder
+  // Use dynamic data from userProfile, defaulting to Level 1 / 0 XP
+  const userLevel = userProfile?.level ?? 1;
+  const currentXp = userProfile?.currentXp ?? 0;
+  const maxXp = userProfile?.maxXp ?? 100;
   const xpPercentage = (currentXp / maxXp) * 100;
-  const sellerRating = 4.7;
+  
+  const commissionRate = calculateCommissionRate(userLevel);
+
+  const sellerRating = 4.7; // Placeholder
   const isVerified = true; // Placeholder for verification status
   const badges = ["Top Seller", "Early Adopter"];
 
@@ -90,6 +95,12 @@ const ProfileDetailsPage = () => {
                 <Progress value={xpPercentage} className="h-2 bg-muted-foreground/30 [&::-webkit-progress-bar]:bg-secondary-neon [&::-webkit-progress-value]:bg-secondary-neon" />
                 <span className="text-xs text-muted-foreground">{currentXp}/{maxXp} XP</span>
               </div>
+            </div>
+            
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-secondary-neon" /> Current Commission Rate: <span className="font-semibold text-foreground">{formatCommissionRate(commissionRate)}</span>
+              </p>
             </div>
 
             <div className="space-y-2">

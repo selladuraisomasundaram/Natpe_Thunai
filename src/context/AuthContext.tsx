@@ -20,6 +20,10 @@ interface UserProfile extends Models.Document {
   role: "user" | "developer"; // Appwrite system role
   gender: "male" | "female" | "prefer-not-to-say"; // New field
   userType: "student" | "staff"; // New field
+  // Dynamic Leveling Fields
+  level: number;
+  currentXp: number;
+  maxXp: number;
 }
 
 interface AuthContextType {
@@ -53,7 +57,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       );
       const profile = response.documents[0] as unknown as UserProfile | undefined; // Assuming userId is unique
       if (profile) {
-        setUserProfile(profile);
+        // Ensure new fields have defaults if they don't exist in the fetched document
+        const completeProfile: UserProfile = {
+          ...profile,
+          level: profile.level ?? 1,
+          currentXp: profile.currentXp ?? 0,
+          maxXp: profile.maxXp ?? 100,
+        };
+        setUserProfile(completeProfile);
       } else {
         console.warn("User profile not found for user:", userId);
         setUserProfile(null);
@@ -111,7 +122,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         profileId,
         data
       );
-      setUserProfile(updatedDoc as unknown as UserProfile);
+      // Update local state with the new document, ensuring defaults for new fields
+      const updatedProfile: UserProfile = {
+        ...(updatedDoc as unknown as UserProfile),
+        level: (updatedDoc as any).level ?? 1,
+        currentXp: (updatedDoc as any).currentXp ?? 0,
+        maxXp: (updatedDoc as any).maxXp ?? 100,
+      };
+      setUserProfile(updatedProfile);
       toast.success("Profile updated successfully!");
     } catch (error: any) {
       console.error("Error updating user profile:", error);
