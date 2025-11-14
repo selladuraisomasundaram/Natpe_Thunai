@@ -10,16 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import PostServiceForm from "@/components/forms/PostServiceForm"; // Import the new form
 import { Link } from "react-router-dom"; // Import Link
 
-interface ServicePost {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  price: string;
-  contact: string;
-  datePosted: string;
-}
-
 // Define service categories and their icons
 const serviceCategories = [
   { name: "Resume Building", icon: Edit, path: "/services/freelance/resume-building" },
@@ -31,11 +21,9 @@ const serviceCategories = [
 const FreelancePage = () => {
   const [isPostServiceDialogOpen, setIsPostServiceDialogOpen] = useState(false);
 
-  // We no longer need local state for postedServices as they are handled by the new ServiceListingPage
-  const handlePostService = (data: Omit<ServicePost, "id" | "datePosted">) => {
-    // This function is now primarily for posting a service without navigating immediately, 
-    // but we should encourage users to post via the specific category page.
-    toast.info(`Service "${data.title}" posted! Check the relevant category page.`);
+  // This function is now just a placeholder/helper since posting should ideally happen on the specific category page
+  const handlePostService = () => {
+    toast.info("Please select a specific category (e.g., Resume Building) to post your service.");
     setIsPostServiceDialogOpen(false);
   };
 
@@ -81,8 +69,6 @@ const FreelancePage = () => {
             </Dialog>
           </CardContent>
         </Card>
-        
-        {/* Removed the "Recently Posted Services" card as it's now handled dynamically */}
       </div>
       <MadeWithDyad />
     </div>

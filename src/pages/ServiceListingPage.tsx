@@ -5,56 +5,61 @@ import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { PlusCircle, ArrowLeft, Briefcase } from "lucide-react";
+import { PlusCircle, ArrowLeft, Briefcase, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useParams, useNavigate } from "react-router-dom";
 import PostServiceForm from "@/components/forms/PostServiceForm";
+import { useServiceListings, ServicePost } from "@/hooks/useServiceListings"; // Import hook and interface
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_SERVICES_COLLECTION_ID } from "@/lib/appwrite";
+import { ID } from 'appwrite';
+import { useAuth } from "@/context/AuthContext";
 
-interface ServicePost {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  price: string;
-  contact: string;
-  datePosted: string;
-}
-
-// Dummy data storage (simulating fetching data filtered by category)
-const allDummyServices: ServicePost[] = [
-  { id: "fs1", title: "Professional Resume & Cover Letter Writing", description: "Crafting professional resumes and cover letters to help you land your dream job.", category: "resume-building", price: "₹300-₹800", contact: "writer@example.com", datePosted: "2024-07-20" },
-  { id: "fs2", title: "Basic Video Editing for Projects", description: "Editing short videos for projects, social media, or personal use.", category: "video-editing", price: "₹200/min", contact: "editor@example.com", datePosted: "2024-07-18" },
-  { id: "fs3", title: "Academic Content Writing", description: "Help with essays, reports, and academic papers.", category: "content-writing", price: "₹1/word", contact: "academic@example.com", datePosted: "2024-07-22" },
-  { id: "fs4", title: "Logo and Branding Design", description: "Creating modern and impactful logos and brand identities.", category: "graphic-design", price: "₹1500/project", contact: "designer@example.com", datePosted: "2024-07-21" },
-];
+// Helper function to format category slug into readable title
+const formatCategoryTitle = (categorySlug: string | undefined) => {
+  if (!categorySlug) return "Service Listings";
+  return categorySlug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
 
 const ServiceListingPage = () => {
   const { category } = useParams<{ category: string }>();
   const navigate = useNavigate();
+  const { user, userProfile } = useAuth();
   const [isPostServiceDialogOpen, setIsPostServiceDialogOpen] = useState(false);
-  const [listings, setListings] = useState<ServicePost[]>([]);
+  
+  // Use the real-time hook, filtering by the URL category slug
+  const { services: listings, isLoading, error, refetch } = useServiceListings(category);
 
-  const formattedCategory = category
-    ? category.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
-    : "Service Listings";
+  const formattedCategory = formatCategoryTitle(category);
 
-  useEffect(() => {
-    if (category) {
-      const filtered = allDummyServices.filter(service => service.category === category);
-      setListings(filtered);
+  const handlePostService = async (data: Omit<ServicePost, "id" | "datePosted" | "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId" | "posterId" | "posterName">) => {
+    if (!user || !userProfile) {
+      toast.error("You must be logged in to post a service.");
+      return;
     }
-  }, [category]);
 
-  const handlePostService = (data: Omit<ServicePost, "id" | "datePosted">) => {
-    const newService: ServicePost = {
-      ...data,
-      id: `fs${allDummyServices.length + 1}`,
-      datePosted: new Date().toISOString().split('T')[0],
-    };
-    allDummyServices.unshift(newService); // Update global dummy data
-    setListings((prev) => [newService, ...prev]); // Update local state
-    toast.success(`Your service "${newService.title}" has been posted!`);
-    setIsPostServiceDialogOpen(false);
+    try {
+      const newServiceData = {
+        ...data,
+        posterId: user.$id,
+        posterName: user.name,
+        // Ensure category matches the page context if not explicitly set in form
+        category: category || data.category, 
+      };
+
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_SERVICES_COLLECTION_ID,
+        ID.unique(),
+        newServiceData
+      );
+      
+      toast.success(`Your service "${data.title}" has been posted!`);
+      setIsPostServiceDialogOpen(false);
+      // The hook subscription will automatically update the list (no manual refetch needed)
+    } catch (e: any) {
+      console.error("Error posting service:", e);
+      toast.error(e.message || "Failed to post service listing.");
+    }
   };
 
   const handleContactSeller = (contact: string, title: string) => {
@@ -106,14 +111,22 @@ const ServiceListingPage = () => {
             <CardTitle className="text-xl font-semibold text-card-foreground">Current Listings</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
-            {listings.length > 0 ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
+                <p className="ml-3 text-muted-foreground">Loading services...</p>
+              </div>
+            ) : error ? (
+              <p className="text-center text-destructive py-4">Error loading listings: {error}</p>
+            ) : listings.length > 0 ? (
               listings.map((service) => (
-                <div key={service.id} className="p-3 border border-border rounded-md bg-background flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                <div key={service.$id} className="p-3 border border-border rounded-md bg-background flex flex-col sm:flex-row justify-between items-start sm:items-center">
                   <div>
                     <h3 className="font-semibold text-foreground">{service.title}</h3>
                     <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
                     <p className="text-xs text-muted-foreground mt-1">Price: <span className="font-medium text-secondary-neon">{service.price}</span></p>
-                    <p className="text-xs text-muted-foreground">Posted: {service.datePosted}</p>
+                    <p className="text-xs text-muted-foreground">Posted by: {service.posterName}</p>
+                    <p className="text-xs text-muted-foreground">Posted: {new Date(service.$createdAt).toLocaleDateString()}</p>
                   </div>
                   <Button 
                     size="sm" 
