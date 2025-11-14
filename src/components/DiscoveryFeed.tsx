@@ -13,22 +13,25 @@ const mockDeveloperDelete = (productId: string) => {
 };
 
 const DiscoveryFeed: React.FC = () => {
-  const { user, isLoading: isAuthLoading } = useAuth();
+  const { userProfile, isLoading: isAuthLoading } = useAuth(); // Destructure userProfile
   const [listings, setListings] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Determine developer status
+    const isDeveloper = userProfile?.role === "developer";
+
     // Simulate fetching data
     setTimeout(() => {
       // Add isDeveloper flag if the user is a developer
       const processedListings = dummyProducts.map(product => ({
         ...product,
-        isDeveloper: user?.isDeveloper || false,
+        isDeveloper: isDeveloper, // Use the determined status
       }));
       setListings(processedListings);
       setIsLoading(false);
     }, 1000);
-  }, [user]);
+  }, [userProfile]); // Depend on userProfile
 
   if (isAuthLoading || isLoading) {
     return (
