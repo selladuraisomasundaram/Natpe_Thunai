@@ -19,7 +19,7 @@ const ForgotPasswordPage = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await account.createRecovery(email, `http://localhost:8080/reset-password`); // Your reset password URL
+      await account.createRecovery(email, `https://natpe-thunai-g0zzwknin-agaram-acolytes-projects.vercel.app/reset-password`); // Your reset password URL
       toast.success("Password reset email sent! Please check your inbox.");
       navigate("/auth"); // Redirect to login after sending email
     } catch (error: any) {
