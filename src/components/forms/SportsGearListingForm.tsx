@@ -29,7 +29,7 @@ const SportsGearListingForm: React.FC<SportsGearListingFormProps> = ({ onSubmit,
   const [priceValue, setPriceValue] = useState("");
   const [description, setDescription] = useState("");
   const [condition, setCondition] = useState("");
-  const [imageUrl, setImageUrl] = useState("/app-logo.png");
+  const [imageUrl, setImageUrl] = useState(""); // Initialize as empty string
   const [ambassadorDelivery, setAmbassadorDelivery] = useState(false);
   const [ambassadorMessage, setAmbassadorMessage] = useState("");
 
@@ -61,12 +61,14 @@ const SportsGearListingForm: React.FC<SportsGearListingFormProps> = ({ onSubmit,
       return;
     }
 
-    onSubmit({ title, price: `₹${priceValue}`, description, condition, imageUrl, ambassadorDelivery, ambassadorMessage });
+    const finalImageUrl = imageUrl.trim() || "/app-logo.png"; // Default to app logo if empty
+
+    onSubmit({ title, price: `₹${priceValue}`, description, condition, imageUrl: finalImageUrl, ambassadorDelivery, ambassadorMessage });
     setTitle("");
     setPriceValue("");
     setDescription("");
     setCondition("");
-    setImageUrl("/app-logo.png");
+    setImageUrl("");
     setAmbassadorDelivery(false);
     setAmbassadorMessage("");
     resetAnalysis();
@@ -129,12 +131,12 @@ const SportsGearListingForm: React.FC<SportsGearListingFormProps> = ({ onSubmit,
         <Input
           id="imageUrl"
           type="text"
-          placeholder="e.g., https://example.com/image.jpg"
+          placeholder="e.g., https://example.com/image.jpg (Defaults to app logo)"
           value={imageUrl}
           onChange={(e) => setImageUrl(e.target.value)}
           className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
         />
-        <p className="text-xs text-muted-foreground mt-1">Defaults to app logo if empty.</p>
+        <p className="text-xs text-muted-foreground mt-1">If left empty, the app logo will be used as a placeholder.</p>
       </div>
 
       <AmbassadorDeliveryOption

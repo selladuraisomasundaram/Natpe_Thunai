@@ -32,7 +32,7 @@ const MarketListingFormWrapper: React.FC<MarketListingFormWrapperProps> = ({ onC
         <TabsList className="grid w-full grid-cols-4 h-auto bg-muted">
           <TabsTrigger value="sell" className="text-xs sm:text-sm">Sell</TabsTrigger>
           <TabsTrigger value="rent" className="text-xs sm:text-sm">Rent</TabsTrigger>
-          <TabsTrigger value="gift" className="text-xs sm:text-sm">Gift/Craft</TabsTrigger>
+          <TabsTrigger value="gift" className="text-xs sm:text-sm">Handcrafts & Gifts</TabsTrigger>
           <TabsTrigger value="sports" className="text-xs sm:text-sm">Sports Gear</TabsTrigger>
         </TabsList>
 

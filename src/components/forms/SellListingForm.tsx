@@ -31,7 +31,7 @@ const SellListingForm: React.FC<SellListingFormProps> = ({ onSubmit, onCancel })
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [damages, setDamages] = useState("");
-  const [imageUrl, setImageUrl] = useState("/app-logo.png");
+  const [imageUrl, setImageUrl] = useState(""); // Initialize as empty string
   const [ambassadorDelivery, setAmbassadorDelivery] = useState(false);
   const [ambassadorMessage, setAmbassadorMessage] = useState("");
 
@@ -63,13 +63,15 @@ const SellListingForm: React.FC<SellListingFormProps> = ({ onSubmit, onCancel })
       return;
     }
 
-    onSubmit({ title, price: `₹${priceValue}`, description, category, damages, imageUrl, ambassadorDelivery, ambassadorMessage });
+    const finalImageUrl = imageUrl.trim() || "/app-logo.png"; // Default to app logo if empty
+
+    onSubmit({ title, price: `₹${priceValue}`, description, category, damages, imageUrl: finalImageUrl, ambassadorDelivery, ambassadorMessage });
     setTitle("");
     setPriceValue("");
     setDescription("");
     setCategory("");
     setDamages("");
-    setImageUrl("/app-logo.png");
+    setImageUrl("");
     setAmbassadorDelivery(false);
     setAmbassadorMessage("");
     resetAnalysis();
@@ -141,12 +143,12 @@ const SellListingForm: React.FC<SellListingFormProps> = ({ onSubmit, onCancel })
         <Input
           id="imageUrl"
           type="text"
-          placeholder="e.g., https://example.com/image.jpg"
+          placeholder="e.g., https://example.com/image.jpg (Defaults to app logo)"
           value={imageUrl}
           onChange={(e) => setImageUrl(e.target.value)}
           className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
         />
-        <p className="text-xs text-muted-foreground mt-1">Defaults to app logo if empty.</p>
+        <p className="text-xs text-muted-foreground mt-1">If left empty, the app logo will be used as a placeholder.</p>
       </div>
 
       <AmbassadorDeliveryOption

@@ -7,6 +7,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 // Helper function to filter products by type
 const filterProducts = (products: Product[], type: Product['type'] | 'all'): Product[] => {
   if (type === 'all') return products;
+  // Handle both 'gift' and 'gift-request' under the 'gift' tab for now, 
+  // but the tab value remains 'gift' for filtering simplicity.
+  if (type === 'gift') {
+    return products.filter(p => p.type === 'gift' || p.type === 'gift-request');
+  }
   return products.filter(p => p.type === type);
 };
 
@@ -59,7 +64,7 @@ const MarketTabs: React.FC<MarketTabsProps> = ({ initialTab = 'all' }) => {
         <TabsTrigger value="all">All</TabsTrigger>
         <TabsTrigger value="sell">Sell</TabsTrigger>
         <TabsTrigger value="rent">Rent</TabsTrigger>
-        <TabsTrigger value="gift">Gift</TabsTrigger>
+        <TabsTrigger value="gift">Handcrafts & Gifts</TabsTrigger>
         <TabsTrigger value="sports">Sports</TabsTrigger>
       </TabsList>
       
