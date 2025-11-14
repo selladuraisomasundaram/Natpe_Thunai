@@ -6,51 +6,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trophy, Calendar, DollarSign, Users, Gamepad2 } from "lucide-react";
+import { Trophy, Calendar, DollarSign, Users, Gamepad2, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import DetailedTournamentRegistrationForm from "@/components/forms/DetailedTournamentRegistrationForm"; // Use the new form
-
-interface Tournament {
-  id: string;
-  name: string;
-  game: string;
-  date: string;
-  fee: number;
-  prizePool: string;
-  status: "Open" | "Closed";
-}
-
-interface TeamStanding {
-  rank: number;
-  teamName: string;
-  status: "1st" | "2nd" | "Eliminated" | "Participating";
-  points: number;
-}
-
-const dummyTournaments: Tournament[] = [
-  { id: "t1", name: "Campus Clash Season 1", game: "Free Fire", date: "2024-11-15", fee: 50, prizePool: "₹5000", status: "Open" },
-  { id: "t2", name: "PUBG Mobile Showdown", game: "PUBG Mobile", date: "2024-12-01", fee: 75, prizePool: "₹7500", status: "Open" },
-  { id: "t3", name: "eFootball Championship", game: "eFootball", date: "2024-10-20", fee: 0, prizePool: "₹2000", status: "Closed" },
-  { id: "t4", name: "RC Cricket 25 Cup", game: "RC Cricket 25", date: "2025-01-10", fee: 30, prizePool: "₹3000", status: "Open" },
-];
-
-const dummyWinners = [
-  { tournament: "eFootball Championship", winner: "Team Elite", prize: "₹2000" },
-];
-
-const dummyStandings: TeamStanding[] = [
-  { rank: 1, teamName: "Team Alpha", status: "1st", points: 1500 },
-  { rank: 2, teamName: "Team Beta", status: "2nd", points: 1200 },
-  { rank: 3, teamName: "Team Gamma", status: "Eliminated", points: 800 },
-  { rank: 4, teamName: "Team Delta", status: "Eliminated", points: 600 },
-  { rank: 5, teamName: "Team Epsilon", status: "Participating", points: 400 },
-];
+import DetailedTournamentRegistrationForm from "@/components/forms/DetailedTournamentRegistrationForm";
+import { useTournamentData, Tournament, TeamStanding, Winner } from "@/hooks/useTournamentData"; // Import hook and interfaces
 
 const TournamentPage = () => {
+  const { tournaments, isLoading, error } = useTournamentData();
   const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
+
+  // Aggregate data from all tournaments
+  const upcomingTournaments = tournaments.filter(t => t.status === "Open");
+  
+  // Aggregate all winners from all tournaments
+  const allWinners: Winner[] = tournaments.flatMap(t => t.winners || []);
+  
+  // Aggregate all standings (assuming standings are for the most recent/active tournament)
+  // For simplicity, we'll display standings from the first tournament that has them, or an empty array.
+  const activeStandings: TeamStanding[] = tournaments.find(t => t.standings && t.standings.length > 0)?.standings || [];
+
 
   const handleRegisterClick = (tournament: Tournament) => {
     setSelectedTournament(tournament);
@@ -60,9 +37,18 @@ const TournamentPage = () => {
   const handleRegistrationSubmit = (data: { teamName: string; contactEmail: string; players: { name: string; inGameId: string }[] }) => {
     if (!selectedTournament) return;
     toast.success(`Successfully registered "${data.teamName}" (${data.players.length} players) for ${selectedTournament.name}!`);
-    // In a real app, send data to backend, handle payment, etc.
+    // In a real app, send registration data to a separate Appwrite collection or function
     setIsRegisterDialogOpen(false);
   };
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground p-4">
+        <AlertTriangle className="h-6 w-6 text-destructive mr-2" />
+        <p className="text-lg text-destructive">Error loading tournaments: {error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
@@ -77,29 +63,35 @@ const TournamentPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
-            {dummyTournaments.filter(t => t.status === "Open").map((tournament) => (
-              <div key={tournament.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border border-border rounded-md bg-background">
-                <div>
-                  <h3 className="font-semibold text-foreground">{tournament.name}</h3>
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <Gamepad2 className="h-3 w-3" /> {tournament.game}
-                  </p>
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <Calendar className="h-3 w-3" /> {tournament.date}
-                  </p>
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <DollarSign className="h-3 w-3" /> Fee: {tournament.fee === 0 ? "Free" : `₹${tournament.fee}`} | Prize: {tournament.prizePool}
-                  </p>
-                </div>
-                <Button
-                  className="mt-3 sm:mt-0 bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90"
-                  onClick={() => handleRegisterClick(tournament)}
-                >
-                  Register
-                </Button>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
+                <p className="ml-3 text-muted-foreground">Loading tournaments...</p>
               </div>
-            ))}
-            {dummyTournaments.filter(t => t.status === "Open").length === 0 && (
+            ) : upcomingTournaments.length > 0 ? (
+              upcomingTournaments.map((tournament) => (
+                <div key={tournament.$id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border border-border rounded-md bg-background">
+                  <div>
+                    <h3 className="font-semibold text-foreground">{tournament.name}</h3>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Gamepad2 className="h-3 w-3" /> {tournament.game}
+                    </p>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" /> {tournament.date}
+                    </p>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <DollarSign className="h-3 w-3" /> Fee: {tournament.fee === 0 ? "Free" : `₹${tournament.fee}`} | Prize: {tournament.prizePool}
+                    </p>
+                  </div>
+                  <Button
+                    className="mt-3 sm:mt-0 bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90"
+                    onClick={() => handleRegisterClick(tournament)}
+                  >
+                    Register
+                  </Button>
+                </div>
+              ))
+            ) : (
               <p className="text-center text-muted-foreground py-4">No upcoming tournaments currently open for registration.</p>
             )}
           </CardContent>
@@ -113,8 +105,10 @@ const TournamentPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-2">
-            {dummyWinners.length > 0 ? (
-              dummyWinners.map((winner, index) => (
+            {isLoading ? (
+              <p className="text-center text-muted-foreground py-4">Loading winners...</p>
+            ) : allWinners.length > 0 ? (
+              allWinners.map((winner, index) => (
                 <div key={index} className="flex justify-between items-center py-2 border-b border-border last:border-b-0">
                   <p className="text-foreground font-medium">{winner.tournament}</p>
                   <p className="text-muted-foreground">Winner: <span className="font-semibold text-secondary-neon">{winner.winner}</span> (Prize: {winner.prize})</p>
@@ -134,38 +128,44 @@ const TournamentPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[50px] text-foreground">Rank</TableHead>
-                  <TableHead className="text-foreground">Team Name</TableHead>
-                  <TableHead className="text-foreground">Status</TableHead>
-                  <TableHead className="text-right text-foreground">Points</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dummyStandings.map((team) => (
-                  <TableRow key={team.rank}>
-                    <TableCell className="font-medium text-foreground">{team.rank}</TableCell>
-                    <TableCell className="text-foreground">{team.teamName}</TableCell>
-                    <TableCell>
-                      <Badge
-                        className={cn(
-                          "px-2 py-1 text-xs font-semibold",
-                          team.status === "1st" && "bg-secondary-neon text-primary-foreground",
-                          team.status === "2nd" && "bg-blue-500 text-white",
-                          team.status === "Eliminated" && "bg-destructive text-destructive-foreground",
-                          team.status === "Participating" && "bg-muted text-muted-foreground"
-                        )}
-                      >
-                        {team.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right text-foreground">{team.points}</TableCell>
+            {isLoading ? (
+              <p className="text-center text-muted-foreground py-4">Loading standings...</p>
+            ) : activeStandings.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px] text-foreground">Rank</TableHead>
+                    <TableHead className="text-foreground">Team Name</TableHead>
+                    <TableHead className="text-foreground">Status</TableHead>
+                    <TableHead className="text-right text-foreground">Points</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {activeStandings.map((team) => (
+                    <TableRow key={team.rank}>
+                      <TableCell className="font-medium text-foreground">{team.rank}</TableCell>
+                      <TableCell className="text-foreground">{team.teamName}</TableCell>
+                      <TableCell>
+                        <Badge
+                          className={cn(
+                            "px-2 py-1 text-xs font-semibold",
+                            team.status === "1st" && "bg-secondary-neon text-primary-foreground",
+                            team.status === "2nd" && "bg-blue-500 text-white",
+                            team.status === "Eliminated" && "bg-destructive text-destructive-foreground",
+                            team.status === "Participating" && "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {team.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right text-foreground">{team.points}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <p className="text-center text-muted-foreground py-4">No active tournament standings available.</p>
+            )}
           </CardContent>
         </Card>
       </div>

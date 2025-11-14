@@ -32,4 +32,5 @@ export const APPWRITE_CASH_EXCHANGE_COLLECTION_ID = import.meta.env.VITE_APPWRIT
 export const APPWRITE_SERVICES_COLLECTION_ID = import.meta.env.VITE_APPWRITE_SERVICES_COLLECTION_ID || 'services'; // Existing export
 export const APPWRITE_ERRANDS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_ERRANDS_COLLECTION_ID || 'errands'; // New export
 export const APPWRITE_COLLABORATORS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_COLLABORATORS_COLLECTION_ID || 'collaborators'; // New export
+export const APPWRITE_TOURNAMENTS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_TOURNAMENTS_COLLECTION_ID || 'tournaments'; // New export
 export default client;
