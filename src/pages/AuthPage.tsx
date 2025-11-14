@@ -13,6 +13,7 @@ import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
+import { APP_HOST_URL } from "@/lib/config"; // Import APP_HOST_URL
 
 // Helper function to generate a random username
 const generateRandomUsername = (): string => {
@@ -138,7 +139,7 @@ const AuthPage = () => {
         }
         
         await account.createVerification(
-          `https://natpe-thunai-g0zzwknin-agaram-acolytes-projects.vercel.app/verify-email`
+          `${APP_HOST_URL}/verify-email`
         );
         toast.info("Verification email sent! Please check your inbox.");
 

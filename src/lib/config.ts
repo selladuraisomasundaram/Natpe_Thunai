@@ -1,0 +1,1 @@
+export const APP_HOST_URL = import.meta.env.VITE_APP_HOST_URL || 'http://localhost:8080';

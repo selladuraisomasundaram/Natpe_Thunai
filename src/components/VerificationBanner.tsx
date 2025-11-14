@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { account } from "@/lib/appwrite";
+import { APP_HOST_URL } from "@/lib/config"; // Import APP_HOST_URL
 
 const VerificationBanner = () => {
   const { user, isVerified } = useAuth();
@@ -24,7 +25,7 @@ const VerificationBanner = () => {
     setLoading(true);
     try {
       await account.createVerification(
-        `http://localhost:8080/verify-email`
+        `${APP_HOST_URL}/verify-email` // Use dynamic URL
       );
       toast.success("Verification email resent! Please check your inbox.");
     } catch (error: any) {

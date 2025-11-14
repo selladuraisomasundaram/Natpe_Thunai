@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { account } from "@/lib/appwrite";
 import { useNavigate, Link } from "react-router-dom";
 import { Mail, ArrowLeft } from "lucide-react";
+import { APP_HOST_URL } from "@/lib/config"; // Import APP_HOST_URL
 
 const ForgotPasswordPage = () => {
   const [email, setEmail] = useState("");
@@ -19,7 +20,7 @@ const ForgotPasswordPage = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await account.createRecovery(email, `https://natpe-thunai-g0zzwknin-agaram-acolytes-projects.vercel.app/reset-password`); // Your reset password URL
+      await account.createRecovery(email, `${APP_HOST_URL}/reset-password`); // Use dynamic URL
       toast.success("Password reset email sent! Please check your inbox.");
       navigate("/auth"); // Redirect to login after sending email
     } catch (error: any) {
