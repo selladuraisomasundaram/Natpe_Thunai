@@ -45,7 +45,7 @@ export const dummyProducts: Product[] = [
   },
   { 
     $id: "3", 
-    imageUrl: "/app-logo.png", // Default image used
+    imageUrl: "/app-logo.png", // Already using app-logo.png
     title: "Organic Coffee Beans (Gift)", 
     price: "Free", 
     sellerRating: 4.9, 
@@ -71,7 +71,7 @@ export const dummyProducts: Product[] = [
   },
   { 
     $id: "5", 
-    imageUrl: "https://via.placeholder.com/300x200?text=Handmade+Jewelry", 
+    imageUrl: "/app-logo.png", // Changed from placeholder to app logo
     title: "Custom Beaded Bracelet", 
     price: "₹250.00", 
     sellerRating: 5.0, 
@@ -84,7 +84,7 @@ export const dummyProducts: Product[] = [
   },
   { 
     $id: "6", 
-    imageUrl: "https://via.placeholder.com/300x200?text=Cricket+Bat", 
+    imageUrl: "/app-logo.png", // Changed from placeholder to app logo
     title: "Used Cricket Bat (Good Condition)", 
     price: "₹1200.00", 
     sellerRating: 4.0, 
