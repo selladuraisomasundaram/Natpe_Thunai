@@ -33,8 +33,10 @@ const CanteenManagerWidget = () => {
   // Effect to manage selected canteen ID when data changes
   useEffect(() => {
     if (!selectedCanteenId && allCanteens.length > 0) {
+      // Set the first canteen as default if none is selected
       setSelectedCanteenId(allCanteens[0].$id);
     } else if (selectedCanteenId && !allCanteens.some(c => c.$id === selectedCanteenId)) {
+      // If the currently selected canteen was deleted, select the first one or null
       setSelectedCanteenId(allCanteens.length > 0 ? allCanteens[0].$id : null);
     }
   }, [allCanteens, selectedCanteenId]);
@@ -42,8 +44,12 @@ const CanteenManagerWidget = () => {
   const handleAddCanteen = async (canteenName: string) => {
     setIsAddingCanteen(true);
     try {
-      await addCanteen(canteenName);
-      toast.success(`Canteen "${canteenName}" added successfully!`);
+      const newCanteen = await addCanteen(canteenName);
+      if (newCanteen) {
+        toast.success(`Canteen "${canteenName}" added successfully!`);
+        // Automatically select the newly added canteen
+        setSelectedCanteenId(newCanteen.$id);
+      }
       setIsAddCanteenDialogOpen(false);
     } catch (e) {
       // Error handled in hook
