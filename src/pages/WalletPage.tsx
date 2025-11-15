@@ -4,13 +4,21 @@ import React from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DollarSign, Wallet, Banknote } from "lucide-react"; // Removed CreditCard icon as Payment Methods card is removed
+import { DollarSign, Wallet, Banknote, TrendingUp } from "lucide-react"; // Added TrendingUp
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext"; // Import useAuth
+import { calculateCommissionRate, formatCommissionRate } from "@/utils/commission"; // Import commission utils
 
 const WalletPage = () => {
+  const { userProfile } = useAuth();
+  
+  // Dynamic Commission Calculation
+  const userLevel = userProfile?.level ?? 1;
+  const dynamicCommissionRateValue = calculateCommissionRate(userLevel);
+  const dynamicCommissionRateDisplay = formatCommissionRate(dynamicCommissionRateValue);
+
   // Dummy data for wallet
   const currentBalance = 1250.75;
-  const commissionRate = 30; // Percentage
   const developerUpiId = "8903480105@superyes"; // Updated developer UPI ID
 
   const handleAddFunds = () => {
@@ -65,15 +73,15 @@ const WalletPage = () => {
         <Card className="bg-destructive/10 border-destructive text-destructive-foreground shadow-lg">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xl font-semibold text-destructive flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-destructive" /> Commission Policy
+              <TrendingUp className="h-5 w-5 text-destructive" /> Dynamic Commission Policy
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <p className="text-sm">
-              Please note that a <span className="font-bold">{commissionRate}% commission</span> is applied to all successful transactions facilitated through Natpe🤝Thunai. This helps us maintain and improve the platform.
+              Your current commission rate is <span className="font-bold">{dynamicCommissionRateDisplay}</span> (Level {userLevel}). This rate is applied to all successful transactions facilitated through Natpe🤝Thunai.
             </p>
             <p className="text-xs text-muted-foreground mt-2">
-              For more details, please refer to our full Terms of Service.
+              This rate decreases as your user level increases. For full details, please refer to the Dynamic Commission Policy in the Policies section.
             </p>
           </CardContent>
         </Card>
