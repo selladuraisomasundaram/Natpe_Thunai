@@ -328,6 +328,8 @@ const TrackingPage = () => {
 
                 // Calculate expected net amount if commission hasn't been deducted yet (Market only)
                 const marketItem = item.type === "Transaction" ? (item as MarketTransactionItem) : null;
+                
+                // Use dynamicCommissionRate for calculation if commissionAmount/netSellerAmount are missing (i.e., status is 'initiated' or 'payment_confirmed_to_developer')
                 const expectedCommission = marketItem?.amount ? marketItem.amount * dynamicCommissionRate : 0;
                 const expectedNet = marketItem?.amount ? marketItem.amount - expectedCommission : 0;
 
@@ -353,6 +355,9 @@ const TrackingPage = () => {
                         {isSellerOrProvider ? (
                           <>
                             <p className="text-muted-foreground">Buyer: {marketItem.buyerName || "N/A"}</p>
+                            {marketItem.status === "Initiated (Awaiting Payment)" && (
+                              <p className="text-yellow-500">Awaiting buyer payment confirmation to developer.</p>
+                            )}
                             {marketItem.status === "Payment Confirmed (Processing)" && (
                               <p className="text-blue-500">Payment confirmed by buyer. Developer processing commission ({commissionRateDisplay}%).</p>
                             )}
@@ -372,11 +377,11 @@ const TrackingPage = () => {
                       </div>
                     )}
 
-                    {/* --- Food Order Details & Actions (Zomato/Swiggy Flow) --- */}
+                    {/* --- Food Order Details & Actions --- */}
                     {foodItem && (
                       <div className="space-y-2 border-t border-border pt-2">
                         <p className="text-xs text-muted-foreground">Total: <span className="font-semibold text-foreground">₹{foodItem.totalAmount.toFixed(2)}</span> | Qty: {foodItem.quantity}</p>
-                        <p className="text-xs text-muted-foreground">Delivery to: {foodItem.description.split('Order placed for ')[1] || foodItem.description.split('Order received for ')[1]}</p>
+                        <p className="text-xs text-muted-foreground">Delivery to: {foodItem.deliveryLocation}</p>
                         
                         {/* Provider Actions */}
                         {isSellerOrProvider && foodItem.orderStatus !== "Delivered" && foodItem.orderStatus !== "Cancelled" && (
