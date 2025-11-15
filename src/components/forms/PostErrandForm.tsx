@@ -9,6 +9,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
+interface ErrandCategoryOption {
+  value: string;
+  label: string;
+}
+
+const ALL_ERRAND_CATEGORIES: ErrandCategoryOption[] = [
+  { value: "note-writing", label: "Note-writing/Transcription" },
+  { value: "small-job", label: "Small Job (e.g., moving books)" },
+  { value: "delivery", label: "Delivery Services (within campus)" },
+  { value: "instant-help", label: "Instant Help" },
+  { value: "emergency-delivery", label: "Emergency Deliveries" },
+  { value: "other", label: "Other" },
+];
+
 interface PostErrandFormProps {
   onSubmit: (data: {
     title: string;
@@ -20,15 +34,18 @@ interface PostErrandFormProps {
   }) => void;
   onCancel: () => void;
   initialType?: string; // Optional prop to pre-select type
+  categoryOptions?: ErrandCategoryOption[]; // New prop for dynamic category filtering
 }
 
-const PostErrandForm: React.FC<PostErrandFormProps> = ({ onSubmit, onCancel, initialType = "" }) => {
+const PostErrandForm: React.FC<PostErrandFormProps> = ({ onSubmit, onCancel, initialType = "", categoryOptions }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState(initialType);
   const [compensation, setCompensation] = useState("");
   const [deadline, setDeadline] = useState("");
   const [contact, setContact] = useState("");
+
+  const categoriesToRender = categoryOptions || ALL_ERRAND_CATEGORIES;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +86,7 @@ const PostErrandForm: React.FC<PostErrandFormProps> = ({ onSubmit, onCancel, ini
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          placeholder="Provide details about the errand, location, and any specific instructions."
+          placeholder="Provide details about the task or service..."
           required
         />
       </div>
@@ -82,12 +99,9 @@ const PostErrandForm: React.FC<PostErrandFormProps> = ({ onSubmit, onCancel, ini
             <SelectValue placeholder="Select errand type" />
           </SelectTrigger>
           <SelectContent className="bg-popover text-popover-foreground border-border">
-            <SelectItem value="note-writing">Note-writing/Transcription</SelectItem>
-            <SelectItem value="small-job">Small Job (e.g., moving books)</SelectItem>
-            <SelectItem value="delivery">Delivery Services (within campus)</SelectItem>
-            <SelectItem value="instant-help">Instant Help</SelectItem>
-            <SelectItem value="emergency-delivery">Emergency Deliveries</SelectItem>
-            <SelectItem value="other">Other</SelectItem>
+            {categoriesToRender.map(option => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

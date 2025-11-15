@@ -16,6 +16,13 @@ import { useAuth } from "@/context/AuthContext";
 // Errand types specific to this page
 const ERRAND_TYPES = ["note-writing", "small-job", "delivery"];
 
+const STANDARD_ERRAND_OPTIONS = [
+  { value: "note-writing", label: "Note-writing/Transcription" },
+  { value: "small-job", label: "Small Job (e.g., moving books)" },
+  { value: "delivery", label: "Delivery Services (within campus)" },
+  { value: "other", label: "Other" },
+];
+
 const ErrandsPage = () => {
   const { user, userProfile } = useAuth();
   const [isPostErrandDialogOpen, setIsPostErrandDialogOpen] = useState(false);
@@ -100,7 +107,11 @@ const ErrandsPage = () => {
                 <DialogHeader>
                   <DialogTitle className="text-foreground">Post New Campus Errand</DialogTitle>
                 </DialogHeader>
-                <PostErrandForm onSubmit={handlePostErrand} onCancel={() => setIsPostErrandDialogOpen(false)} />
+                <PostErrandForm 
+                  onSubmit={handlePostErrand} 
+                  onCancel={() => setIsPostErrandDialogOpen(false)} 
+                  categoryOptions={STANDARD_ERRAND_OPTIONS}
+                />
               </DialogContent>
             </Dialog>
             <p className="text-xs text-destructive-foreground mt-4">

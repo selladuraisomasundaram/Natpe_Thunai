@@ -17,6 +17,21 @@ import FoodOfferingCard from "@/components/FoodOfferingCard"; // NEW IMPORT
 // Service categories specific to this page
 const OFFERING_CATEGORIES = ["homemade-meals", "wellness-remedies"];
 
+// Define category options for Offerings
+const OFFERING_OPTIONS = [
+  { value: "homemade-meals", label: "Food" },
+  { value: "wellness-remedies", label: "Remedy" },
+  { value: "other", label: "Other" },
+];
+
+// Define category options for Custom Requests
+const CUSTOM_REQUEST_OPTIONS = [
+  { value: "homemade-meals", label: "Custom Food" },
+  { value: "wellness-remedies", label: "Custom Remedy" },
+  { value: "other", label: "Other" },
+];
+
+
 const FoodWellnessPage = () => {
   const { user, userProfile } = useAuth();
   const [isPostServiceDialogOpen, setIsPostServiceDialogOpen] = useState(false);
@@ -149,7 +164,11 @@ const FoodWellnessPage = () => {
                 <DialogHeader>
                   <DialogTitle className="text-foreground">Post New Food/Wellness Offering</DialogTitle>
                 </DialogHeader>
-                <PostServiceForm onSubmit={handlePostService} onCancel={() => setIsPostServiceDialogOpen(false)} />
+                <PostServiceForm 
+                  onSubmit={handlePostService} 
+                  onCancel={() => setIsPostServiceDialogOpen(false)} 
+                  categoryOptions={OFFERING_OPTIONS}
+                />
               </DialogContent>
             </Dialog>
 
@@ -163,7 +182,12 @@ const FoodWellnessPage = () => {
                 <DialogHeader>
                   <DialogTitle className="text-foreground">Request Custom Food/Remedy</DialogTitle>
                 </DialogHeader>
-                <PostServiceForm onSubmit={handlePostCustomOrder} onCancel={() => setIsPostCustomOrderDialogOpen(false)} isCustomOrder={true} />
+                <PostServiceForm 
+                  onSubmit={handlePostCustomOrder} 
+                  onCancel={() => setIsPostCustomOrderDialogOpen(false)} 
+                  isCustomOrder={true} 
+                  categoryOptions={CUSTOM_REQUEST_OPTIONS}
+                />
               </DialogContent>
             </Dialog>
 
@@ -175,7 +199,7 @@ const FoodWellnessPage = () => {
 
         <Card className="bg-card text-card-foreground shadow-lg border-border">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xl font-semibold text-card-foreground">Available Offerings (Zomato/Swiggy Style)</CardTitle>
+            <CardTitle className="text-xl font-semibold text-card-foreground">Available Offerings</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
             {isLoading ? (

@@ -9,6 +9,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
+interface CategoryOption {
+  value: string;
+  label: string;
+}
+
+const DEFAULT_CATEGORIES: CategoryOption[] = [
+  { value: "resume-building", label: "Resume Building" },
+  { value: "video-editing", label: "Video Editing" },
+  { value: "content-writing", label: "Content Writing" },
+  { value: "graphic-design", label: "Graphic Design" },
+  { value: "homemade-meals", label: "Homemade Meals" },
+  { value: "wellness-remedies", label: "Wellness Remedies" },
+  { value: "other", label: "Other" },
+];
+
 interface PostServiceFormProps {
   onSubmit: (data: {
     title: string;
@@ -21,15 +36,18 @@ interface PostServiceFormProps {
   onCancel: () => void;
   initialCategory?: string; // Optional prop to pre-select category
   isCustomOrder?: boolean; // New prop to indicate if it's a custom order form
+  categoryOptions?: CategoryOption[]; // New prop for dynamic category filtering
 }
 
-const PostServiceForm: React.FC<PostServiceFormProps> = ({ onSubmit, onCancel, initialCategory = "", isCustomOrder = false }) => {
+const PostServiceForm: React.FC<PostServiceFormProps> = ({ onSubmit, onCancel, initialCategory = "", isCustomOrder = false, categoryOptions }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState(initialCategory);
   const [price, setPrice] = useState("");
   const [contact, setContact] = useState("");
   const [customOrderDescription, setCustomOrderDescription] = useState(""); // New state
+
+  const categoriesToRender = categoryOptions || DEFAULT_CATEGORIES;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,13 +110,9 @@ const PostServiceForm: React.FC<PostServiceFormProps> = ({ onSubmit, onCancel, i
             <SelectValue placeholder="Select a category" />
           </SelectTrigger>
           <SelectContent className="bg-popover text-popover-foreground border-border">
-            <SelectItem value="resume-building">Resume Building</SelectItem>
-            <SelectItem value="video-editing">Video Editing</SelectItem>
-            <SelectItem value="content-writing">Content Writing</SelectItem>
-            <SelectItem value="graphic-design">Graphic Design</SelectItem>
-            <SelectItem value="homemade-meals">Homemade Meals</SelectItem>
-            <SelectItem value="wellness-remedies">Wellness Remedies</SelectItem>
-            <SelectItem value="other">Other</SelectItem>
+            {categoriesToRender.map(option => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

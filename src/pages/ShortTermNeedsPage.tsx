@@ -16,6 +16,12 @@ import { useAuth } from "@/context/AuthContext";
 // Errand types specific to this page (Urgent/Short-Term)
 const URGENT_TYPES = ["instant-help", "emergency-delivery"];
 
+const URGENT_ERRAND_OPTIONS = [
+  { value: "instant-help", label: "Instant Help" },
+  { value: "emergency-delivery", label: "Emergency Deliveries" },
+  { value: "other", label: "Other" },
+];
+
 const ShortTermNeedsPage = () => {
   const { user, userProfile } = useAuth();
   const [isPostErrandDialogOpen, setIsPostErrandDialogOpen] = useState(false);
@@ -94,7 +100,11 @@ const ShortTermNeedsPage = () => {
                 <DialogHeader>
                   <DialogTitle className="text-foreground">Post New Urgent Request</DialogTitle>
                 </DialogHeader>
-                <PostErrandForm onSubmit={handlePostErrand} onCancel={() => setIsPostErrandDialogOpen(false)} />
+                <PostErrandForm 
+                  onSubmit={handlePostErrand} 
+                  onCancel={() => setIsPostErrandDialogOpen(false)} 
+                  categoryOptions={URGENT_ERRAND_OPTIONS}
+                />
               </DialogContent>
             </Dialog>
             <p className="text-xs text-destructive-foreground mt-4">
