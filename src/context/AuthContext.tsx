@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Models, Query } from "appwrite"; // Import Query
+import { calculateMaxXpForLevel, checkAndApplyLevelUp } from "@/utils/leveling"; // NEW IMPORT
 
 interface AppwriteUser extends Models.User<Models.Preferences> {}
 
@@ -35,6 +36,7 @@ interface AuthContextType {
   login: () => Promise<void>;
   logout: () => void;
   updateUserProfile: (profileId: string, data: Partial<UserProfile>) => Promise<void>;
+  addXp: (amount: number) => Promise<void>; // NEW METHOD
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -57,12 +59,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       );
       const profile = response.documents[0] as unknown as UserProfile | undefined; // Assuming userId is unique
       if (profile) {
-        // Ensure new fields have defaults if they don't exist in the fetched document
+        // Calculate dynamic Max XP based on fetched level, or default to 100 if level is 1
+        const level = profile.level ?? 1;
+        const maxXp = calculateMaxXpForLevel(level); // Use dynamic calculation
+
         const completeProfile: UserProfile = {
           ...profile,
-          level: profile.level ?? 1,
+          level: level,
           currentXp: profile.currentXp ?? 0,
-          maxXp: profile.maxXp ?? 100,
+          maxXp: maxXp,
         };
         setUserProfile(completeProfile);
       } else {
@@ -122,18 +127,54 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         profileId,
         data
       );
-      // Update local state with the new document, ensuring defaults for new fields
+      // Recalculate Max XP based on the potentially new level
+      const level = (updatedDoc as any).level ?? 1;
+      const maxXp = calculateMaxXpForLevel(level);
+
       const updatedProfile: UserProfile = {
         ...(updatedDoc as unknown as UserProfile),
-        level: (updatedDoc as any).level ?? 1,
+        level: level,
         currentXp: (updatedDoc as any).currentXp ?? 0,
-        maxXp: (updatedDoc as any).maxXp ?? 100,
+        maxXp: maxXp,
       };
       setUserProfile(updatedProfile);
       toast.success("Profile updated successfully!");
     } catch (error: any) {
       console.error("Error updating user profile:", error);
       throw new Error(error.message || "Failed to update profile.");
+    }
+  };
+
+  const addXp = async (amount: number) => {
+    if (!userProfile || !user) {
+      toast.error("Cannot add XP: User not logged in or profile missing.");
+      return;
+    }
+
+    let currentLevel = userProfile.level;
+    let currentXp = userProfile.currentXp + amount;
+    let maxXp = userProfile.maxXp;
+
+    const { newLevel, newCurrentXp, newMaxXp } = checkAndApplyLevelUp(currentLevel, currentXp, maxXp);
+
+    try {
+      // Only update if there's a change in XP or level
+      if (newLevel !== currentLevel || newCurrentXp !== userProfile.currentXp || newMaxXp !== userProfile.maxXp) {
+        await updateUserProfile(userProfile.$id, {
+          level: newLevel,
+          currentXp: newCurrentXp,
+          maxXp: newMaxXp,
+        });
+      }
+
+      if (newLevel > currentLevel) {
+        toast.success(`LEVEL UP! You reached Level ${newLevel}! Commission rate reduced.`);
+      } else {
+        toast.info(`+${amount} XP earned!`);
+      }
+    } catch (error) {
+      console.error("Failed to add XP:", error);
+      toast.error("Failed to update XP/Level.");
     }
   };
 
@@ -147,7 +188,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, userProfile, isVerified, login: loginUser, logout, updateUserProfile }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, userProfile, isVerified, login: loginUser, logout, updateUserProfile, addXp }}>
       {children}
     </AuthContext.Provider>
   );

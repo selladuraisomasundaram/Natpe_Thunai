@@ -5,12 +5,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollText } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext"; // Import useAuth
 
 const DailyQuestCard = () => {
   const [isQuestDialogOpen, setIsQuestDialogOpen] = useState(false);
+  const { addXp } = useAuth(); // Use addXp
 
   const handleViewQuest = () => {
     setIsQuestDialogOpen(true);
+  };
+  
+  // Simulate quest completion and reward claim
+  const handleClaimReward = () => {
+    addXp(50); // Reward: +50 XP
+    toast.success("Quest completed! +50 XP and 100 Coins claimed.");
+    setIsQuestDialogOpen(false);
   };
 
   return (
@@ -42,6 +52,9 @@ const DailyQuestCard = () => {
             <p className="text-sm text-muted-foreground">Reward: +50 XP, 100 Coins</p>
             <p className="text-sm text-muted-foreground">Status: In Progress</p>
           </div>
+          <Button onClick={handleClaimReward} className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
+            Claim Reward (Simulated)
+          </Button>
         </DialogContent>
       </Dialog>
     </>

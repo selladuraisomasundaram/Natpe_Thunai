@@ -5,12 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Flame } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext"; // Import useAuth
 
 const LoginStreakCard = () => {
   const currentStreak = 3; // Placeholder for user's login streak
+  const { addXp } = useAuth(); // Use addXp
 
   const handleClaimReward = () => {
-    toast.success(`You claimed your ${currentStreak}-day streak reward!`);
+    addXp(10 * currentStreak); // Reward XP based on streak length
+    toast.success(`You claimed your ${currentStreak}-day streak reward! +${10 * currentStreak} XP earned.`);
     // In a real app, trigger a reward claim process and update streak/rewards
   };
 
