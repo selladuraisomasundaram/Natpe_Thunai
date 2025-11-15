@@ -8,6 +8,7 @@ import CanteenManagerWidget from "@/components/CanteenManagerWidget";
 import DiscoveryFeed from "@/components/DiscoveryFeed";
 import DailyQuestCard from "@/components/DailyQuestCard";
 import LoginStreakCard from "@/components/LoginStreakCard";
+import AnalyticsCard from "@/components/AnalyticsCard"; // NEW IMPORT
 
 const HomePage = () => {
   return (
@@ -17,6 +18,8 @@ const HomePage = () => {
         <ProfileWidget />
 
         <QuickUpdatesBar />
+        
+        <AnalyticsCard /> {/* NEW CARD */}
 
         <CanteenManagerWidget />
 

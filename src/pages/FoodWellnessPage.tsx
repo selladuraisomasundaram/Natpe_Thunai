@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Soup, HeartPulse, ShieldCheck, PlusCircle, Utensils, Loader2 } from "lucide-react";
+import { Soup, HeartPulse, ShieldCheck, PlusCircle, Utensils, Loader2, MessageSquareText } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import PostServiceForm from "@/components/forms/PostServiceForm";
@@ -12,6 +12,7 @@ import { useServiceListings, ServicePost } from "@/hooks/useServiceListings";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_SERVICES_COLLECTION_ID } from "@/lib/appwrite";
 import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
+import FoodOfferingCard from "@/components/FoodOfferingCard"; // NEW IMPORT
 
 // Service categories specific to this page
 const OFFERING_CATEGORIES = ["homemade-meals", "wellness-remedies"];
@@ -26,10 +27,6 @@ const FoodWellnessPage = () => {
 
   const postedOfferings = allPosts.filter(p => !p.isCustomOrder && OFFERING_CATEGORIES.includes(p.category));
   const postedCustomRequests = allPosts.filter(p => p.isCustomOrder);
-
-  const handleServiceClick = (serviceName: string) => {
-    toast.info(`You selected "${serviceName}". Post your offering using the button below.`);
-  };
 
   const handlePostService = async (data: Omit<ServicePost, "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId" | "posterId" | "posterName">) => {
     if (!user || !userProfile) {
@@ -89,20 +86,20 @@ const FoodWellnessPage = () => {
     }
   };
 
-  const renderListings = (list: ServicePost[], title: string) => {
+  const renderCustomRequests = (list: ServicePost[]) => {
     if (isLoading) {
       return (
         <div className="flex items-center justify-center py-4">
           <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
-          <p className="ml-3 text-muted-foreground">Loading {title.toLowerCase()}...</p>
+          <p className="ml-3 text-muted-foreground">Loading requests...</p>
         </div>
       );
     }
     if (error) {
-      return <p className="text-center text-destructive py-4">Error loading {title.toLowerCase()}: {error}</p>;
+      return <p className="text-center text-destructive py-4">Error loading requests: {error}</p>;
     }
     if (list.length === 0) {
-      return <p className="text-center text-muted-foreground py-4">No {title.toLowerCase()} posted yet. Be the first!</p>;
+      return <p className="text-center text-muted-foreground py-4">No custom order requests posted yet.</p>;
     }
 
     return list.map((post) => (
@@ -114,9 +111,16 @@ const FoodWellnessPage = () => {
         )}
         <p className="text-xs text-muted-foreground mt-1">Category: <span className="font-medium text-foreground">{post.category}</span></p>
         <p className="text-xs text-muted-foreground">{post.isCustomOrder ? "Budget" : "Price"}: <span className="font-medium text-foreground">{post.price}</span></p>
-        <p className="text-xs text-muted-foreground">Contact: <span className="font-medium text-foreground">{post.contact}</span></p>
         <p className="text-xs text-muted-foreground">Posted by: {post.posterName}</p>
         <p className="text-xs text-muted-foreground">Posted: {new Date(post.$createdAt).toLocaleDateString()}</p>
+        <Button 
+          size="sm" 
+          variant="outline" 
+          className="mt-2 border-secondary-neon text-secondary-neon hover:bg-secondary-neon/10"
+          onClick={() => toast.info(`Contacting ${post.posterName} at ${post.contact} to fulfill this request.`)}
+        >
+          <MessageSquareText className="mr-2 h-4 w-4" /> Offer to Fulfill
+        </Button>
       </div>
     ));
   };
@@ -128,29 +132,17 @@ const FoodWellnessPage = () => {
         <Card className="bg-card text-card-foreground shadow-lg border-border">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
-              <Soup className="h-5 w-5 text-secondary-neon" /> Healthy Options
+              <Soup className="h-5 w-5 text-secondary-neon" /> Post Your Offerings
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-3">
             <p className="text-sm text-muted-foreground">
-              Discover homemade food and wellness remedies from trusted campus peers.
+              Post your homemade food or wellness remedies for peers to order.
             </p>
-            <Button
-              className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleServiceClick("Homemade Meals")}
-            >
-              <Soup className="mr-2 h-4 w-4" /> Homemade Meals
-            </Button>
-            <Button
-              className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleServiceClick("Wellness Remedies")}
-            >
-              <HeartPulse className="mr-2 h-4 w-4" /> Wellness Remedies
-            </Button>
             <Dialog open={isPostServiceDialogOpen} onOpenChange={setIsPostServiceDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 mt-4">
-                  <PlusCircle className="mr-2 h-4 w-4" /> Post Your Offering
+                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Post New Offering
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
@@ -183,10 +175,25 @@ const FoodWellnessPage = () => {
 
         <Card className="bg-card text-card-foreground shadow-lg border-border">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xl font-semibold text-card-foreground">Recently Posted Offerings</CardTitle>
+            <CardTitle className="text-xl font-semibold text-card-foreground">Available Offerings (Zomato/Swiggy Style)</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
-            {renderListings(postedOfferings, "Offerings")}
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
+                <p className="ml-3 text-muted-foreground">Loading offerings...</p>
+              </div>
+            ) : error ? (
+              <p className="text-center text-destructive py-4">Error loading offerings: {error}</p>
+            ) : postedOfferings.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4">
+                {postedOfferings.map((offering) => (
+                  <FoodOfferingCard key={offering.$id} offering={offering} />
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-4">No food or wellness offerings posted yet.</p>
+            )}
           </CardContent>
         </Card>
 
@@ -197,7 +204,7 @@ const FoodWellnessPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
-            {renderListings(postedCustomRequests, "Custom Order Requests")}
+            {renderCustomRequests(postedCustomRequests)}
           </CardContent>
         </Card>
       </div>
