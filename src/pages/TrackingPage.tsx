@@ -1,42 +1,69 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Package, Truck, XCircle, MessageSquareText, DollarSign, Loader2 } from "lucide-react";
+import { Package, Truck, XCircle, MessageSquareText, DollarSign, Loader2, Utensils, CheckCircle, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID } from "@/lib/appwrite";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID } from "@/lib/appwrite";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { Models, Query } from "appwrite";
-import { calculateCommissionRate } from "@/utils/commission"; // Import commission calculator
+import { calculateCommissionRate } from "@/utils/commission";
+import { useFoodOrders, FoodOrder } from "@/hooks/useFoodOrders"; // NEW IMPORT
+import { Button } from "@/components/ui/button";
 
-interface TrackingItem {
+// --- Tracking Item Interfaces ---
+
+interface BaseTrackingItem {
   id: string;
-  type: "Order" | "Service" | "Cancellation" | "Complaint" | "Transaction";
   description: string;
-  status: "Pending" | "In Progress" | "Completed" | "Cancelled" | "Resolved" | "Initiated" | "Payment Confirmed";
   date: string;
-  productTitle?: string;
-  amount?: number;
-  sellerName?: string;
-  buyerName?: string; // Added buyerName
-  buyerId?: string;
-  sellerId?: string;
-  commissionAmount?: number; // Added commission details
-  netSellerAmount?: number; // Added net amount
+  status: string; // Generic status string
+  isUserProvider: boolean;
 }
 
+interface MarketTransactionItem extends BaseTrackingItem {
+  type: "Transaction";
+  productTitle: string;
+  amount: number;
+  sellerName: string;
+  buyerName: string;
+  buyerId: string;
+  sellerId: string;
+  commissionAmount?: number;
+  netSellerAmount?: number;
+}
+
+interface FoodOrderItem extends BaseTrackingItem {
+  type: "Food Order";
+  offeringTitle: string;
+  totalAmount: number;
+  providerName: string;
+  buyerName: string;
+  buyerId: string;
+  providerId: string;
+  orderStatus: FoodOrder["status"]; // Specific status for food orders
+}
+
+interface OtherActivityItem extends BaseTrackingItem {
+  type: "Order" | "Service" | "Cancellation" | "Complaint";
+}
+
+type TrackingItem = MarketTransactionItem | FoodOrderItem | OtherActivityItem;
+
+// --- Conversion Functions ---
+
 // Helper function to map Appwrite transaction status to TrackingItem status
-const mapAppwriteStatusToTrackingStatus = (appwriteStatus: string): TrackingItem["status"] => {
+const mapAppwriteStatusToTrackingStatus = (appwriteStatus: string): string => {
   switch (appwriteStatus) {
     case "initiated":
-      return "Initiated";
+      return "Initiated (Awaiting Payment)";
     case "payment_confirmed_to_developer":
-      return "Payment Confirmed";
+      return "Payment Confirmed (Processing)";
     case "commission_deducted":
-      return "In Progress";
+      return "Commission Deducted (Awaiting Seller Pay)";
     case "paid_to_seller":
       return "Completed";
     case "failed":
@@ -47,15 +74,14 @@ const mapAppwriteStatusToTrackingStatus = (appwriteStatus: string): TrackingItem
 };
 
 // Helper function to convert Appwrite transaction document to TrackingItem
-const convertAppwriteTransactionToTrackingItem = (doc: Models.Document, currentUserId: string): TrackingItem => {
+const convertAppwriteTransactionToTrackingItem = (doc: Models.Document, currentUserId: string): MarketTransactionItem => {
   const transactionDoc = doc as any;
   const isBuyer = transactionDoc.buyerId === currentUserId;
-  const isSeller = transactionDoc.sellerId === currentUserId;
 
   let description = `Payment for ${transactionDoc.productTitle}`;
   if (isBuyer) {
     description = `Purchase of ${transactionDoc.productTitle}`;
-  } else if (isSeller) {
+  } else if (transactionDoc.sellerId === currentUserId) {
     description = `Sale of ${transactionDoc.productTitle}`;
   }
 
@@ -68,37 +94,64 @@ const convertAppwriteTransactionToTrackingItem = (doc: Models.Document, currentU
     productTitle: transactionDoc.productTitle,
     amount: transactionDoc.amount,
     sellerName: transactionDoc.sellerName,
-    buyerName: transactionDoc.buyerName, // Mapped buyerName
+    buyerName: transactionDoc.buyerName,
     buyerId: transactionDoc.buyerId,
     sellerId: transactionDoc.sellerId,
     commissionAmount: transactionDoc.commissionAmount,
     netSellerAmount: transactionDoc.netSellerAmount,
+    isUserProvider: transactionDoc.sellerId === currentUserId,
   };
 };
 
-const dummyOtherItems: TrackingItem[] = [
-  { id: "t1", type: "Order", description: "Gaming Headset from The Exchange", status: "In Progress", date: "2024-07-20" },
-  { id: "t2", type: "Service", description: "Resume Building Service", status: "Completed", date: "2024-07-18" },
-  { id: "t3", type: "Cancellation", description: "Rent request for Bicycle", status: "Pending", date: "2024-07-22" },
-  { id: "t4", type: "Complaint", description: "Issue with food delivery", status: "Resolved", date: "2024-07-15" },
-  { id: "t5", type: "Order", description: "Textbook: Advanced Physics", status: "Pending", date: "2024-07-23" },
+// New conversion function for Food Orders
+const convertAppwriteFoodOrderToTrackingItem = (doc: FoodOrder, currentUserId: string): FoodOrderItem => {
+  const isBuyer = doc.buyerId === currentUserId;
+  const description = isBuyer 
+    ? `Order placed for ${doc.offeringTitle}` 
+    : `Order received for ${doc.offeringTitle}`;
+
+  return {
+    id: doc.$id,
+    type: "Food Order",
+    description: description,
+    status: doc.status, // Use specific order status
+    date: new Date(doc.$createdAt).toLocaleDateString(),
+    offeringTitle: doc.offeringTitle,
+    totalAmount: doc.totalAmount,
+    providerName: doc.providerName,
+    buyerName: doc.buyerName,
+    buyerId: doc.buyerId,
+    providerId: doc.providerId,
+    orderStatus: doc.status,
+    isUserProvider: doc.providerId === currentUserId,
+  };
+};
+
+const dummyOtherItems: OtherActivityItem[] = [
+  { id: "t1", type: "Order", description: "Gaming Headset from The Exchange", status: "In Progress", date: "2024-07-20", isUserProvider: false },
+  { id: "t2", type: "Service", description: "Resume Building Service", status: "Completed", date: "2024-07-18", isUserProvider: false },
+  { id: "t3", type: "Cancellation", description: "Rent request for Bicycle", status: "Pending", date: "2024-07-22", isUserProvider: false },
+  { id: "t4", type: "Complaint", description: "Issue with food delivery", status: "Resolved", date: "2024-07-15", isUserProvider: false },
+  { id: "t5", type: "Order", description: "Textbook: Advanced Physics", status: "Pending", date: "2024-07-23", isUserProvider: false },
 ];
 
 
 const TrackingPage = () => {
   const { user, userProfile } = useAuth();
+  const { orders: foodOrders, isLoading: isLoadingFood, refetch: refetchFoodOrders } = useFoodOrders();
+  
   const [trackingItems, setTrackingItems] = useState<TrackingItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingTransactions, setLoadingTransactions] = useState(true);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
-  const fetchTrackingItems = async () => {
+  const fetchMarketTransactions = useCallback(async () => {
     if (!user?.$id) {
-      setLoading(false);
+      setLoadingTransactions(false);
       return;
     }
 
-    setLoading(true);
+    setLoadingTransactions(true);
     try {
-      // Fetch transactions where the current user is the buyer or seller
       const response = await databases.listDocuments(
         APPWRITE_DATABASE_ID,
         APPWRITE_TRANSACTIONS_COLLECTION_ID,
@@ -107,76 +160,116 @@ const TrackingPage = () => {
             Query.equal('buyerId', user.$id),
             Query.equal('sellerId', user.$id)
           ]),
-          Query.orderDesc('$createdAt') // Order by newest first
+          Query.orderDesc('$createdAt')
         ]
       );
 
-      const fetchedTransactions: TrackingItem[] = response.documents
-        .map((doc: Models.Document) => convertAppwriteTransactionToTrackingItem(doc, user.$id));
-
-      setTrackingItems([...fetchedTransactions, ...dummyOtherItems]);
+      return response.documents.map((doc: Models.Document) => convertAppwriteTransactionToTrackingItem(doc, user.$id));
     } catch (error) {
-      console.error("Error fetching tracking items:", error);
-      toast.error("Failed to load tracking items.");
+      console.error("Error fetching market transactions:", error);
+      toast.error("Failed to load market transactions.");
+      return [];
+    }
+  }, [user]);
+
+  const mergeAndSetItems = useCallback(async () => {
+    const fetchedTransactions = await fetchMarketTransactions();
+    
+    const foodOrderItems = foodOrders.map(o => convertAppwriteFoodOrderToTrackingItem(o, user!.$id));
+
+    const mergedItems = [...fetchedTransactions, ...foodOrderItems, ...dummyOtherItems];
+    
+    // Sort by creation date (newest first)
+    mergedItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    setTrackingItems(mergedItems);
+    setLoadingTransactions(false);
+  }, [fetchMarketTransactions, foodOrders, user]);
+
+  useEffect(() => {
+    if (user) {
+      mergeAndSetItems();
+    }
+  }, [user, mergeAndSetItems]);
+
+  // --- Status Update Handlers ---
+
+  const handleUpdateFoodOrderStatus = async (orderId: string, currentStatus: FoodOrder["status"]) => {
+    if (isUpdatingStatus) return;
+    setIsUpdatingStatus(true);
+
+    let nextStatus: FoodOrder["status"];
+    let successMessage: string;
+
+    if (currentStatus === "Pending Confirmation") {
+      nextStatus = "Confirmed";
+      successMessage = "Order confirmed! Start preparing.";
+    } else if (currentStatus === "Confirmed") {
+      nextStatus = "Preparing";
+      successMessage = "Order status updated to Preparing.";
+    } else if (currentStatus === "Preparing") {
+      nextStatus = "Out for Delivery";
+      successMessage = "Order is out for delivery!";
+    } else {
+      setIsUpdatingStatus(false);
+      return;
+    }
+
+    try {
+      await databases.updateDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_FOOD_ORDERS_COLLECTION_ID,
+        orderId,
+        { status: nextStatus }
+      );
+      toast.success(successMessage);
+      refetchFoodOrders(); // Trigger refetch to update local state immediately
+    } catch (error: any) {
+      console.error("Error updating order status:", error);
+      toast.error(error.message || "Failed to update order status.");
     } finally {
-      setLoading(false);
+      setIsUpdatingStatus(false);
     }
   };
 
-  useEffect(() => {
-    fetchTrackingItems();
+  const handleConfirmDelivery = async (orderId: string) => {
+    if (isUpdatingStatus) return;
+    setIsUpdatingStatus(true);
 
-    // Realtime subscription for transactions
-    const unsubscribe = databases.client.subscribe(
-      `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_TRANSACTIONS_COLLECTION_ID}.documents`,
-      (response) => {
-        if (!user?.$id) return;
+    try {
+      await databases.updateDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_FOOD_ORDERS_COLLECTION_ID,
+        orderId,
+        { status: "Delivered" }
+      );
+      toast.success("Delivery confirmed! Enjoy your meal.");
+      refetchFoodOrders();
+    } catch (error: any) {
+      console.error("Error confirming delivery:", error);
+      toast.error(error.message || "Failed to confirm delivery.");
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
-        const payload = response.payload as unknown as Models.Document;
-        const transactionPayload = payload as any;
+  // --- UI Helpers ---
 
-        // Only process if the current user is involved in the transaction
-        if (transactionPayload.buyerId !== user.$id && transactionPayload.sellerId !== user.$id) {
-          return;
-        }
-
-        const newTrackingItem = convertAppwriteTransactionToTrackingItem(payload, user.$id);
-
-        setTrackingItems((prev) => {
-          const existingIndex = prev.findIndex(item => item.id === newTrackingItem.id && item.type === "Transaction");
-          
-          if (existingIndex !== -1) {
-            // Update existing transaction
-            const updatedItems = [...prev];
-            updatedItems[existingIndex] = newTrackingItem;
-            toast.info(`Activity updated: "${newTrackingItem.description}" status is now "${newTrackingItem.status}"`);
-            return updatedItems;
-          } else if (response.events.includes("databases.*.collections.*.documents.*.create")) {
-            // Add new transaction
-            toast.info(`New activity: "${newTrackingItem.description}"`);
-            return [newTrackingItem, ...prev];
-          }
-          // Ignore other events or non-transaction items
-          return prev;
-        });
-      }
-    );
-
-    return () => {
-      unsubscribe(); // Unsubscribe on component unmount
-    };
-  }, [user]); // Depend on user to re-run effect if user changes
-
-  const getStatusBadgeClass = (status: TrackingItem["status"]) => {
+  const getStatusBadgeClass = (status: string) => {
     switch (status) {
-      case "Pending":
-      case "Initiated":
+      case "Pending Confirmation":
+      case "Initiated (Awaiting Payment)":
         return "bg-yellow-500 text-white";
-      case "Payment Confirmed":
+      case "Payment Confirmed (Processing)":
+      case "Confirmed":
         return "bg-blue-500 text-white";
-      case "In Progress":
+      case "Commission Deducted (Awaiting Seller Pay)":
+      case "Preparing":
         return "bg-orange-500 text-white";
+      case "Out for Delivery":
+        return "bg-purple-500 text-white";
       case "Completed":
+      case "Delivered":
       case "Resolved":
         return "bg-secondary-neon text-primary-foreground";
       case "Cancelled":
@@ -198,6 +291,8 @@ const TrackingPage = () => {
         return <MessageSquareText className="h-4 w-4 text-yellow-500" />;
       case "Transaction":
         return <DollarSign className="h-4 w-4 text-green-500" />;
+      case "Food Order":
+        return <Utensils className="h-4 w-4 text-red-500" />;
       default:
         return null;
     }
@@ -215,71 +310,109 @@ const TrackingPage = () => {
             <CardTitle className="text-xl font-semibold text-card-foreground">Your Activities (Real-time)</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
-            {loading ? (
+            {(loadingTransactions || isLoadingFood) ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
                 <p className="ml-3 text-muted-foreground">Loading your activities...</p>
               </div>
             ) : trackingItems.length > 0 ? (
               trackingItems.map((item) => {
-                const isSeller = item.sellerId === user?.$id;
+                const isSellerOrProvider = item.isUserProvider;
                 const commissionRateDisplay = (dynamicCommissionRate * 100).toFixed(2);
                 
-                // Calculate expected net amount if commission hasn't been deducted yet
-                const expectedCommission = item.amount ? item.amount * dynamicCommissionRate : 0;
-                const expectedNet = item.amount ? item.amount - expectedCommission : 0;
+                // Determine if it's a Food Order for specific logic
+                const isFoodOrder = item.type === "Food Order";
+                const foodItem = isFoodOrder ? (item as FoodOrderItem) : null;
+
+                // Calculate expected net amount if commission hasn't been deducted yet (Market only)
+                const marketItem = item.type === "Transaction" ? (item as MarketTransactionItem) : null;
+                const expectedCommission = marketItem?.amount ? marketItem.amount * dynamicCommissionRate : 0;
+                const expectedNet = marketItem?.amount ? marketItem.amount - expectedCommission : 0;
 
                 return (
-                  <div key={item.id} className="flex items-start space-x-3 p-3 border border-border rounded-md bg-background">
-                    <div className="flex-shrink-0 mt-1">
-                      {getIcon(item.type)}
+                  <div key={item.id} className="flex flex-col space-y-3 p-3 border border-border rounded-md bg-background">
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 mt-1">
+                        {getIcon(item.type)}
+                      </div>
+                      <div className="flex-grow min-w-0">
+                        <p className="font-medium text-foreground truncate">{item.description}</p>
+                        <p className="text-sm text-muted-foreground">{item.type} - {item.date}</p>
+                        <Badge className={cn("mt-1", getStatusBadgeClass(item.status))}>
+                          {item.status}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="flex-grow min-w-0">
-                      <p className="font-medium text-foreground truncate">{item.description}</p>
-                      
-                      {item.type === "Transaction" && (
-                        <>
-                          <p className="text-sm text-muted-foreground">Amount: ₹{item.amount?.toFixed(2)}</p>
-                          {isSeller ? (
-                            <p className="text-xs text-muted-foreground truncate">You are the seller. Buyer: {item.buyerName || "N/A"}</p>
-                          ) : (
-                            <p className="text-xs text-muted-foreground truncate">You are the buyer. Seller: {item.sellerName || "N/A"}</p>
-                          )}
-                          
-                          {/* Seller specific status updates */}
-                          {isSeller && item.status === "Initiated" && (
-                            <p className="text-xs text-yellow-500">Awaiting buyer payment to developer.</p>
-                          )}
-                          {isSeller && item.status === "Payment Confirmed" && (
-                            <p className="text-xs text-blue-500">Payment confirmed by buyer. Developer is processing commission ({commissionRateDisplay}%).</p>
-                          )}
-                          {isSeller && item.status === "In Progress" && (
-                            <p className="text-xs text-orange-500">
-                              Commission deducted (₹{item.commissionAmount?.toFixed(2) || expectedCommission.toFixed(2)}). 
-                              Awaiting transfer of net amount: ₹{item.netSellerAmount?.toFixed(2) || expectedNet.toFixed(2)}.
-                            </p>
-                          )}
-                          {isSeller && item.status === "Completed" && (
-                            <p className="text-xs text-green-500">Payment complete. Net amount ₹{item.netSellerAmount?.toFixed(2)} transferred to your UPI ID.</p>
-                          )}
 
-                          {/* Buyer specific status updates */}
-                          {!isSeller && item.status === "Initiated" && (
-                            <p className="text-xs text-yellow-500">Awaiting your UPI payment confirmation (UTR ID).</p>
-                          )}
-                          {!isSeller && item.status === "Payment Confirmed" && (
-                            <p className="text-xs text-blue-500">Payment confirmed. Developer is verifying and processing the sale.</p>
-                          )}
-                          {!isSeller && item.status === "Completed" && (
-                            <p className="text-xs text-green-500">Transaction complete. Arrange pickup/delivery with seller.</p>
-                          )}
-                        </>
-                      )}
-                      <p className="text-sm text-muted-foreground">{item.type} - {item.date}</p>
-                      <Badge className={cn("mt-1", getStatusBadgeClass(item.status))}>
-                        {item.status}
-                      </Badge>
-                    </div>
+                    {/* --- Market Transaction Details --- */}
+                    {marketItem && (
+                      <div className="space-y-1 text-xs border-t border-border pt-2">
+                        <p className="text-muted-foreground">Amount: <span className="font-semibold text-foreground">₹{marketItem.amount?.toFixed(2)}</span></p>
+                        {isSellerOrProvider ? (
+                          <>
+                            <p className="text-muted-foreground">Buyer: {marketItem.buyerName || "N/A"}</p>
+                            {marketItem.status === "Payment Confirmed (Processing)" && (
+                              <p className="text-blue-500">Payment confirmed by buyer. Developer processing commission ({commissionRateDisplay}%).</p>
+                            )}
+                            {marketItem.status === "Commission Deducted (Awaiting Seller Pay)" && (
+                              <p className="text-orange-500">
+                                Commission deducted (₹{marketItem.commissionAmount?.toFixed(2) || expectedCommission.toFixed(2)}). 
+                                Awaiting transfer of net amount: ₹{marketItem.netSellerAmount?.toFixed(2) || expectedNet.toFixed(2)}.
+                              </p>
+                            )}
+                            {marketItem.status === "Completed" && (
+                              <p className="text-green-500">Payment complete. Net amount ₹{marketItem.netSellerAmount?.toFixed(2)} transferred.</p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-muted-foreground">Seller: {marketItem.sellerName || "N/A"}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* --- Food Order Details & Actions (Zomato/Swiggy Flow) --- */}
+                    {foodItem && (
+                      <div className="space-y-2 border-t border-border pt-2">
+                        <p className="text-xs text-muted-foreground">Total: <span className="font-semibold text-foreground">₹{foodItem.totalAmount.toFixed(2)}</span> | Qty: {foodItem.quantity}</p>
+                        <p className="text-xs text-muted-foreground">Delivery to: {foodItem.description.split('Order placed for ')[1] || foodItem.description.split('Order received for ')[1]}</p>
+                        
+                        {/* Provider Actions */}
+                        {isSellerOrProvider && foodItem.orderStatus !== "Delivered" && foodItem.orderStatus !== "Cancelled" && (
+                          <div className="flex justify-end">
+                            <Button
+                              size="sm"
+                              onClick={() => handleUpdateFoodOrderStatus(foodItem.id, foodItem.orderStatus)}
+                              disabled={isUpdatingStatus}
+                              className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs"
+                            >
+                              {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                                <>
+                                  <ArrowRight className="h-3 w-3 mr-1" /> 
+                                  {foodItem.orderStatus === "Pending Confirmation" && "Confirm Order"}
+                                  {foodItem.orderStatus === "Confirmed" && "Start Preparing"}
+                                  {foodItem.orderStatus === "Preparing" && "Mark Out for Delivery"}
+                                  {foodItem.orderStatus === "Out for Delivery" && "Awaiting Buyer Confirmation"}
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Buyer Actions */}
+                        {!isSellerOrProvider && foodItem.orderStatus === "Out for Delivery" && (
+                          <div className="flex justify-end">
+                            <Button
+                              size="sm"
+                              onClick={() => handleConfirmDelivery(foodItem.id)}
+                              disabled={isUpdatingStatus}
+                              className="bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 text-xs"
+                            >
+                              <CheckCircle className="h-3 w-3 mr-1" /> Confirm Delivery
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })
