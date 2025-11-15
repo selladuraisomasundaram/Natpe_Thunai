@@ -14,11 +14,15 @@ import { databases, APPWRITE_DATABASE_ID, APPWRITE_DEVELOPER_MESSAGES_COLLECTION
 import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
 import { containsBlockedWords } from "@/lib/moderation"; // Import moderation utility
+import { calculateCommissionRate, formatCommissionRate } from "@/utils/commission"; // Import dynamic commission
 
 const DeveloperChatbox = () => {
   const { user, userProfile } = useAuth();
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  
+  const userLevel = userProfile?.level ?? 1;
+  const dynamicCommissionRateDisplay = formatCommissionRate(calculateCommissionRate(userLevel));
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,7 +109,7 @@ const DeveloperChatbox = () => {
             <QrCode className="h-4 w-4 text-secondary-neon" /> Developer Payments
           </h3>
           <p className="text-sm text-muted-foreground">
-            For all transactions (buy, rent, services), users pay the developers first. We then deduct our 30% commission and transfer the remaining amount to the seller/service provider.
+            For all transactions (buy, rent, services), users pay the developers first. We then deduct the dynamic commission rate (currently {dynamicCommissionRateDisplay} for Level {userLevel}) and transfer the remaining amount to the seller/service provider.
           </p>
           <div className="flex flex-col items-center space-y-2 p-3 border border-border rounded-md bg-background">
             <img src="/qr.jpg" alt="Developer UPI QR Code" className="w-32 h-32 object-contain rounded-md" />

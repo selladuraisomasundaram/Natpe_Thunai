@@ -127,18 +127,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         profileId,
         data
       );
-      // Recalculate Max XP based on the potentially new level
-      const level = (updatedDoc as any).level ?? 1;
+      
+      // Ensure we use the data returned from the database, which should include all fields
+      const updatedProfileData = updatedDoc as unknown as UserProfile;
+      
+      // Recalculate Max XP based on the potentially new level, ensuring defaults if fields are missing
+      const level = updatedProfileData.level ?? 1;
       const maxXp = calculateMaxXpForLevel(level);
 
       const updatedProfile: UserProfile = {
-        ...(updatedDoc as unknown as UserProfile),
+        ...updatedProfileData,
         level: level,
-        currentXp: (updatedDoc as any).currentXp ?? 0,
+        currentXp: updatedProfileData.currentXp ?? 0,
         maxXp: maxXp,
       };
       setUserProfile(updatedProfile);
-      toast.success("Profile updated successfully!");
+      // Do NOT show success toast here, let the caller (like addXp or EditProfileForm) handle it.
     } catch (error: any) {
       console.error("Error updating user profile:", error);
       throw new Error(error.message || "Failed to update profile.");
@@ -160,10 +164,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Only update if there's a change in XP or level
       if (newLevel !== currentLevel || newCurrentXp !== userProfile.currentXp || newMaxXp !== userProfile.maxXp) {
+        // Use updateUserProfile to handle the database update and local state sync
         await updateUserProfile(userProfile.$id, {
           level: newLevel,
           currentXp: newCurrentXp,
-          maxXp: newMaxXp,
+          maxXp: newMaxXp, // Ensure maxXp is saved back to the database
         });
       }
 
@@ -173,7 +178,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         toast.info(`+${amount} XP earned!`);
       }
     } catch (error) {
-      console.error("Failed to add XP:", error);
+      // Error is already logged and thrown by updateUserProfile, just toast the failure here.
       toast.error("Failed to update XP/Level.");
     }
   };

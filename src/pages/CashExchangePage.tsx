@@ -16,6 +16,7 @@ import { databases, APPWRITE_DATABASE_ID, APPWRITE_CASH_EXCHANGE_COLLECTION_ID }
 import { ID, Models, Query } from "appwrite";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
+import { calculateCommissionRate, formatCommissionRate } from "@/utils/commission"; // Import dynamic commission
 
 interface Contribution {
   userId: string;
@@ -36,7 +37,7 @@ interface CashExchangeRequest extends Models.Document {
 }
 
 const CashExchangePage = () => {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<"requests" | "offers" | "group-contributions">("requests");
   const [isPostDialogOpen, setIsPostDialogOpen] = useState(false);
   const [postType, setPostType] = useState<"request" | "offer" | "group-contribution">("request");
@@ -48,7 +49,11 @@ const CashExchangePage = () => {
   const [exchangeRequests, setExchangeRequests] = useState<CashExchangeRequest[]>([]);
   const [isPosting, setIsPosting] = useState(false);
 
-  const COMMISSION_RATE = 0.03; // 3% commission
+  // Use dynamic commission rate from user profile
+  const userLevel = userProfile?.level ?? 1;
+  const dynamicCommissionRate = calculateCommissionRate(userLevel);
+  const dynamicCommissionRateDisplay = formatCommissionRate(dynamicCommissionRate);
+
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
@@ -124,10 +129,13 @@ const CashExchangePage = () => {
 
     setIsPosting(true);
     try {
+      // Calculate commission based on the poster's current level
+      const commissionAmount = parsedAmount * dynamicCommissionRate;
+
       const newRequestData = {
         type: postType,
         amount: parsedAmount,
-        commission: parsedAmount * COMMISSION_RATE,
+        commission: commissionAmount, // Use dynamic commission
         notes: notes.trim(),
         status: postType === "group-contribution" ? "Group Contribution" : "Open",
         meetingLocation: meetingLocation.trim(),
@@ -309,7 +317,7 @@ const CashExchangePage = () => {
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-3">
             <p className="text-sm text-muted-foreground">
-              Post your cash requirements or offers. A 3% commission applies to successful exchanges.
+              Post your cash requirements or offers. A dynamic commission rate of {dynamicCommissionRateDisplay} applies to successful exchanges.
             </p>
             <Button
               className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90"

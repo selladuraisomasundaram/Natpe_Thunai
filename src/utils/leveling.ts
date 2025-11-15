@@ -2,13 +2,13 @@
 
 /**
  * Calculates the total XP required to reach the next level.
- * Uses an exponential growth curve: 100 * (1.5 ^ (level - 1)).
+ * Uses a slower, more gradual growth curve to ensure steady progression.
  * @param currentLevel The user's current level (must be >= 1).
  * @returns The total XP required for the next level.
  */
 export const calculateMaxXpForLevel = (currentLevel: number): number => {
   const BASE_XP = 100;
-  const GROWTH_FACTOR = 1.5;
+  const GROWTH_FACTOR = 1.2; // Reduced growth factor from 1.5 to 1.2 for slower progression
 
   if (currentLevel <= 1) {
     return BASE_XP;
