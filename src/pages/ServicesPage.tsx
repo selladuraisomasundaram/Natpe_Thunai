@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext"; // Import useAuth
 import { HeartHandshake } from "lucide-react"; // Import HeartHandshake
+import StudentWelfareLinks from "@/components/StudentWelfareLinks"; // NEW IMPORT
 
 const ServicesPage = () => {
   const navigate = useNavigate();
@@ -42,6 +43,9 @@ const ServicesPage = () => {
             </CardContent>
           </Card>
         </Link>
+        
+        {/* Student Welfare & E-commerce Links */}
+        <StudentWelfareLinks />
 
         <Card className="bg-card p-4 rounded-lg shadow-md border border-border cursor-pointer hover:shadow-xl transition-shadow" onClick={() => handleServiceClick("/services/freelance", "Freelance Section")}>
           <CardHeader className="p-0 pb-2">

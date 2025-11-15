@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Briefcase, Edit, Video, PenTool, PlusCircle } from "lucide-react";
+import { Briefcase, Edit, Video, PenTool, PlusCircle, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import PostServiceForm from "@/components/forms/PostServiceForm"; // Import the new form
@@ -23,7 +23,7 @@ const FreelancePage = () => {
 
   // This function is now just a placeholder/helper since posting should ideally happen on the specific category page
   const handlePostService = () => {
-    toast.info("Please select a specific category (e.g., Resume Building) to post your service.");
+    toast.info("Service/Job Request posted successfully! (Simulated)");
     setIsPostServiceDialogOpen(false);
   };
 
@@ -34,14 +34,45 @@ const FreelancePage = () => {
         <Card className="bg-card text-card-foreground shadow-lg border-border">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
-              <Briefcase className="h-5 w-5 text-secondary-neon" /> Choose a Service Category
+              <Briefcase className="h-5 w-5 text-secondary-neon" /> Post or Browse Jobs
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-3">
             <p className="text-sm text-muted-foreground">
-              Find and offer various freelance services within the campus community.
+              Offer your skills or post a job request for campus freelancers (Fungro/Upwork style).
             </p>
             
+            <Dialog open={isPostServiceDialogOpen} onOpenChange={setIsPostServiceDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Post a Service or Job Request
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
+                <DialogHeader>
+                  <DialogTitle className="text-foreground">Post New Service or Job Request</DialogTitle>
+                </DialogHeader>
+                <PostServiceForm onSubmit={handlePostService} onCancel={() => setIsPostServiceDialogOpen(false)} />
+              </DialogContent>
+            </Dialog>
+
+            <Button
+              variant="outline"
+              className="w-full border-secondary-neon text-secondary-neon hover:bg-secondary-neon/10"
+              onClick={() => toast.info("Searching all freelance listings (feature coming soon)!")}
+            >
+              <Search className="mr-2 h-4 w-4" /> Browse All Listings
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card text-card-foreground shadow-lg border-border">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
+              <Briefcase className="h-5 w-5 text-secondary-neon" /> Browse by Category
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 space-y-3">
             {serviceCategories.map((item) => (
               <Button
                 key={item.name}
@@ -53,20 +84,6 @@ const FreelancePage = () => {
                 </Link>
               </Button>
             ))}
-
-            <Dialog open={isPostServiceDialogOpen} onOpenChange={setIsPostServiceDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 mt-4">
-                  <PlusCircle className="mr-2 h-4 w-4" /> Post Your Service (General)
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
-                <DialogHeader>
-                  <DialogTitle className="text-foreground">Post New Freelance Service</DialogTitle>
-                </DialogHeader>
-                <PostServiceForm onSubmit={handlePostService} onCancel={() => setIsPostServiceDialogOpen(false)} />
-              </DialogContent>
-            </Dialog>
           </CardContent>
         </Card>
       </div>
