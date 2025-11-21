@@ -25,6 +25,23 @@ interface CanteenDataState {
   addCanteen: (canteenName: string) => Promise<CanteenData | undefined>;
 }
 
+// Helper functions for serialization/deserialization
+const serializeItems = (items: CanteenItem[]): string[] => {
+  return items.map(item => JSON.stringify(item));
+};
+
+const deserializeItems = (items: string[]): CanteenItem[] => {
+  if (!Array.isArray(items)) return [];
+  return items.map(item => {
+    try {
+      return JSON.parse(item);
+    } catch (e) {
+      console.error("Failed to parse canteen item:", item, e);
+      return { name: "Unknown Item", available: false };
+    }
+  });
+};
+
 export const useCanteenData = (): CanteenDataState => {
   const [allCanteens, setAllCanteens] = useState<CanteenData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,7 +56,14 @@ export const useCanteenData = (): CanteenDataState => {
         APPWRITE_CANTEEN_COLLECTION_ID,
         [Query.orderAsc('name')]
       );
-      setAllCanteens(response.documents as unknown as CanteenData[]);
+      
+      // Deserialize fetched items
+      const deserializedCanteens = (response.documents as any[]).map(doc => ({
+          ...doc,
+          items: deserializeItems(doc.items || []),
+      })) as CanteenData[];
+
+      setAllCanteens(deserializedCanteens);
     } catch (err: any) {
       console.error("Error fetching canteen data:", err);
       setError(err.message || "Failed to load canteen status.");
@@ -51,8 +75,12 @@ export const useCanteenData = (): CanteenDataState => {
 
   const updateCanteen = useCallback(async (canteenId: string, updates: Partial<CanteenData>) => {
     try {
-      // Ensure that if 'items' is being updated, it is sent as a clean array of objects
-      const updatePayload = { ...updates };
+      const updatePayload: Partial<CanteenData> & { items?: string[] } = { ...updates };
+      
+      // Serialize items if they are being updated
+      if (updates.items) {
+          updatePayload.items = serializeItems(updates.items);
+      }
       
       await databases.updateDocument(
         APPWRITE_DATABASE_ID,
@@ -61,7 +89,6 @@ export const useCanteenData = (): CanteenDataState => {
         updatePayload
       );
       
-      // Real-time subscription handles state update, but we return the doc for immediate feedback
       return;
     } catch (error: any) {
       console.error("Error updating canteen data:", error);
@@ -71,25 +98,33 @@ export const useCanteenData = (): CanteenDataState => {
   }, []);
 
   const addCanteen = useCallback(async (canteenName: string): Promise<CanteenData | undefined> => {
+    const initialItems: CanteenItem[] = [
+        { name: "Coffee", available: true },
+        { name: "Tea", available: true },
+    ];
+    
     const initialData = {
       name: canteenName,
       isOpen: true,
-      // Ensure the structure matches the Appwrite Array attribute definition
-      items: [
-        { name: "Coffee", available: true },
-        { name: "Tea", available: true },
-      ],
+      // Serialize initial items before sending
+      items: serializeItems(initialItems),
     };
+    
     try {
       const newDoc = await databases.createDocument(
         APPWRITE_DATABASE_ID,
         APPWRITE_CANTEEN_COLLECTION_ID,
         ID.unique(),
         initialData
-      ) as unknown as CanteenData;
+      ) as unknown as Models.Document;
       
-      // Real-time subscription handles state update
-      return newDoc;
+      // Deserialize the returned document for local state consistency
+      const deserializedDoc: CanteenData = {
+          ...(newDoc as any),
+          items: deserializeItems((newDoc as any).items || []),
+      };
+
+      return deserializedDoc;
     } catch (e: any) {
       console.error("Error adding canteen:", e);
       toast.error(e.message || "Failed to add new canteen.");
@@ -102,25 +137,31 @@ export const useCanteenData = (): CanteenDataState => {
     const unsubscribe = databases.client.subscribe(
       `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_CANTEEN_COLLECTION_ID}.documents`,
       (response) => {
-        const payload = response.payload as unknown as CanteenData;
+        const payload = response.payload as any;
+        
+        // Deserialize payload from real-time update
+        const deserializedPayload: CanteenData = {
+            ...payload,
+            items: deserializeItems(payload.items || []),
+        };
 
         setAllCanteens(prev => {
-          const existingIndex = prev.findIndex(c => c.$id === payload.$id);
+          const existingIndex = prev.findIndex(c => c.$id === deserializedPayload.$id);
 
           if (response.events.includes("databases.*.collections.*.documents.*.create")) {
             if (existingIndex === -1) {
-              toast.info(`New canteen added: ${payload.name}`);
-              return [payload, ...prev];
+              toast.info(`New canteen added: ${deserializedPayload.name}`);
+              return [deserializedPayload, ...prev];
             }
           } else if (response.events.includes("databases.*.collections.*.documents.*.update")) {
             if (existingIndex !== -1) {
               // Update existing document
-              return prev.map(c => c.$id === payload.$id ? payload : c);
+              return prev.map(c => c.$id === deserializedPayload.$id ? deserializedPayload : c);
             }
           } else if (response.events.includes("databases.*.collections.*.documents.*.delete")) {
             if (existingIndex !== -1) {
-              toast.info(`Canteen removed: ${payload.name}`);
-              return prev.filter(c => c.$id !== payload.$id);
+              toast.info(`Canteen removed: ${deserializedPayload.name}`);
+              return prev.filter(c => c.$id !== deserializedPayload.$id);
             }
           }
           return prev;
