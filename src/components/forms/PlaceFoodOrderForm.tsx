@@ -40,6 +40,10 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({ offering, onOrd
       toast.error("You must be logged in to place an order.");
       return;
     }
+    if (!userProfile.collegeName) {
+      toast.error("Your profile is missing college information. Please update your profile first.");
+      return;
+    }
     if (quantity <= 0 || !deliveryLocation.trim()) {
       toast.error("Please specify a valid quantity and delivery location.");
       return;
@@ -79,6 +83,7 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({ offering, onOrd
           deliveryLocation: deliveryLocation.trim(),
           notes: notes.trim(),
           status: "Pending Confirmation", // We keep this status for the provider flow, but payment is initiated now.
+          collegeName: userProfile.collegeName, // NEW: Add collegeName
         }
       );
       

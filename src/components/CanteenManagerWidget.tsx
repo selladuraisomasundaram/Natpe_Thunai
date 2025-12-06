@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AddCanteenForm from "./forms/AddCanteenForm";
 import { useCanteenData, CanteenData } from "@/hooks/useCanteenData"; // Import the new hook
+import { useAuth } from "@/context/AuthContext"; // NEW: Import useAuth
 
 interface CanteenItem {
   name: string;
@@ -19,6 +20,7 @@ interface CanteenItem {
 }
 
 const CanteenManagerWidget = () => {
+  const { userProfile } = useAuth(); // NEW: Use useAuth hook
   const { allCanteens, isLoading, error, refetch, updateCanteen, addCanteen } = useCanteenData();
   
   const [selectedCanteenId, setSelectedCanteenId] = useState<string | null>(null);
@@ -41,10 +43,10 @@ const CanteenManagerWidget = () => {
     }
   }, [allCanteens, selectedCanteenId]);
 
-  const handleAddCanteen = async (canteenName: string) => {
+  const handleAddCanteen = async (canteenName: string, collegeName: string) => { // NEW: Accept collegeName
     setIsAddingCanteen(true);
     try {
-      const newCanteen = await addCanteen(canteenName);
+      const newCanteen = await addCanteen(canteenName, collegeName); // NEW: Pass collegeName
       if (newCanteen) {
         toast.success(`Canteen "${canteenName}" added successfully!`);
         // Automatically select the newly added canteen

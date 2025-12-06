@@ -17,18 +17,23 @@ import { useAuth } from "@/context/AuthContext";
 
 const CollaboratorsPage = () => {
   const { user, userProfile } = useAuth();
-  const { posts: projectPosts, isLoading, error } = useCollaboratorPosts();
+  const { posts: allProjectPosts, isLoading, error } = useCollaboratorPosts(); // Fetch all posts
   const [isPostDialogOpen, setIsPostDialogOpen] = useState(false);
   const [postTitle, setPostTitle] = useState("");
   const [postDescription, setPostDescription] = useState("");
   const [postSkills, setPostSkills] = useState("");
   const [postContact, setPostContact] = useState("");
   const [isPosting, setIsPosting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(""); // NEW: State for search term
 
   const handlePostSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !userProfile) {
       toast.error("You must be logged in to post a project.");
+      return;
+    }
+    if (!userProfile.collegeName) {
+      toast.error("Your profile is missing college information. Please update your profile first.");
       return;
     }
     if (!postTitle || !postDescription || !postSkills || !postContact) {
@@ -45,6 +50,7 @@ const CollaboratorsPage = () => {
         contact: postContact,
         posterId: user.$id,
         posterName: user.name,
+        collegeName: userProfile.collegeName, // NEW: Add collegeName
       };
 
       await databases.createDocument(
@@ -68,6 +74,14 @@ const CollaboratorsPage = () => {
     }
   };
 
+  // NEW: Filter posts based on search term
+  const filteredPosts = allProjectPosts.filter(post =>
+    post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    post.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    post.skillsNeeded.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    post.posterName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
       <h1 className="text-4xl font-bold mb-6 text-center text-foreground">Project Collaborator Tab</h1>
@@ -88,13 +102,17 @@ const CollaboratorsPage = () => {
             >
               <PlusCircle className="mr-2 h-4 w-4" /> Post a Project
             </Button>
-            <Button
-              variant="outline"
-              className="w-full border-secondary-neon text-secondary-neon hover:bg-secondary-neon/10"
-              onClick={() => toast.info("Searching for projects (feature coming soon)!")}
-            >
-              <Search className="mr-2 h-4 w-4" /> Browse Projects
-            </Button>
+            {/* NEW: Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search projects by title, description, or skills..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
+              />
+            </div>
           </CardContent>
         </Card>
 
@@ -110,8 +128,8 @@ const CollaboratorsPage = () => {
               </div>
             ) : error ? (
               <p className="text-center text-destructive py-4">Error loading posts: {error}</p>
-            ) : projectPosts.length > 0 ? (
-              projectPosts.map((post) => (
+            ) : filteredPosts.length > 0 ? ( // NEW: Render filtered posts
+              filteredPosts.map((post) => (
                 <div key={post.$id} className="p-3 border border-border rounded-md bg-background">
                   <h3 className="font-semibold text-foreground">{post.title}</h3>
                   <p className="text-sm text-muted-foreground mt-1">{post.description}</p>
@@ -122,7 +140,7 @@ const CollaboratorsPage = () => {
                 </div>
               ))
             ) : (
-              <p className="text-center text-muted-foreground py-4">No project posts yet. Be the first!</p>
+              <p className="text-center text-muted-foreground py-4">No project posts found matching your search.</p>
             )}
           </CardContent>
         </Card>
@@ -194,8 +212,8 @@ const CollaboratorsPage = () => {
               />
             </div>
             <DialogFooter className="pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsPostDialogOpen(false)} disabled={isPosting} className="border-border text-primary-foreground hover:bg-muted">Cancel</Button>
-              <Button type="submit" className="bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90" disabled={isPosting}>
+              <Button type="button" variant="outline" onClick={() => setIsPostDialogOpen(false)} disabled={isPosting} className="w-full sm:w-auto border-border text-primary-foreground hover:bg-muted">Cancel</Button>
+              <Button type="submit" className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90" disabled={isPosting}>
                 {isPosting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
                 Post Project
               </Button>

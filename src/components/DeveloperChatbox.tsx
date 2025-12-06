@@ -37,6 +37,10 @@ const DeveloperChatbox = () => {
       toast.error("You must be logged in to send a message.");
       return;
     }
+    if (!userProfile.collegeName) {
+      toast.error("Your profile is missing college information. Please update your profile first.");
+      return;
+    }
     
     if (containsBlockedWords(trimmedMessage)) {
       toast.error("Your message contains inappropriate language. Please revise.");
@@ -54,6 +58,7 @@ const DeveloperChatbox = () => {
           senderName: user.name,
           message: trimmedMessage,
           isDeveloper: userProfile.role === 'developer',
+          collegeName: userProfile.collegeName, // NEW: Add collegeName
           // Note: The $createdAt timestamp will be used by the Developer Dashboard
           // to determine visibility (1-2 days).
         }

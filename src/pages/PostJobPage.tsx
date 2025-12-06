@@ -8,29 +8,70 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Briefcase, DollarSign } from "lucide-react";
+import { Briefcase, DollarSign, Loader2 } from "lucide-react"; // NEW: Import Loader2
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext"; // NEW: Import useAuth
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_SERVICES_COLLECTION_ID } from "@/lib/appwrite"; // NEW: Import Appwrite services
+import { ID } from 'appwrite'; // NEW: Import ID
 
 const PostJobPage = () => {
+  const { user, userProfile } = useAuth(); // NEW: Use useAuth hook
   const [jobTitle, setJobTitle] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [jobCategory, setJobCategory] = useState("");
   const [compensation, setCompensation] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [isPosting, setIsPosting] = useState(false); // NEW: Add loading state
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => { // NEW: Make handleSubmit async
     e.preventDefault();
+    if (!user || !userProfile) {
+      toast.error("You must be logged in to post a job.");
+      return;
+    }
+    if (!userProfile.collegeName) {
+      toast.error("Your profile is missing college information. Please update your profile first.");
+      return;
+    }
     if (!jobTitle || !jobDescription || !jobCategory || !compensation || !contactEmail) {
       toast.error("Please fill in all required fields.");
       return;
     }
-    toast.success(`Job "${jobTitle}" posted successfully!`);
-    // In a real app, send data to backend
-    setJobTitle("");
-    setJobDescription("");
-    setJobCategory("");
-    setCompensation("");
-    setContactEmail("");
+
+    setIsPosting(true); // NEW: Set loading state
+    try {
+      const newJobData = {
+        title: jobTitle,
+        description: jobDescription,
+        category: jobCategory,
+        price: compensation, // Using 'price' attribute for compensation
+        contact: contactEmail,
+        posterId: user.$id,
+        posterName: user.name,
+        collegeName: userProfile.collegeName, // NEW: Add collegeName
+        isCustomOrder: false, // Jobs are not custom orders
+      };
+
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_SERVICES_COLLECTION_ID,
+        ID.unique(),
+        newJobData
+      );
+
+      toast.success(`Job "${jobTitle}" posted successfully!`);
+      // In a real app, send data to backend
+      setJobTitle("");
+      setJobDescription("");
+      setJobCategory("");
+      setCompensation("");
+      setContactEmail("");
+    } catch (error: any) {
+      console.error("Error posting job:", error);
+      toast.error(error.message || "Failed to post job/service.");
+    } finally {
+      setIsPosting(false); // NEW: Reset loading state
+    }
   };
 
   return (
@@ -58,6 +99,7 @@ const PostJobPage = () => {
                   onChange={(e) => setJobTitle(e.target.value)}
                   required
                   className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
+                  disabled={isPosting}
                 />
               </div>
               <div>
@@ -69,11 +111,12 @@ const PostJobPage = () => {
                   onChange={(e) => setJobDescription(e.target.value)}
                   required
                   className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
+                  disabled={isPosting}
                 />
               </div>
               <div>
                 <Label htmlFor="jobCategory" className="text-foreground">Category</Label>
-                <Select value={jobCategory} onValueChange={setJobCategory} required>
+                <Select value={jobCategory} onValueChange={setJobCategory} required disabled={isPosting}>
                   <SelectTrigger className="w-full bg-input text-foreground border-border focus:ring-ring focus:border-ring">
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
@@ -96,6 +139,7 @@ const PostJobPage = () => {
                   onChange={(e) => setCompensation(e.target.value)}
                   required
                   className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
+                  disabled={isPosting}
                 />
               </div>
               <div>
@@ -108,10 +152,11 @@ const PostJobPage = () => {
                   onChange={(e) => setContactEmail(e.target.value)}
                   required
                   className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
+                  disabled={isPosting}
                 />
               </div>
-              <Button type="submit" className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-                <DollarSign className="mr-2 h-4 w-4" /> Post Job/Service
+              <Button type="submit" className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90" disabled={isPosting}>
+                {isPosting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><DollarSign className="mr-2 h-4 w-4" /> Post Job/Service</>}
               </Button>
             </form>
           </CardContent>

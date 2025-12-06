@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_CANTEEN_COLLECTION_ID } from '@/lib/appwrite';
 import { Models, Query, ID } from 'appwrite';
 import { toast } from 'sonner';
+import { useAuth } from '@/context/AuthContext'; // NEW: Import useAuth
 
 interface CanteenItem {
   name: string;
@@ -14,6 +15,7 @@ export interface CanteenData extends Models.Document {
   name: string;
   isOpen: boolean;
   items: CanteenItem[];
+  collegeName: string; // NEW: Add collegeName
 }
 
 interface CanteenDataState {
@@ -22,7 +24,7 @@ interface CanteenDataState {
   error: string | null;
   refetch: () => void;
   updateCanteen: (canteenId: string, updates: Partial<CanteenData>) => Promise<void>;
-  addCanteen: (canteenName: string) => Promise<CanteenData | undefined>;
+  addCanteen: (canteenName: string, collegeName: string) => Promise<CanteenData | undefined>; // NEW: Add collegeName parameter
 }
 
 // Helper functions for serialization/deserialization
@@ -43,18 +45,28 @@ const deserializeItems = (items: string[]): CanteenItem[] => {
 };
 
 export const useCanteenData = (): CanteenDataState => {
+  const { userProfile } = useAuth(); // NEW: Use useAuth hook to get current user's college
   const [allCanteens, setAllCanteens] = useState<CanteenData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCanteens = useCallback(async () => {
+    if (!userProfile?.collegeName) { // NEW: Only fetch if collegeName is available
+      setIsLoading(false);
+      setAllCanteens([]); // Clear canteens if no college is set
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
       const response = await databases.listDocuments(
         APPWRITE_DATABASE_ID,
         APPWRITE_CANTEEN_COLLECTION_ID,
-        [Query.orderAsc('name')]
+        [
+          Query.equal('collegeName', userProfile.collegeName), // NEW: Filter by collegeName
+          Query.orderAsc('name')
+        ]
       );
       
       // Deserialize fetched items
@@ -71,7 +83,7 @@ export const useCanteenData = (): CanteenDataState => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [userProfile?.collegeName]); // NEW: Depend on userProfile.collegeName
 
   const updateCanteen = useCallback(async (canteenId: string, updates: Partial<CanteenData>) => {
     try {
@@ -101,7 +113,7 @@ export const useCanteenData = (): CanteenDataState => {
     }
   }, []);
 
-  const addCanteen = useCallback(async (canteenName: string): Promise<CanteenData | undefined> => {
+  const addCanteen = useCallback(async (canteenName: string, collegeName: string): Promise<CanteenData | undefined> => { // NEW: Accept collegeName
     const initialItems: CanteenItem[] = [
         { name: "Coffee", available: true },
         { name: "Tea", available: true },
@@ -110,6 +122,7 @@ export const useCanteenData = (): CanteenDataState => {
     const initialData = {
       name: canteenName,
       isOpen: true,
+      collegeName: collegeName, // NEW: Add collegeName
       // Serialize initial items before sending
       items: serializeItems(initialItems),
     };
@@ -138,6 +151,8 @@ export const useCanteenData = (): CanteenDataState => {
   useEffect(() => {
     fetchCanteens();
 
+    if (!userProfile?.collegeName) return; // NEW: Only subscribe if collegeName is available
+
     const unsubscribe = databases.client.subscribe(
       `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_CANTEEN_COLLECTION_ID}.documents`,
       (response) => {
@@ -148,6 +163,11 @@ export const useCanteenData = (): CanteenDataState => {
             ...payload,
             items: deserializeItems(payload.items || []),
         };
+
+        // NEW: Filter real-time updates by collegeName
+        if (deserializedPayload.collegeName !== userProfile.collegeName) {
+            return;
+        }
 
         setAllCanteens(prev => {
           const existingIndex = prev.findIndex(c => c.$id === deserializedPayload.$id);
@@ -176,7 +196,7 @@ export const useCanteenData = (): CanteenDataState => {
     return () => {
       unsubscribe();
     };
-  }, [fetchCanteens]);
+  }, [fetchCanteens, userProfile?.collegeName]); // NEW: Depend on userProfile.collegeName
 
   return { allCanteens, isLoading, error, refetch: fetchCanteens, updateCanteen, addCanteen };
 };

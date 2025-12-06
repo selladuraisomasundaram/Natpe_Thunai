@@ -6,7 +6,7 @@ import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import SellListingForm from "./SellListingForm";
 import RentListingForm from "./RentListingForm";
 import GiftCraftListingForm from "./GiftCraftListingForm";
-import SportsGearListingForm from "./SportsGearListingForm";
+import SportsGearListingForm from "./SportsGearListingForm"; // Corrected import path
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID } from "@/lib/appwrite";
@@ -26,6 +26,10 @@ const MarketListingFormWrapper: React.FC<MarketListingFormWrapperProps> = ({ onC
       toast.error("You must be logged in and have a complete profile to create a listing.");
       return;
     }
+    if (!userProfile.collegeName) {
+      toast.error("Your profile is missing college information. Please update your profile first.");
+      return;
+    }
 
     const productType = type === "Sell" ? "sell" : type === "Rent" ? "rent" : type === "Gift/Craft" ? "gift" : "sports";
     
@@ -41,6 +45,7 @@ const MarketListingFormWrapper: React.FC<MarketListingFormWrapperProps> = ({ onC
       sellerId: user.$id,
       sellerName: user.name,
       sellerUpiId: userProfile.upiId,
+      collegeName: userProfile.collegeName, // NEW: Add collegeName
       
       // Mocked/Default Fields
       sellerRating: 5.0, // Default high rating for new sellers

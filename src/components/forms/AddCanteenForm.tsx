@@ -6,14 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext"; // NEW: Import useAuth
+import { Loader2 } from "lucide-react"; // NEW: Import Loader2
 
 interface AddCanteenFormProps {
-  onSubmit: (canteenName: string) => Promise<void>; // Changed to return Promise<void>
+  onSubmit: (canteenName: string, collegeName: string) => Promise<void>; // Changed to return Promise<void> and accept collegeName
   onCancel: () => void;
   loading: boolean; // Added loading prop
 }
 
 const AddCanteenForm: React.FC<AddCanteenFormProps> = ({ onSubmit, onCancel, loading }) => {
+  const { userProfile } = useAuth(); // NEW: Use useAuth hook
   const [canteenName, setCanteenName] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -22,7 +25,11 @@ const AddCanteenForm: React.FC<AddCanteenFormProps> = ({ onSubmit, onCancel, loa
       toast.error("Canteen name cannot be empty.");
       return;
     }
-    await onSubmit(canteenName.trim());
+    if (!userProfile?.collegeName) { // NEW: Check for collegeName
+      toast.error("Your profile is missing college information. Please update your profile first.");
+      return;
+    }
+    await onSubmit(canteenName.trim(), userProfile.collegeName); // NEW: Pass collegeName
     setCanteenName(""); // Clear input after submission attempt
   };
 
@@ -47,7 +54,7 @@ const AddCanteenForm: React.FC<AddCanteenFormProps> = ({ onSubmit, onCancel, loa
           Cancel
         </Button>
         <Button type="submit" disabled={loading} className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-          {loading ? "Adding..." : "Add Canteen"}
+          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Add Canteen"}
         </Button>
       </DialogFooter>
     </form>
