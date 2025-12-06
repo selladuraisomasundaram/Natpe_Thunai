@@ -9,13 +9,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { account, databases, storage, APPWRITE_DATABASE_ID, APPWRITE_USER_PROFILES_COLLECTION_ID, APPWRITE_COLLEGE_ID_BUCKET_ID } from "@/lib/appwrite";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Import Select components
 import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { APP_HOST_URL } from "@/lib/config";
-import { indianColleges } from "@/lib/collegeData"; // Import the static college list
+import { largeIndianColleges } from "@/lib/largeIndianColleges"; // NEW: Import the large static college list
+import CollegeCombobox from "@/components/CollegeCombobox"; // NEW: Import the CollegeCombobox component
 
 // Helper function to generate a random username
 const generateRandomUsername = (): string => {
@@ -53,7 +53,7 @@ const AuthPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [gender, setGender] = useState<"male" | "female" | "prefer-not-to-say">("prefer-not-to-say");
   const [userType, setUserType] = useState<"student" | "staff">("student");
-  const [collegeName, setCollegeName] = useState(""); // NEW: State for college name
+  const [collegeName, setCollegeName] = useState(""); // State for college name
 
   const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -94,7 +94,7 @@ const AuthPage = () => {
           setLoading(false);
           return;
         }
-        if (!collegeName) { // NEW: Check for college name
+        if (!collegeName) { // Check for college name
           toast.error("Please select your college.");
           setLoading(false);
           return;
@@ -136,7 +136,7 @@ const AuthPage = () => {
               role: "user",
               gender,
               userType,
-              collegeName, // NEW: Save college name
+              collegeName, // Save college name
               level: 1, // Initialize level
               currentXp: 0, // Initialize XP
               maxXp: 100, // Initialize max XP for level 1
@@ -171,7 +171,7 @@ const AuthPage = () => {
         setTermsAccepted(false);
         setGender("prefer-not-to-say");
         setUserType("student");
-        setCollegeName(""); // NEW: Clear college name
+        setCollegeName(""); // Clear college name
       }
     } catch (error: any) {
       toast.error(error.message || "An error occurred during authentication.");
@@ -261,16 +261,14 @@ const AuthPage = () => {
                 </div>
                 <div>
                   <Label htmlFor="collegeName" className="text-foreground">Your College</Label>
-                  <Select value={collegeName} onValueChange={setCollegeName} required>
-                    <SelectTrigger className="w-full bg-input text-foreground border-border focus:ring-ring focus:border-ring">
-                      <SelectValue placeholder="Select your college" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover text-popover-foreground border-border max-h-60 overflow-y-auto">
-                      {indianColleges.map((college) => (
-                        <SelectItem key={college} value={college}>{college}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {/* NEW: Replace Select with CollegeCombobox */}
+                  <CollegeCombobox
+                    collegeList={largeIndianColleges}
+                    value={collegeName}
+                    onValueChange={setCollegeName}
+                    placeholder="Select your college"
+                    disabled={loading}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="collegeIdPhoto" className="text-foreground">College ID Card Photo</Label>
