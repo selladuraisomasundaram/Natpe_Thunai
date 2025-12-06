@@ -24,7 +24,7 @@ interface BaseTrackingItem {
   isUserProvider: boolean;
 }
 
-interface MarketTransactionItem extends BaseTrackingItem {
+export interface MarketTransactionItem extends BaseTrackingItem {
   type: "Transaction";
   productTitle: string;
   amount: number;
@@ -36,7 +36,7 @@ interface MarketTransactionItem extends BaseTrackingItem {
   netSellerAmount?: number;
 }
 
-interface FoodOrderItem extends BaseTrackingItem {
+export interface FoodOrderItem extends BaseTrackingItem {
   type: "Food Order";
   offeringTitle: string;
   totalAmount: number;
