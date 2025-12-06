@@ -25,7 +25,7 @@ const AmbassadorDeliveryOption: React.FC<AmbassadorDeliveryOptionProps> = ({
           id="ambassador-delivery"
           checked={ambassadorDelivery}
           onCheckedChange={(checked) => setAmbassadorDelivery(checked as boolean)}
-          className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground"
+          className="border-border data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
         />
         <Label htmlFor="ambassador-delivery" className="text-sm text-foreground font-medium">
           Opt for Ambassador-mediated delivery
