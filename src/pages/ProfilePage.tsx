@@ -41,7 +41,7 @@ const ProfilePage = () => {
             <CardTitle className="text-xl font-semibold text-card-foreground">Wallet & Payments</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <p className="text-muted-foreground">Manage your wallet, payment methods, and explicitly displays the 30% Commission Policy.</p>
+            <p className="text-muted-foreground">Manage your wallet, payment methods, and view your dynamic commission policy.</p>
           </CardContent>
         </Card>
         <Card className="bg-card p-4 rounded-lg shadow-md border border-border">
