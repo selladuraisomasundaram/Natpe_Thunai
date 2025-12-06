@@ -3,12 +3,12 @@
 import React from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
+import { User, DollarSign, Award } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { User, DollarSign, Award } from "lucide-react"; // Import Award icon
-import { useAuth } from "@/context/AuthContext"; // Import useAuth
-import { generateAvatarUrl } from "@/utils/avatarGenerator"; // Import new avatar generator
-import { calculateCommissionRate, formatCommissionRate } from "@/utils/commission"; // Import commission utils
-import { getLevelBadge } from "@/utils/badges"; // NEW: Import getLevelBadge
+import { useAuth } from "@/context/AuthContext";
+import { generateAvatarUrl } from "@/utils/avatarGenerator";
+import { calculateCommissionRate, formatCommissionRate } from "@/utils/commission";
+import { getLevelBadge } from "@/utils/badges";
 
 const ProfileWidget = () => {
   const { user, userProfile } = useAuth();
@@ -23,12 +23,13 @@ const ProfileWidget = () => {
   const xpPercentage = (currentXp / maxXp) * 100;
   
   const commissionRate = calculateCommissionRate(userLevel);
-  const userBadge = getLevelBadge(userLevel); // NEW: Get user's badge
+  const userBadge = getLevelBadge(userLevel);
 
   const avatarUrl = generateAvatarUrl(
     displayName,
     userProfile?.gender || "prefer-not-to-say",
-    userProfile?.userType || "student"
+    userProfile?.userType || "student",
+    userProfile?.avatarOptions // Pass avatarOptions
   );
 
   return (
@@ -51,7 +52,7 @@ const ProfileWidget = () => {
             <DollarSign className="h-3 w-3 mr-1 text-secondary-neon" />
             Commission Rate: <span className="font-semibold text-foreground ml-1">{formatCommissionRate(commissionRate)}</span>
           </div>
-          {userBadge && ( // NEW: Display user's badge
+          {userBadge && (
             <div className="flex items-center text-xs text-muted-foreground">
               <Award className="h-3 w-3 mr-1 text-secondary-neon" />
               Badge: <span className="font-semibold text-foreground ml-1">{userBadge}</span>

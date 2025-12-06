@@ -14,8 +14,9 @@ import { useAuth } from "@/context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { APP_HOST_URL } from "@/lib/config";
-import { largeIndianColleges } from "@/lib/largeIndianColleges"; // NEW: Import the large static college list
-import CollegeCombobox from "@/components/CollegeCombobox"; // NEW: Import the CollegeCombobox component
+import { largeIndianColleges } from "@/lib/largeIndianColleges";
+import CollegeCombobox from "@/components/CollegeCombobox";
+import { generateAvatarUrl } from "@/utils/avatarGenerator"; // NEW: Import generateAvatarUrl
 
 // Helper function to generate a random username
 const generateRandomUsername = (): string => {
@@ -53,7 +54,7 @@ const AuthPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [gender, setGender] = useState<"male" | "female" | "prefer-not-to-say">("prefer-not-to-say");
   const [userType, setUserType] = useState<"student" | "staff">("student");
-  const [collegeName, setCollegeName] = useState(""); // State for college name
+  const [collegeName, setCollegeName] = useState("");
 
   const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -94,7 +95,7 @@ const AuthPage = () => {
           setLoading(false);
           return;
         }
-        if (!collegeName) { // Check for college name
+        if (!collegeName) {
           toast.error("Please select your college.");
           setLoading(false);
           return;
@@ -136,10 +137,11 @@ const AuthPage = () => {
               role: "user",
               gender,
               userType,
-              collegeName, // Save college name
-              level: 1, // Initialize level
-              currentXp: 0, // Initialize XP
-              maxXp: 100, // Initialize max XP for level 1
+              collegeName,
+              level: 1,
+              currentXp: 0,
+              maxXp: 100,
+              avatarOptions: {}, // NEW: Initialize empty avatar options
             }
           );
           toast.success("User profile saved.");
@@ -171,7 +173,7 @@ const AuthPage = () => {
         setTermsAccepted(false);
         setGender("prefer-not-to-say");
         setUserType("student");
-        setCollegeName(""); // Clear college name
+        setCollegeName("");
       }
     } catch (error: any) {
       toast.error(error.message || "An error occurred during authentication.");
@@ -261,7 +263,6 @@ const AuthPage = () => {
                 </div>
                 <div>
                   <Label htmlFor="collegeName" className="text-foreground">Your College</Label>
-                  {/* NEW: Replace Select with CollegeCombobox */}
                   <CollegeCombobox
                     collegeList={largeIndianColleges}
                     value={collegeName}
@@ -340,7 +341,7 @@ const AuthPage = () => {
                     I agree to the <Link to="/profile/policies" className="text-secondary-neon hover:underline">terms and conditions</Link>
                   </Label>
                 </div>
-                <p className="text-xs text-destructive text-center font-medium"> {/* Changed text-destructive-foreground to text-destructive */}
+                <p className="text-xs text-destructive text-center font-medium">
                   Your Name, Age, Mobile Number, UPI ID, and College ID Photo are collected for developer safety assurance only and will NOT be shared publicly. Only your chosen username will be visible.
                 </p>
               </>

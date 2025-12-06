@@ -4,11 +4,13 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { account, databases, APPWRITE_DATABASE_ID, APPWRITE_USER_PROFILES_COLLECTION_ID } from "@/lib/appwrite";
 import { Models, Query } from "appwrite";
 import { toast } from "sonner";
+import { calculateMaxXpForLevel, checkAndApplyLevelUp } from "@/utils/leveling"; // NEW: Import leveling utilities
 
 // Define the User and UserProfile types
 interface AppwriteUser extends Models.User<Models.Preferences> {
   name: string;
   email: string;
+  emailVerification: boolean; // Ensure this property exists
 }
 
 interface UserProfile extends Models.Document {
@@ -26,7 +28,16 @@ interface UserProfile extends Models.Document {
   level: number;
   currentXp: number;
   maxXp: number;
-  ambassadorDeliveriesCount?: number; // NEW: Add ambassadorDeliveriesCount
+  ambassadorDeliveriesCount?: number;
+  // NEW: Add avatar customization options
+  avatarOptions?: {
+    hair?: string;
+    eyes?: string;
+    mouth?: string;
+    skinColor?: string;
+    clothing?: string;
+    accessories?: string;
+  };
 }
 
 interface AuthContextType {
@@ -34,10 +45,12 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isVerified: boolean; // NEW: Add isVerified
   login: () => Promise<void>;
   logout: () => Promise<void>;
-  updateUserProfile: (profileId: string, data: Partial<UserProfile>) => Promise<void>; // NEW: Add updateUserProfile
-  incrementAmbassadorDeliveriesCount: () => Promise<void>; // NEW: Add incrementAmbassadorDeliveriesCount
+  updateUserProfile: (profileId: string, data: Partial<UserProfile>) => Promise<void>;
+  incrementAmbassadorDeliveriesCount: () => Promise<void>;
+  addXp: (amount: number) => Promise<void>; // NEW: Add addXp
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -47,12 +60,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isVerified, setIsVerified] = useState(false); // NEW: State for email verification
 
   const fetchUserAndProfile = useCallback(async () => {
     try {
       const currentUser = await account.get();
       setUser(currentUser);
       setIsAuthenticated(true);
+      setIsVerified(currentUser.emailVerification); // Set verification status
 
       // Fetch user profile
       const response = await databases.listDocuments(
@@ -71,6 +86,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(null);
       setUserProfile(null);
       setIsAuthenticated(false);
+      setIsVerified(false); // Reset verification status on error
     } finally {
       setIsLoading(false);
     }
@@ -91,10 +107,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
+    // Set up real-time subscription for user account changes (e.g., email verification)
+    const unsubscribeAccount = databases.client.subscribe(
+      `account`,
+      (response) => {
+        const payload = response.payload as unknown as AppwriteUser;
+        if (user && payload.$id === user.$id) {
+          setUser(payload);
+          setIsVerified(payload.emailVerification);
+          if (payload.emailVerification && !user.emailVerification) {
+            toast.success("Your email has been verified!");
+          }
+        }
+      }
+    );
+
+
     return () => {
       unsubscribe();
+      unsubscribeAccount();
     };
-  }, [fetchUserAndProfile, userProfile]); // Added userProfile to dependencies to re-subscribe if its ID changes (though unlikely)
+  }, [fetchUserAndProfile, userProfile, user]);
 
   const login = async () => {
     setIsLoading(true);
@@ -107,6 +140,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(null);
       setUserProfile(null);
       setIsAuthenticated(false);
+      setIsVerified(false); // Reset verification status
       toast.success("Logged out successfully!");
     } catch (error: any) {
       console.error("Failed to log out:", error);
@@ -153,6 +187,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // NEW: Implement addXp function
+  const addXp = useCallback(async (amount: number) => {
+    if (!userProfile || !user) {
+      toast.error("User profile not found. Cannot add XP.");
+      return;
+    }
+
+    let newCurrentXp = userProfile.currentXp + amount;
+    let newLevel = userProfile.level;
+    let newMaxXp = userProfile.maxXp;
+
+    const { newLevel: updatedLevel, newCurrentXp: updatedCurrentXp, newMaxXp: updatedMaxXp } = checkAndApplyLevelUp(newLevel, newCurrentXp, newMaxXp);
+
+    if (updatedLevel > newLevel) {
+      toast.success(`Congratulations! You leveled up to Level ${updatedLevel}!`);
+    }
+
+    try {
+      await updateUserProfile(userProfile.$id, {
+        level: updatedLevel,
+        currentXp: updatedCurrentXp,
+        maxXp: updatedMaxXp,
+      });
+    } catch (error) {
+      console.error("Failed to add XP or level up:", error);
+      toast.error("Failed to update XP and level.");
+    }
+  }, [user, userProfile, updateUserProfile]);
+
+
   return (
     <AuthContext.Provider
       value={{
@@ -160,10 +224,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         userProfile,
         isAuthenticated,
         isLoading,
+        isVerified, // NEW: Provide isVerified
         login,
         logout,
         updateUserProfile,
         incrementAmbassadorDeliveriesCount,
+        addXp, // NEW: Provide addXp
       }}
     >
       {children}
