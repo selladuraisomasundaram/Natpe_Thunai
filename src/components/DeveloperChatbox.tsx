@@ -74,8 +74,8 @@ const DeveloperChatbox = () => {
   };
 
   const handleContribute = () => {
-    toast.info("Redirecting to our contribution guidelines (feature coming soon)!");
-    // In a real app, this would link to a GitHub repo, documentation, or a contact form.
+    // Updated to display UPI ID directly
+    toast.info(`You can contribute by sending funds to our UPI ID: ${DEVELOPER_UPI_ID}`);
   };
 
   return (
