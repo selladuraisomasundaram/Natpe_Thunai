@@ -19,7 +19,7 @@ interface MarketListingFormWrapperProps {
 
 const MarketListingFormWrapper: React.FC<MarketListingFormWrapperProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<"sell" | "rent" | "gift" | "sports">("sell");
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, recordMarketListing } = useAuth(); // NEW: Get recordMarketListing
 
   const handleListingSubmit = async (data: any, type: "Sell" | "Rent" | "Gift/Craft" | "Sports Gear") => {
     if (!user || !userProfile) {
@@ -45,7 +45,7 @@ const MarketListingFormWrapper: React.FC<MarketListingFormWrapperProps> = ({ onC
       sellerId: user.$id,
       sellerName: user.name,
       sellerUpiId: userProfile.upiId,
-      collegeName: userProfile.collegeName, // NEW: Add collegeName
+      collegeName: userProfile.collegeName,
       
       // Mocked/Default Fields
       sellerRating: 5.0, // Default high rating for new sellers
@@ -71,6 +71,7 @@ const MarketListingFormWrapper: React.FC<MarketListingFormWrapperProps> = ({ onC
       );
       
       toast.success(`New ${type} listing created successfully!`);
+      recordMarketListing(); // NEW: Record the listing for daily quest
       onClose();
     } catch (error: any) {
       console.error(`Error creating ${type} listing:`, error);

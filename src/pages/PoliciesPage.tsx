@@ -64,7 +64,7 @@ const policyContent = {
     description: "Details on how the developer commission rate is calculated based on your user level and engagement.",
     fullText: `
       <h3 class="text-lg font-semibold mb-2 text-foreground">1. Commission Structure Overview</h3>
-      <p class="text-sm text-muted-foreground mb-4">Natpe🤝Thunai operates on a dynamic commission model designed to reward active and engaged users. The commission rate deducted from successful transactions starts at <strong>11.32%</strong> for new users (Level 1) and decreases as your user level increases, reaching a minimum rate of <strong>5.37%</strong> at Level 10.</p>
+      <p class="text-sm text-muted-foreground mb-4">Natpe🤝Thunai operates on a dynamic commission model designed to reward active and engaged users. The commission rate deducted from successful transactions starts at <strong>11.32%</strong> for new users (Level 1) and decreases gradually as your user level increases, reaching a minimum rate of <strong>5.37%</strong> at Level 10.</p>
       
       <h3 class="text-lg font-semibold mb-2 text-foreground">2. Leveling and XP</h3>
       <p class="text-sm text-muted-foreground mb-4">Your user level increases by earning XP (Experience Points). XP is gained by completing daily quests, successfully completing transactions, and actively engaging with the application's features.</p>
@@ -81,8 +81,14 @@ const policyContent = {
         </thead>
         <tbody class="divide-y divide-border">
           <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">1</td><td class="px-4 py-2 whitespace-nowrap">11.32%</td></tr>
-          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">2</td><td class="px-4 py-2 whitespace-nowrap">~10.66%</td></tr>
-          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">...</td><td class="px-4 py-2 whitespace-nowrap">...</td></tr>
+          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">2</td><td class="px-4 py-2 whitespace-nowrap">10.66%</td></tr>
+          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">3</td><td class="px-4 py-2 whitespace-nowrap">10.00%</td></tr>
+          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">4</td><td class="px-4 py-2 whitespace-nowrap">9.34%</td></tr>
+          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">5</td><td class="px-4 py-2 whitespace-nowrap">8.68%</td></tr>
+          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">6</td><td class="px-4 py-2 whitespace-nowrap">8.02%</td></tr>
+          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">7</td><td class="px-4 py-2 whitespace-nowrap">7.36%</td></tr>
+          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">8</td><td class="px-4 py-2 whitespace-nowrap">6.70%</td></tr>
+          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">9</td><td class="px-4 py-2 whitespace-nowrap">6.04%</td></tr>
           <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">10+</td><td class="px-4 py-2 whitespace-nowrap">5.37%</td></tr>
         </tbody>
       </table>

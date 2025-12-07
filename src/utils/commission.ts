@@ -8,8 +8,8 @@
  */
 export const calculateCommissionRate = (level: number): number => {
   const START_RATE = 0.1132; // 11.32% at Level 1
-  const MIN_RATE = 0.0534; // 5.34% (absolute floor)
-  const MAX_LEVEL_FOR_MIN_RATE = 100; // Assuming minimum rate is reached at Level 100
+  const MIN_RATE = 0.0537; // 5.37% at Level 10
+  const MAX_LEVEL_FOR_MIN_RATE = 10; // Minimum rate is reached at Level 10
 
   if (level <= 1) {
     return START_RATE;
@@ -18,32 +18,12 @@ export const calculateCommissionRate = (level: number): number => {
     return MIN_RATE;
   }
 
-  // Define breakpoints (level, rate)
-  const breakpoints = [
-    { level: 1, rate: START_RATE },
-    { level: 7, rate: 0.1036 }, // 10.36%
-    { level: 20, rate: 0.1000 }, // 10.00%
-    { level: 50, rate: 0.0800 }, // 8.00%
-    { level: MAX_LEVEL_FOR_MIN_RATE, rate: MIN_RATE },
-  ];
-
-  // Find the segment the current level falls into
-  for (let i = 0; i < breakpoints.length - 1; i++) {
-    const p1 = breakpoints[i];
-    const p2 = breakpoints[i + 1];
-
-    if (level >= p1.level && level < p2.level) {
-      // Linear interpolation within this segment
-      const levelRange = p2.level - p1.level;
-      const rateRange = p1.rate - p2.rate; // Rate decreases
-      const reductionPerLevel = rateRange / levelRange;
-      
-      return p1.rate - (level - p1.level) * reductionPerLevel;
-    }
-  }
-
-  // Fallback, should not be reached if level is handled by initial checks or loop
-  return MIN_RATE;
+  // Linear interpolation between Level 1 and MAX_LEVEL_FOR_MIN_RATE
+  const levelRange = MAX_LEVEL_FOR_MIN_RATE - 1;
+  const rateRange = START_RATE - MIN_RATE;
+  const reductionPerLevel = rateRange / levelRange;
+  
+  return START_RATE - (level - 1) * reductionPerLevel;
 };
 
 /**

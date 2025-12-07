@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Models, Query } from "appwrite";
 import { calculateMaxXpForLevel, checkAndApplyLevelUp } from "@/utils/leveling";
+import { isToday } from "date-fns"; // NEW: Import isToday
 
 interface AppwriteUser extends Models.User<Models.Preferences> {}
 
@@ -25,7 +26,9 @@ interface UserProfile extends Models.Document {
   level: number;
   currentXp: number;
   maxXp: number;
-  ambassadorDeliveriesCount: number; // NEW: Track ambassador delivery usage
+  ambassadorDeliveriesCount: number;
+  lastQuestCompletedDate: string | null; // NEW: Track last quest completion
+  itemsListedToday: number; // NEW: Track items listed today for quests
 }
 
 interface AuthContextType {
@@ -38,8 +41,9 @@ interface AuthContextType {
   logout: () => void;
   updateUserProfile: (profileId: string, data: Partial<UserProfile>) => Promise<void>;
   addXp: (amount: number) => Promise<void>;
-  deductXp: (amount: number, reason: string) => Promise<void>; // NEW: Deduct XP function
-  incrementAmbassadorDeliveriesCount: () => Promise<void>; // NEW: Increment ambassador delivery count
+  deductXp: (amount: number, reason: string) => Promise<void>;
+  incrementAmbassadorDeliveriesCount: () => Promise<void>;
+  recordMarketListing: () => Promise<void>; // NEW: Function to record market listings
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -65,13 +69,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const level = profile.level ?? 1;
         const maxXp = calculateMaxXpForLevel(level);
 
+        // Reset itemsListedToday if it's a new day since last quest completion
+        let itemsListedToday = profile.itemsListedToday ?? 0;
+        const lastQuestDate = profile.lastQuestCompletedDate ? new Date(profile.lastQuestCompletedDate) : null;
+        if (lastQuestDate && !isToday(lastQuestDate)) {
+          itemsListedToday = 0; // Reset if it's a new day
+        }
+
         const completeProfile: UserProfile = {
           ...profile,
           level: level,
           currentXp: profile.currentXp ?? 0,
           maxXp: maxXp,
           collegeName: profile.collegeName || "Unknown College",
-          ambassadorDeliveriesCount: profile.ambassadorDeliveriesCount ?? 0, // Initialize new field
+          ambassadorDeliveriesCount: profile.ambassadorDeliveriesCount ?? 0,
+          lastQuestCompletedDate: profile.lastQuestCompletedDate ?? null, // Initialize new field
+          itemsListedToday: itemsListedToday, // Initialize new field
         };
         setUserProfile(completeProfile);
       } else {
@@ -145,7 +158,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         currentXp: updatedProfileData.currentXp ?? 0,
         maxXp: calculatedMaxXp,
         collegeName: updatedProfileData.collegeName || "Unknown College",
-        ambassadorDeliveriesCount: updatedProfileData.ambassadorDeliveriesCount ?? 0, // Ensure new field is updated
+        ambassadorDeliveriesCount: updatedProfileData.ambassadorDeliveriesCount ?? 0,
+        lastQuestCompletedDate: updatedProfileData.lastQuestCompletedDate ?? null, // Ensure new field is updated
+        itemsListedToday: updatedProfileData.itemsListedToday ?? 0, // Ensure new field is updated
       };
       setUserProfile(updatedProfile);
     } catch (error: any) {
@@ -184,7 +199,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // NEW: Deduct XP function
   const deductXp = async (amount: number, reason: string) => {
     if (!userProfile || !user) {
       toast.error("Cannot deduct XP: User not logged in or profile missing.");
@@ -226,7 +240,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // NEW: Increment ambassador deliveries count
   const incrementAmbassadorDeliveriesCount = async () => {
     if (!userProfile || !user) {
       console.warn("Cannot increment ambassador deliveries count: User not logged in or profile missing.");
@@ -237,16 +250,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await updateUserProfile(userProfile.$id, { ambassadorDeliveriesCount: newCount });
       console.log(`Ambassador deliveries count incremented to ${newCount}`);
 
-      // Simulate XP deduction for misuse
-      const AMBASSADOR_MISUSE_THRESHOLD = userProfile.gender === "female" ? 10 : 5; // Higher threshold for females
-      const XP_DEDUCTION_AMOUNT = userProfile.gender === "female" ? 10 : 25; // Less severe deduction for females
+      const AMBASSADOR_MISUSE_THRESHOLD = userProfile.gender === "female" ? 10 : 5;
+      const XP_DEDUCTION_AMOUNT = userProfile.gender === "female" ? 10 : 25;
 
-      if (newCount > AMBASSADOR_MISUSE_THRESHOLD && newCount % AMBASSADOR_MISUSE_THRESHOLD === 1) { // Deduct after first misuse over threshold
+      if (newCount > AMBASSADOR_MISUSE_THRESHOLD && newCount % AMBASSADOR_MISUSE_THRESHOLD === 1) {
         toast.warning(`Excessive ambassador delivery usage detected (${newCount} times). This may lead to XP deduction.`);
         await deductXp(XP_DEDUCTION_AMOUNT, "excessive ambassador delivery usage");
       }
     } catch (error) {
       console.error("Failed to update ambassador deliveries count:", error);
+    }
+  };
+
+  // NEW: Function to record market listings for daily quest
+  const recordMarketListing = async () => {
+    if (!userProfile || !user) {
+      console.warn("Cannot record market listing: User not logged in or profile missing.");
+      return;
+    }
+
+    let currentItemsListedToday = userProfile.itemsListedToday ?? 0;
+    const lastQuestDate = userProfile.lastQuestCompletedDate ? new Date(userProfile.lastQuestCompletedDate) : null;
+
+    // Reset if it's a new day since last quest completion
+    if (lastQuestDate && !isToday(lastQuestDate)) {
+      currentItemsListedToday = 0;
+    }
+
+    currentItemsListedToday += 1;
+
+    try {
+      await updateUserProfile(userProfile.$id, { itemsListedToday: currentItemsListedToday });
+      toast.info(`You've listed ${currentItemsListedToday} item(s) today for the daily quest!`);
+    } catch (error) {
+      console.error("Failed to record market listing:", error);
     }
   };
 
@@ -261,7 +298,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, userProfile, isVerified, login: loginUser, logout, updateUserProfile, addXp, deductXp, incrementAmbassadorDeliveriesCount }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, userProfile, isVerified, login: loginUser, logout, updateUserProfile, addXp, deductXp, incrementAmbassadorDeliveriesCount, recordMarketListing }}>
       {children}
     </AuthContext.Provider>
   );
