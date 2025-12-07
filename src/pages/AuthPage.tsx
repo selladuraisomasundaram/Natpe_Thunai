@@ -12,7 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { Eye, EyeOff, Building2, Image } from "lucide-react"; // NEW: Import Image icon
+import { Eye, EyeOff, Building2, Image } from "lucide-react";
 import { APP_HOST_URL } from "@/lib/config";
 import { largeIndianColleges } from "@/lib/largeIndianColleges";
 import CollegeCombobox from "@/components/CollegeCombobox";
@@ -143,15 +143,6 @@ const AuthPage = () => {
           }
         }
 
-        // NEW: Set default avatar options based on gender
-        let defaultAvatarOptions = {};
-        if (gender === "male") {
-          defaultAvatarOptions = { hair: "short", clothing: "shirt" };
-        } else if (gender === "female") {
-          defaultAvatarOptions = { hair: "long", clothing: "hoodie" };
-        }
-
-
         try {
           await databases.createDocument(
             APPWRITE_DATABASE_ID,
@@ -173,7 +164,7 @@ const AuthPage = () => {
               currentXp: 0,
               maxXp: 100,
               ambassadorDeliveriesCount: 0, // Initialize new field
-              avatarOptions: defaultAvatarOptions, // NEW: Initialize with gender-specific defaults
+              // Removed avatarOptions: defaultAvatarOptions as it's not in schema
               lastQuestCompletedDate: null, // Initialize new field
               itemsListedToday: 0, // Initialize new field
             }
@@ -194,11 +185,11 @@ const AuthPage = () => {
 
         // Create session and log in the user immediately after successful signup
         await account.createEmailPasswordSession(email, password);
-        login(); // This updates isAuthenticated and user/userProfile in AuthContext
+        await login(); // This updates isAuthenticated and user/userProfile in AuthContext
         toast.success("You are now logged in!");
         
         // Explicitly navigate after successful signup and login
-        navigate("/home", { replace: true }); // ADDED THIS LINE
+        navigate("/home", { replace: true });
 
         // Clear form fields
         setFirstName("");
@@ -338,7 +329,7 @@ const AuthPage = () => {
                     className="bg-input text-foreground border-border focus:ring-ring focus:border-ring file:text-primary-foreground file:bg-primary-blue-light file:border-0 file:mr-4 file:py-2 file:px-4 file:rounded-md"
                   />
                   {collegeIdPhoto && <p className="text-xs text-muted-foreground mt-1">File selected: {collegeIdPhoto.name}</p>}
-                  <Link to="https://www.ilovepdf.com/compress_image" target="_blank" rel="noopener noreferrer" className="text-xs text-secondary-neon hover:underline flex items-center gap-1 mt-1">
+                  <Link to="https://compressjpeg.com/" target="_blank" rel="noopener noreferrer" className="text-xs text-secondary-neon hover:underline flex items-center gap-1 mt-1">
                     <Image className="h-3 w-3" /> Compress your image here
                   </Link>
                 </div>
