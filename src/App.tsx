@@ -24,6 +24,7 @@ import { useOnlineStatus } from "./hooks/useOnlineStatus"; // Import useOnlineSt
 // Import new Activity sub-pages
 import TrackingPage from "./pages/TrackingPage";
 import CashExchangePage from "./pages/CashExchangePage";
+import LostAndFoundPage from "./pages/LostAndFoundPage"; // NEW IMPORT
 
 // Import new Profile sub-pages
 import ProfileDetailsPage from "./pages/ProfileDetailsPage";
@@ -143,6 +144,7 @@ const AppContent = () => {
         {/* Activity Sub-pages */}
         <Route path="/activity/tracking" element={<TrackingPage />} />
         <Route path="/activity/cash-exchange" element={<CashExchangePage />} />
+        <Route path="/activity/lost-found" element={<LostAndFoundPage />} /> {/* NEW ROUTE */}
 
         {/* Profile Sub-pages */}
         <Route path="/profile/details" element={<ProfileDetailsPage />} />

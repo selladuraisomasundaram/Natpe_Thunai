@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom"; // Import useNavigate
+import { Search } from "lucide-react"; // NEW: Import Search icon
 
 const ActivityPage = () => {
   const navigate = useNavigate();
@@ -19,6 +20,18 @@ const ActivityPage = () => {
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
       <h1 className="text-4xl font-bold mb-6 text-center text-foreground">The Buzz (Activity)</h1>
       <div className="max-w-md mx-auto space-y-6">
+        {/* NEW: Lost & Found Card */}
+        <Card className="bg-card p-4 rounded-lg shadow-md border border-border cursor-pointer hover:shadow-xl transition-shadow" onClick={() => handleActivityClick("/activity/lost-found", "Lost & Found")}>
+          <CardHeader className="p-0 pb-2">
+            <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
+              <Search className="h-5 w-5 text-secondary-neon" /> Lost & Found
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <p className="text-muted-foreground">Report lost items or browse for found belongings on campus.</p>
+          </CardContent>
+        </Card>
+
         <Card className="bg-card p-4 rounded-lg shadow-md border border-border cursor-pointer hover:shadow-xl transition-shadow" onClick={() => handleActivityClick("/activity/tracking", "Tracking")}>
           <CardHeader className="p-0 pb-2">
             <CardTitle className="text-xl font-semibold text-card-foreground">Tracking</CardTitle>
