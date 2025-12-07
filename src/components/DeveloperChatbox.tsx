@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquareText, Send, QrCode, Users, HeartHandshake, Code, Loader2 } from "lucide-react";
+import { MessageSquareText, Send, QrCode, Users, HeartHandshake, Code, Loader2, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import JoinAmbassadorForm from "@/components/forms/JoinAmbassadorForm";
@@ -17,12 +17,25 @@ import { containsBlockedWords } from "@/lib/moderation"; // Import moderation ut
 import { calculateCommissionRate, formatCommissionRate } from "@/utils/commission";
 import { DEVELOPER_UPI_ID } from "@/lib/config"; // Import DEVELOPER_UPI_ID
 import ContributionStoryDialog from "./ContributionStoryDialog"; // NEW: Import ContributionStoryDialog
+import { useDeveloperMessages, DeveloperMessage } from "@/hooks/useDeveloperMessages"; // NEW: Import useDeveloperMessages
 
 const DeveloperChatbox = () => {
   const { user, userProfile } = useAuth();
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [isContributionDialogOpen, setIsContributionDialogOpen] = useState(false); // NEW: State for dialog
+  const [isContributionDialogOpen, setIsContributionDialogOpen] = useState(false);
+  
+  // NEW: Fetch messages using the hook, filtered by the user's college
+  const { messages, isLoading: isMessagesLoading, error: messagesError, refetch: refetchMessages } = useDeveloperMessages(userProfile?.collegeName);
+
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to bottom of chat when new messages arrive
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   const userLevel = userProfile?.level ?? 1;
   const dynamicCommissionRateDisplay = formatCommissionRate(calculateCommissionRate(userLevel));
@@ -61,12 +74,11 @@ const DeveloperChatbox = () => {
           message: trimmedMessage,
           isDeveloper: userProfile.role === 'developer',
           collegeName: userProfile.collegeName,
-          // Note: The $createdAt timestamp will be used by the Developer Dashboard
-          // to determine visibility (1-2 days).
         }
       );
       setMessage("");
-      toast.success("Message sent to developers! Check the Developer Dashboard for a response.");
+      toast.success("Message sent to developers! Check here for a response.");
+      refetchMessages(); // Refetch messages to show the new one immediately
     } catch (error: any) {
       console.error("Error sending message to developers:", error);
       toast.error(error.message || "Failed to send message.");
@@ -85,6 +97,37 @@ const DeveloperChatbox = () => {
       <CardContent className="p-4 pt-0 space-y-4">
         <p className="text-sm text-muted-foreground">
           Have a question or feedback? Send a message directly to our development team!
+        </p>
+
+        {/* NEW: Conversation History */}
+        <div className="space-y-2 border border-border rounded-md p-3 bg-background max-h-60 overflow-y-auto" ref={chatContainerRef}>
+          {isMessagesLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
+              <p className="ml-3 text-muted-foreground">Loading messages...</p>
+            </div>
+          ) : messagesError ? (
+            <p className="text-center text-destructive py-4">Error loading messages: {messagesError}</p>
+          ) : messages.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4">No recent messages. Start a conversation!</p>
+          ) : (
+            messages.map((msg) => (
+              <div key={msg.$id} className={`flex ${msg.senderId === user?.$id ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[80%] p-2 rounded-lg ${msg.senderId === user?.$id ? 'bg-secondary-neon text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                  <p className="text-xs font-semibold mb-1">
+                    {msg.senderId === user?.$id ? 'You' : msg.senderName}
+                  </p>
+                  <p className="text-sm break-words">{msg.message}</p>
+                  <p className="text-xs text-right mt-1 opacity-70">
+                    {new Date(msg.$createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Clock className="h-3 w-3" /> Messages are visible for 48 hours.
         </p>
         
         <form onSubmit={handleSendMessage} className="flex gap-2">
