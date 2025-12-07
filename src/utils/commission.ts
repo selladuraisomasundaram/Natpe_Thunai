@@ -1,4 +1,4 @@
-// src/utils/commission.ts
+"use client";
 
 /**
  * Calculates the dynamic commission rate based on the user's level.
@@ -8,8 +8,8 @@
  */
 export const calculateCommissionRate = (level: number): number => {
   const START_RATE = 0.1132; // 11.32% at Level 1
-  const MIN_RATE = 0.0537; // 5.37% at Level 10
-  const MAX_LEVEL_FOR_MIN_RATE = 10; // Minimum rate is reached at Level 10
+  const MIN_RATE = 0.0537; // 5.37% at Level 25
+  const MAX_LEVEL_FOR_MIN_RATE = 25; // Minimum rate is reached at Level 25
 
   if (level <= 1) {
     return START_RATE;

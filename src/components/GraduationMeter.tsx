@@ -85,6 +85,37 @@ const GraduationMeter: React.FC = () => {
     }
   };
 
+  const renderGraduationMotivation = () => {
+    if (userProfile?.userType !== "student" || userProfile?.role === "developer") {
+      return null;
+    }
+
+    const targetLevel = 25;
+    if (isGraduated) {
+      return null; // Already graduated, the main message handles it
+    }
+
+    if (userProfile.level >= targetLevel) {
+      return (
+        <p className="text-sm text-green-500 mt-2 font-semibold text-center">
+          You've achieved Level {targetLevel}! You're well-prepared for your next chapter.
+        </p>
+      );
+    }
+
+    const levelsToGo = targetLevel - userProfile.level;
+    let motivationMessage = `Reach Level ${targetLevel} to maximize your benefits and prepare for life beyond campus!`;
+    if (levelsToGo > 0) {
+      motivationMessage += ` Focus on learning new skills and actively participating in the community.`;
+    }
+
+    return (
+      <p className="text-sm text-muted-foreground text-center mt-2">
+        {motivationMessage}
+      </p>
+    );
+  };
+
   return (
     <Card className="bg-card text-card-foreground shadow-lg border-border">
       <CardHeader className="p-4 pb-2">
@@ -125,6 +156,7 @@ const GraduationMeter: React.FC = () => {
                 ? "Graduation Protocol Active! Time to prepare for your next chapter."
                 : "Your journey continues. Keep engaging!"}
             </p>
+            {renderGraduationMotivation()} {/* NEW: Graduation motivation message */}
             {isGraduationProtocolActive && (
               <div className="mt-4 space-y-2">
                 <Button onClick={handleExportData} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">

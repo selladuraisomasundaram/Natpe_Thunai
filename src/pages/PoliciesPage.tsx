@@ -4,9 +4,10 @@ import React, { useState } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, ShieldCheck, ScrollText, TrendingUp, Users } from "lucide-react"; // Added Users icon
+import { FileText, ShieldCheck, ScrollText, TrendingUp, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { calculateCommissionRate } from "@/utils/commission"; // Import to generate table dynamically
 
 const policyContent = {
   termsOfService: {
@@ -64,13 +65,13 @@ const policyContent = {
     description: "Details on how the developer commission rate is calculated based on your user level and engagement.",
     fullText: `
       <h3 class="text-lg font-semibold mb-2 text-foreground">1. Commission Structure Overview</h3>
-      <p class="text-sm text-muted-foreground mb-4">Natpe🤝Thunai operates on a dynamic commission model designed to reward active and engaged users. The commission rate deducted from successful transactions starts at <strong>11.32%</strong> for new users (Level 1) and decreases gradually as your user level increases, reaching a minimum rate of <strong>5.37%</strong> at Level 10.</p>
+      <p class="text-sm text-muted-foreground mb-4">Natpe🤝Thunai operates on a dynamic commission model designed to reward active and engaged users. The commission rate deducted from successful transactions starts at <strong>11.32%</strong> for new users (Level 1) and decreases gradually as your user level increases, reaching a minimum rate of <strong>5.37%</strong> at Level 25.</p>
       
       <h3 class="text-lg font-semibold mb-2 text-foreground">2. Leveling and XP</h3>
       <p class="text-sm text-muted-foreground mb-4">Your user level increases by earning XP (Experience Points). XP is gained by completing daily quests, successfully completing transactions, and actively engaging with the application's features.</p>
       
       <h3 class="text-lg font-semibold mb-2 text-foreground">3. Commission Reduction Schedule</h3>
-      <p class="text-sm text-muted-foreground mb-4">The commission rate is reduced linearly between Level 1 (11.32%) and Level 10 (5.37%). Users at Level 10 and above benefit from the lowest possible commission rate of 5.37%.</p>
+      <p class="text-sm text-muted-foreground mb-4">The commission rate is reduced linearly between Level 1 (11.32%) and Level 25 (5.37%). Users at Level 25 and above benefit from the lowest possible commission rate of 5.37%.</p>
       
       <table class="min-w-full divide-y divide-border mt-4 mb-4">
         <thead>
@@ -80,16 +81,12 @@ const policyContent = {
           </tr>
         </thead>
         <tbody class="divide-y divide-border">
-          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">1</td><td class="px-4 py-2 whitespace-nowrap">11.32%</td></tr>
-          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">2</td><td class="px-4 py-2 whitespace-nowrap">10.66%</td></tr>
-          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">3</td><td class="px-4 py-2 whitespace-nowrap">10.00%</td></tr>
-          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">4</td><td class="px-4 py-2 whitespace-nowrap">9.34%</td></tr>
-          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">5</td><td class="px-4 py-2 whitespace-nowrap">8.68%</td></tr>
-          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">6</td><td class="px-4 py-2 whitespace-nowrap">8.02%</td></tr>
-          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">7</td><td class="px-4 py-2 whitespace-nowrap">7.36%</td></tr>
-          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">8</td><td class="px-4 py-2 whitespace-nowrap">6.70%</td></tr>
-          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">9</td><td class="px-4 py-2 whitespace-nowrap">6.04%</td></tr>
-          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">10+</td><td class="px-4 py-2 whitespace-nowrap">5.37%</td></tr>
+          ${Array.from({ length: 25 }, (_, i) => {
+            const level = i + 1;
+            const rate = calculateCommissionRate(level);
+            return `<tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">${level}</td><td class="px-4 py-2 whitespace-nowrap">${(rate * 100).toFixed(2)}%</td></tr>`;
+          }).join('')}
+          <tr class="bg-background"><td class="px-4 py-2 whitespace-nowrap">25+</td><td class="px-4 py-2 whitespace-nowrap">${(calculateCommissionRate(25) * 100).toFixed(2)}%</td></tr>
         </tbody>
       </table>
       

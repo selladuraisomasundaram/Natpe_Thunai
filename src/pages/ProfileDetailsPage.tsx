@@ -5,21 +5,22 @@ import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Star, UserCheck, Award, TrendingUp, Edit, User, Briefcase, DollarSign, Building2 } from "lucide-react"; // Added Building2 icon
+import { Star, UserCheck, Award, TrendingUp, Edit, User, Briefcase, DollarSign, Building2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"; // NEW: Import DialogTrigger
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import EditProfileForm from "@/components/forms/EditProfileForm";
 import { useAuth } from "@/context/AuthContext";
 import { generateAvatarUrl } from "@/utils/avatarGenerator";
 import { calculateCommissionRate, formatCommissionRate } from "@/utils/commission";
 import { getLevelBadge } from "@/utils/badges";
-import ReportMissingCollegeForm from "@/components/forms/ReportMissingCollegeForm"; // NEW: Import ReportMissingCollegeForm
+import ReportMissingCollegeForm from "@/components/forms/ReportMissingCollegeForm";
+import { getGraduationData } from "@/utils/time"; // NEW: Import getGraduationData
 
 const ProfileDetailsPage = () => {
   const { user, userProfile, updateUserProfile } = useAuth();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isReportMissingCollegeDialogOpen, setIsReportMissingCollegeDialogOpen] = useState(false); // NEW
+  const [isReportMissingCollegeDialogOpen, setIsReportMissingCollegeDialogOpen] = useState(false);
 
   const publicUsername = user?.name || "CampusExplorer";
   const userEmail = user?.email || "N/A";
@@ -56,6 +57,55 @@ const ProfileDetailsPage = () => {
     }
   };
 
+  const renderMotivationalMessage = () => {
+    if (userProfile?.userType !== "student" || userProfile?.role === "developer") {
+      return null; // Only for students, not developers
+    }
+
+    const userCreationDate = user?.$createdAt;
+    if (!userCreationDate) return null;
+
+    const graduationInfo = getGraduationData(userCreationDate);
+    const targetLevel = 25;
+
+    if (graduationInfo.isGraduated) {
+      return (
+        <p className="text-sm text-muted-foreground mt-2">
+          You've completed your journey! We hope you gained valuable skills and connections.
+        </p>
+      );
+    }
+
+    if (userProfile.level >= targetLevel) {
+      return (
+        <p className="text-sm text-green-500 mt-2 font-semibold">
+          Congratulations! You've reached Level {targetLevel} and achieved the lowest commission rate. Keep up the great work!
+        </p>
+      );
+    }
+
+    const levelsToGo = targetLevel - userProfile.level;
+    const daysRemaining = graduationInfo.countdown.days;
+
+    let message = `Aim for Level ${targetLevel} to unlock the lowest commission rate!`;
+    if (levelsToGo > 0 && daysRemaining > 0) {
+      message += ` You have ${daysRemaining} days left before graduation.`;
+      if (levelsToGo > 5) { // More than 5 levels to go
+        message += ` Keep learning new skills and engaging with the community to reach your goal!`;
+      } else { // 1-5 levels to go
+        message += ` You're close! Focus on learning new skills and actively participating to reach Level ${targetLevel}.`;
+      }
+    } else if (levelsToGo > 0) { // No days remaining, but not graduated yet (shouldn't happen with 4-year logic, but as a fallback)
+       message += ` Time is running out! Focus on learning new skills to reach Level ${targetLevel}.`;
+    }
+
+    return (
+      <p className="text-sm text-muted-foreground mt-2">
+        {message}
+      </p>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
       <h1 className="text-4xl font-bold mb-6 text-center text-foreground">User Profile</h1>
@@ -81,7 +131,7 @@ const ProfileDetailsPage = () => {
               <div>
                 <h3 className="text-2xl font-bold text-foreground">{publicUsername}</h3>
                 <p className="text-sm text-muted-foreground">{userEmail}</p>
-                {user?.emailVerification && ( // Use user.emailVerification for actual status
+                {user?.emailVerification && (
                   <Badge className="mt-1 bg-blue-500 text-white flex items-center gap-1 w-fit mx-auto sm:mx-0">
                     <UserCheck className="h-3 w-3" /> Verified
                   </Badge>
@@ -118,6 +168,7 @@ const ProfileDetailsPage = () => {
                 </p>
               </div>
             )}
+            {renderMotivationalMessage()} {/* NEW: Motivational message */}
             {userProfile && (
               <div className="space-y-2 pt-4 border-t border-border">
                 <h4 className="text-lg font-semibold text-foreground">Private Details (Visible to Developers)</h4>
@@ -163,7 +214,6 @@ const ProfileDetailsPage = () => {
               onCancel={() => setIsEditDialogOpen(false)}
             />
           )}
-          {/* NEW: "Cannot Find College" button within Edit Profile Dialog */}
           <Dialog open={isReportMissingCollegeDialogOpen} onOpenChange={setIsReportMissingCollegeDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="link" className="p-0 h-auto text-secondary-neon hover:underline mt-2 flex items-center gap-1 mx-auto">
