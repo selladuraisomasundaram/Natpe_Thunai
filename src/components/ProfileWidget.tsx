@@ -9,7 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { generateAvatarUrl } from "@/utils/avatarGenerator";
 import { calculateCommissionRate, formatCommissionRate } from "@/utils/commission";
 import { getLevelBadge } from "@/utils/badges";
-import { getGraduationData } from "@/utils/time"; // NEW: Import getGraduationData
+import { getGraduationData } from "@/utils/time";
 
 const ProfileWidget = () => {
   const { user, userProfile } = useAuth();
@@ -40,6 +40,8 @@ const ProfileWidget = () => {
 
     const graduationInfo = getGraduationData(userCreationDate);
     const targetLevel = 25;
+    const levelsToGo = targetLevel - userProfile.level;
+    const daysRemaining = graduationInfo.countdown.days;
 
     if (graduationInfo.isGraduated) {
       return (
@@ -57,19 +59,23 @@ const ProfileWidget = () => {
       );
     }
 
-    const levelsToGo = targetLevel - userProfile.level;
-    const daysRemaining = graduationInfo.countdown.days;
+    let message = "";
+    if (userLevel >= 1 && userLevel <= 5) {
+      message = "Welcome to the campus hustle! Every listing, every interaction, builds your rep. Aim for Level 25 to unlock sweet commission rates and become a campus legend!";
+    } else if (userLevel >= 6 && userLevel <= 10) {
+      message = "You're getting the hang of it! Keep connecting, selling, and helping out. Level up to reduce those commission fees and make more from your grind!";
+    } else if (userLevel >= 11 && userLevel <= 15) {
+      message = "Halfway to the top! Your influence is growing. Master new skills, offer more services, and watch that commission rate drop even further. You're building a legacy!";
+    } else if (userLevel >= 16 && userLevel <= 20) {
+      message = "Almost there, champ! You're a key player in the campus economy. Push for Level 25 to secure the ultimate commission rate and truly thrive.";
+    } else if (userLevel >= 21 && userLevel <= 24) {
+      message = "The finish line is in sight! Just a few more levels to become a true Campus Legend and lock in the lowest commission. Keep innovating, keep earning, and make your final year count!";
+    }
 
-    let message = `Aim for Level ${targetLevel} to unlock the lowest commission rate!`;
-    if (levelsToGo > 0 && daysRemaining > 0) {
+    if (daysRemaining > 0 && levelsToGo > 0) {
       message += ` You have ${daysRemaining} days left before graduation.`;
-      if (levelsToGo > 5) { // More than 5 levels to go
-        message += ` Keep learning new skills and engaging with the community to reach your goal!`;
-      } else { // 1-5 levels to go
-        message += ` You're close! Focus on learning new skills and actively participating to reach Level ${targetLevel}.`;
-      }
-    } else if (levelsToGo > 0) { // No days remaining, but not graduated yet (shouldn't happen with 4-year logic, but as a fallback)
-       message += ` Time is running out! Focus on learning new skills to reach Level ${targetLevel}.`;
+    } else if (daysRemaining <= 0 && levelsToGo > 0) {
+      message += ` Time is running out! Focus on learning new skills to reach Level ${targetLevel}.`;
     }
 
     return (

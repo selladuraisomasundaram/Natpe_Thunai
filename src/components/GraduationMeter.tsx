@@ -91,11 +91,15 @@ const GraduationMeter: React.FC = () => {
     }
 
     const targetLevel = 25;
+    const userLevel = userProfile.level;
+    const levelsToGo = targetLevel - userLevel;
+    const daysRemaining = countdown.days;
+
     if (isGraduated) {
       return null; // Already graduated, the main message handles it
     }
 
-    if (userProfile.level >= targetLevel) {
+    if (userLevel >= targetLevel) {
       return (
         <p className="text-sm text-green-500 mt-2 font-semibold text-center">
           You've achieved Level {targetLevel}! You're well-prepared for your next chapter.
@@ -103,10 +107,23 @@ const GraduationMeter: React.FC = () => {
       );
     }
 
-    const levelsToGo = targetLevel - userProfile.level;
-    let motivationMessage = `Reach Level ${targetLevel} to maximize your benefits and prepare for life beyond campus!`;
-    if (levelsToGo > 0) {
-      motivationMessage += ` Focus on learning new skills and actively participating in the community.`;
+    let motivationMessage = "";
+    if (userLevel >= 1 && userLevel <= 5) {
+      motivationMessage = "Welcome to the campus hustle! Every listing, every interaction, builds your rep. Aim for Level 25 to unlock sweet commission rates and become a campus legend!";
+    } else if (userLevel >= 6 && userLevel <= 10) {
+      motivationMessage = "You're getting the hang of it! Keep connecting, selling, and helping out. Level up to reduce those commission fees and make more from your grind!";
+    } else if (userLevel >= 11 && userLevel <= 15) {
+      motivationMessage = "Halfway to the top! Your influence is growing. Master new skills, offer more services, and watch that commission rate drop even further. You're building a legacy!";
+    } else if (userLevel >= 16 && userLevel <= 20) {
+      motivationMessage = "Almost there, champ! You're a key player in the campus economy. Push for Level 25 to secure the ultimate commission rate and truly thrive.";
+    } else if (userLevel >= 21 && userLevel <= 24) {
+      motivationMessage = "The finish line is in sight! Just a few more levels to become a true Campus Legend and lock in the lowest commission. Keep innovating, keep earning, and make your final year count!";
+    }
+
+    if (daysRemaining > 0 && levelsToGo > 0) {
+      motivationMessage += ` You have ${daysRemaining} days left before graduation.`;
+    } else if (daysRemaining <= 0 && levelsToGo > 0) {
+      motivationMessage += ` Time is running out! Focus on learning new skills to reach Level ${targetLevel}.`;
     }
 
     return (
@@ -156,7 +173,7 @@ const GraduationMeter: React.FC = () => {
                 ? "Graduation Protocol Active! Time to prepare for your next chapter."
                 : "Your journey continues. Keep engaging!"}
             </p>
-            {renderGraduationMotivation()} {/* NEW: Graduation motivation message */}
+            {renderGraduationMotivation()}
             {isGraduationProtocolActive && (
               <div className="mt-4 space-y-2">
                 <Button onClick={handleExportData} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
