@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, PlusCircle, Frown, Smile, Loader2, MapPin, Calendar, MessageSquareText, CheckCircle, ArrowLeft } from "lucide-react";
+import { Search, PlusCircle, Frown, Smile, Loader2, MapPin, Calendar, MessageSquareText, CheckCircle, ArrowLeft, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useLostAndFoundListings, LostFoundItem } from "@/hooks/useLostAndFoundListings";
@@ -14,7 +14,8 @@ import PostLostItemForm from "@/components/forms/PostLostItemForm";
 import PostFoundItemForm from "@/components/forms/PostFoundItemForm";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/context/AuthContext"; // Import useAuth
+import { useAuth } from "@/context/AuthContext";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import Alert components
 
 const LostAndFoundPage = () => {
   const navigate = useNavigate();
@@ -118,6 +119,16 @@ const LostAndFoundPage = () => {
         </Button>
         
         <h1 className="text-4xl font-bold text-center text-foreground">Lost & Found</h1>
+
+        {/* NEW: Warning Card */}
+        <Alert variant="default" className="bg-yellow-100 border-yellow-500 text-yellow-800 dark:bg-yellow-900/20 dark:border-yellow-700 dark:text-yellow-400">
+          <AlertTriangle className="h-4 w-4 text-yellow-500" />
+          <AlertTitle className="text-yellow-600 dark:text-yellow-400 font-semibold">Important Notice</AlertTitle>
+          <AlertDescription className="text-sm space-y-2">
+            <p>While this platform helps connect lost items with owners, we strongly advise reporting all lost items to your institution's official Lost & Found department as well. This increases the chances of recovery.</p>
+            <p>For **valuable items** (e.g., laptops, expensive phones, wallets), it is highly recommended to **directly contact your institution's security or administration** instead of posting full details here. This helps prevent potential misuse and ensures a more secure return process.</p>
+          </AlertDescription>
+        </Alert>
 
         <Card className="bg-card text-card-foreground shadow-lg border-border">
           <CardHeader className="p-4 pb-2">
