@@ -54,7 +54,7 @@ const JoinAmbassadorForm: React.FC<JoinAmbassadorFormProps> = ({ onApply, onCanc
         applicantId: user.$id,
         applicantName: name,
         applicantEmail: email,
-        Applicantmobile: mobile, // FIX: Changed to Applicantmobile (PascalCase)
+        applicantMobile: mobile, // FIX: Changed to applicantMobile (camelCase)
         whyJoin: whyJoin,
         collegeName: userProfile.collegeName, // NEW: Add collegeName
         status: "Pending", // Initial status

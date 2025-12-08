@@ -340,6 +340,7 @@ export default function ProductDetailsPage() {
                 This listing may contain sensitive content and is currently under review by moderators.
               </AlertDescription>
             </Alert>
+          </Alert>
           )}
 
           {/* NEW: Refund Policy Warning Banner */}

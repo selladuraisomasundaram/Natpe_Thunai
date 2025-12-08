@@ -19,7 +19,39 @@ module.exports = async function (req, res) {
     console.log('Processing new transaction:', transactionData.$id);
 
     try {
-      const COMMISSION_RATE = 0.30; // 30% commission
+      // Fetch seller's profile to get their level for dynamic commission
+      let sellerLevel = 1; // Default level
+      try {
+        const sellerProfileResponse = await databases.listDocuments(
+          APPWRITE_DATABASE_ID,
+          APPWRITE_USER_PROFILES_COLLECTION_ID,
+          [sdk.Query.equal('userId', transactionData.userId), sdk.Query.limit(1)] // FIX: Use transactionData.userId
+        );
+        if (sellerProfileResponse.documents.length > 0) {
+          sellerLevel = sellerProfileResponse.documents[0].level || 1;
+        }
+      } catch (profileError) {
+        console.warn(`Could not fetch seller profile for user ${transactionData.userId}:`, profileError); // FIX: Use transactionData.userId
+      }
+
+      // Dynamic commission calculation (simplified for function, actual logic in frontend)
+      // This should ideally be a fixed rate for the backend or fetched from a config.
+      // For now, using a placeholder.
+      const calculateCommissionRate = (level) => {
+        const START_RATE = 0.1132; // 11.32% at Level 1
+        const MIN_RATE = 0.0537; // 5.37% at Level 25
+        const MAX_LEVEL_FOR_MIN_RATE = 25;
+
+        if (level <= 1) return START_RATE;
+        if (level >= MAX_LEVEL_FOR_MIN_RATE) return MIN_RATE;
+
+        const levelRange = MAX_LEVEL_FOR_MIN_RATE - 1;
+        const rateRange = START_RATE - MIN_RATE;
+        const reductionPerLevel = rateRange / levelRange;
+        return START_RATE - (level - 1) * reductionPerLevel;
+      };
+
+      const COMMISSION_RATE = calculateCommissionRate(sellerLevel);
 
       // Only process if the status is 'payment_confirmed_to_developer'
       if (transactionData.status === 'payment_confirmed_to_developer') {
@@ -36,11 +68,14 @@ module.exports = async function (req, res) {
             status: 'commission_deducted', // New status after commission is calculated
             commissionAmount: commissionAmount,
             netSellerAmount: netSellerAmount,
+            utrId: transactionData.utrId || null, // Log the UTR ID
           }
         );
         console.log(`Transaction ${transactionData.$id} updated with commission and status 'commission_deducted'.`);
+        console.log(`Developer Notification: New Payment Claim: Order ${transactionData.$id} by ${transactionData.buyerName}. TR ID: ${transactionData.utrId}. Amount: ${amount}. Commission: ${commissionAmount}. Net to Seller: ${netSellerAmount}.`);
 
-        // 2. Update product status (e.g., mark as sold/rented) - This logic can be here or in another function
+
+        // 2. Update product status (e.g., mark as sold/rented)
         // First, fetch the product to get its current status
         const product = await databases.getDocument(
           APPWRITE_DATABASE_ID,
@@ -57,7 +92,7 @@ module.exports = async function (req, res) {
             { status: 'sold' } // You'd need to add a 'status' attribute to your products collection
           );
           console.log(`Product ${transactionData.productId} marked as sold.`);
-        } else if (product.type === 'rent') { // NEW: Handle rent type
+        } else if (product.type === 'rent') { // Handle rent type
           await databases.updateDocument(
             APPWRITE_DATABASE_ID,
             APPWRITE_PRODUCTS_COLLECTION_ID,
@@ -68,10 +103,8 @@ module.exports = async function (req, res) {
         }
         // Add similar logic for 'rent' type (e.g., update availability, set rental period)
 
-        // 3. Send notifications (conceptual) - This part would typically be triggered once the seller is actually paid
-        // For now, we'll log that the developer has the info to pay the seller.
-        console.log(`Developer has confirmed payment for ${transactionData.productTitle}.`);
-        console.log(`Developer needs to pay seller ${transactionData.sellerName} (UPI: ${transactionData.sellerUpiId}) net amount: ${netSellerAmount}`);
+        // 3. Simulate Provider Notification (after manual verification and payment to seller)
+        console.log(`Provider Notification (Simulated): Upon manual verification and payment, seller ${transactionData.sellerName} will be notified: "Order Confirmed! Prepare ${transactionData.productTitle} for ${transactionData.buyerName}."`);
 
         res.json({ success: true, message: 'Transaction processed, commission deducted, and product status updated.' });
 
