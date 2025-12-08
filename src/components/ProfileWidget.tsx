@@ -27,7 +27,8 @@ const ProfileWidget = () => {
   const avatarUrl = generateAvatarUrl(
     displayName,
     userProfile?.gender || "prefer-not-to-say",
-    userProfile?.userType || "student"
+    userProfile?.userType || "student",
+    userProfile?.avatarStyle || "lorelei" // NEW: Pass avatarStyle
   );
 
   const renderMotivationalMessage = () => {

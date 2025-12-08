@@ -11,10 +11,11 @@ import { ServicePost } from "@/hooks/useServiceListings";
 import { useAuth } from "@/context/AuthContext";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID } from "@/lib/appwrite";
 import { ID } from 'appwrite';
-import { Loader2, DollarSign, Truck } from "lucide-react";
+import { Loader2, DollarSign, Truck, AlertTriangle } from "lucide-react"; // NEW: Import AlertTriangle
 import { DEVELOPER_UPI_ID } from "@/lib/config"; // Import DEVELOPER_UPI_ID
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"; // Import Dialog components
 import AmbassadorDeliveryOption from "@/components/AmbassadorDeliveryOption"; // NEW: Import AmbassadorDeliveryOption
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // NEW: Import Alert components
 
 interface PlaceFoodOrderFormProps {
   offering: ServicePost;
@@ -122,6 +123,15 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({ offering, onOrd
   return (
     <>
       <form onSubmit={handleFormSubmit} className="grid gap-4 py-4">
+        {/* NEW: Cancellation Warning */}
+        <Alert variant="destructive" className="mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle className="font-semibold">Cancellation Policy</AlertTitle>
+          <AlertDescription className="text-sm text-foreground">
+            Cancellation is generally **not available** for homemade food and wellness remedies once the order is confirmed and payment is initiated, as ingredients may have already been purchased or preparation started. Please ensure your order is correct before proceeding.
+          </AlertDescription>
+        </Alert>
+
         <div className="space-y-2">
           <Label htmlFor="quantity" className="text-foreground">Quantity</Label>
           <Input

@@ -172,7 +172,7 @@ export default function ProductDetailsPage() {
   };
 
   const handleSendBargainRequest = async () => {
-    if (!user || !userProfile || !product) {
+    if (!user || !userProfile) {
       toast.error("Please log in to send a bargain request.");
       navigate("/auth");
       return;
@@ -336,6 +336,15 @@ export default function ProductDetailsPage() {
               </AlertDescription>
             </Alert>
           )}
+
+          {/* NEW: Refund Policy Warning Banner */}
+          <Alert variant="destructive" className="mt-6">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle className="font-semibold">Important Refund Policy</AlertTitle>
+            <AlertDescription className="text-sm text-foreground">
+              Full refund required if product is damaged by the user within the return period. Please review our full policy for details.
+            </AlertDescription>
+          </Alert>
 
           {/* NEW: Report Listing Button */}
           <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>

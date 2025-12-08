@@ -29,6 +29,7 @@ interface UserProfile extends Models.Document {
   ambassadorDeliveriesCount: number;
   lastQuestCompletedDate: string | null; // NEW: Track last quest completion
   itemsListedToday: number; // NEW: Track items listed today for quests
+  avatarStyle: string; // NEW: Add avatarStyle
 }
 
 interface AuthContextType {
@@ -86,6 +87,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           ambassadorDeliveriesCount: profile.ambassadorDeliveriesCount ?? 0,
           lastQuestCompletedDate: profile.lastQuestCompletedDate ?? null, // Initialize new field
           itemsListedToday: itemsListedToday, // Initialize new field
+          avatarStyle: profile.avatarStyle || "lorelei", // NEW: Initialize avatarStyle
         };
         setUserProfile(completeProfile);
       } else {
@@ -163,6 +165,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         ambassadorDeliveriesCount: updatedProfileData.ambassadorDeliveriesCount ?? 0,
         lastQuestCompletedDate: updatedProfileData.lastQuestCompletedDate ?? null, // Ensure new field is updated
         itemsListedToday: updatedProfileData.itemsListedToday ?? 0, // Ensure new field is updated
+        avatarStyle: updatedProfileData.avatarStyle || "lorelei", // NEW: Ensure avatarStyle is updated
       };
       setUserProfile(updatedProfile);
     } catch (error: any) {

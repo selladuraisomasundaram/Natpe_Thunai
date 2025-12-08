@@ -27,6 +27,7 @@ export interface Tournament extends Models.Document {
   status: "Open" | "Closed";
   standings: TeamStanding[];
   winners: Winner[];
+  posterId: string; // NEW: Add posterId
 }
 
 interface TournamentDataState {
@@ -34,6 +35,7 @@ interface TournamentDataState {
   isLoading: boolean;
   error: string | null;
   refetch: () => void;
+  updateTournament: (tournamentId: string, updates: Partial<Tournament>) => Promise<void>; // NEW: Add updateTournament
 }
 
 // Mock initial data structure for Appwrite if the collection is empty
@@ -57,6 +59,7 @@ const MOCK_INITIAL_TOURNAMENT: Tournament[] = [
       { rank: 2, teamName: "Team Beta", status: "2nd", points: 1200 },
     ],
     winners: [],
+    posterId: 'mock-user-id', // Placeholder
   },
 ];
 
@@ -97,6 +100,32 @@ export const useTournamentData = (): TournamentDataState => {
     }
   }, []);
 
+  const updateTournament = useCallback(async (tournamentId: string, updates: Partial<Tournament>) => {
+    try {
+      // Ensure complex objects like standings and winners are serialized if they are being updated
+      const payload: any = { ...updates };
+      if (payload.standings) {
+        payload.standings = JSON.stringify(payload.standings);
+      }
+      if (payload.winners) {
+        payload.winners = JSON.stringify(payload.winners);
+      }
+
+      await databases.updateDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_TOURNAMENTS_COLLECTION_ID,
+        tournamentId,
+        payload
+      );
+      toast.success("Tournament updated successfully!");
+      fetchTournaments(); // Refetch to update local state
+    } catch (err: any) {
+      console.error("Error updating tournament:", err);
+      toast.error(err.message || "Failed to update tournament.");
+      throw err;
+    }
+  }, [fetchTournaments]);
+
   useEffect(() => {
     fetchTournaments();
 
@@ -134,5 +163,5 @@ export const useTournamentData = (): TournamentDataState => {
     };
   }, [fetchTournaments]);
 
-  return { tournaments, isLoading, error, refetch: fetchTournaments };
+  return { tournaments, isLoading, error, refetch: fetchTournaments, updateTournament };
 };

@@ -10,6 +10,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Import Select components
 import { useAuth } from "@/context/AuthContext";
 import { indianColleges } from "@/lib/collegeData"; // Import the static college list
+import CollegeCombobox from "@/components/CollegeCombobox"; // NEW: Import CollegeCombobox
+import { DICEBEAR_AVATAR_STYLES } from "@/utils/avatarGenerator"; // NEW: Import avatar styles
 
 interface EditProfileFormProps {
   initialData: {
@@ -21,6 +23,7 @@ interface EditProfileFormProps {
     gender: "male" | "female" | "prefer-not-to-say";
     userType: "student" | "staff";
     collegeName: string; // NEW: Added collegeName
+    avatarStyle: string; // NEW: Added avatarStyle
   };
   onSave: (data: {
     firstName: string;
@@ -31,6 +34,7 @@ interface EditProfileFormProps {
     gender: "male" | "female" | "prefer-not-to-say";
     userType: "student" | "staff";
     collegeName: string; // NEW: Added collegeName
+    avatarStyle: string; // NEW: Added avatarStyle
   }) => Promise<void>;
   onCancel: () => void;
 }
@@ -48,6 +52,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
   const [gender, setGender] = useState<"male" | "female" | "prefer-not-to-say">(initialData.gender);
   const [userType, setUserType] = useState<"student" | "staff">(initialData.userType);
   const [collegeName, setCollegeName] = useState(initialData.collegeName); // NEW: State for college name
+  const [avatarStyle, setAvatarStyle] = useState(initialData.avatarStyle); // NEW: State for avatar style
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -59,12 +64,13 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
     setGender(initialData.gender);
     setUserType(initialData.userType);
     setCollegeName(initialData.collegeName); // NEW: Set college name
+    setAvatarStyle(initialData.avatarStyle); // NEW: Set avatar style
   }, [initialData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    if (!firstName || !lastName || !age || !mobileNumber || !upiId || !gender || !userType || !collegeName) { // NEW: Validate collegeName
+    if (!firstName || !lastName || !age || !mobileNumber || !upiId || !gender || !userType || !collegeName || !avatarStyle) { // NEW: Validate collegeName and avatarStyle
       toast.error("Please fill in all required fields.");
       setLoading(false);
       return;
@@ -87,6 +93,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
         gender,
         userType,
         collegeName, // NEW: Pass collegeName
+        avatarStyle, // NEW: Pass avatarStyle
       });
       toast.success("Profile updated successfully!");
       onCancel();
@@ -166,16 +173,15 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
         <Label htmlFor="collegeName" className="text-left sm:text-right text-foreground">Your College</Label>
-        <Select value={collegeName} onValueChange={setCollegeName} required>
-          <SelectTrigger className="col-span-3 w-full bg-input text-foreground border-border focus:ring-ring focus:border-ring">
-            <SelectValue placeholder="Select your college" />
-          </SelectTrigger>
-          <SelectContent className="bg-popover text-popover-foreground border-border max-h-60 overflow-y-auto">
-            {indianColleges.map((college) => (
-              <SelectItem key={college} value={college}>{college}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="col-span-3">
+          <CollegeCombobox
+            collegeList={indianColleges}
+            value={collegeName}
+            onValueChange={setCollegeName}
+            placeholder="Select your college"
+            disabled={loading}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
@@ -208,6 +214,21 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
             <Label htmlFor="edit-user-type-staff" className="text-foreground">Staff</Label>
           </div>
         </RadioGroup>
+      </div>
+
+      {/* NEW: Avatar Style Selection */}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
+        <Label htmlFor="avatarStyle" className="text-left sm:text-right text-foreground">Avatar Style</Label>
+        <Select value={avatarStyle} onValueChange={setAvatarStyle} required disabled={loading}>
+          <SelectTrigger className="col-span-3 w-full bg-input text-foreground border-border focus:ring-ring focus:border-ring">
+            <SelectValue placeholder="Select avatar style" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover text-popover-foreground border-border max-h-60 overflow-y-auto">
+            {DICEBEAR_AVATAR_STYLES.map((style) => (
+              <SelectItem key={style} value={style}>{style.replace(/-/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2">

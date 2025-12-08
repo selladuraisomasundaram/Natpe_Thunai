@@ -16,9 +16,10 @@ import { Eye, EyeOff, Building2, Image } from "lucide-react";
 import { APP_HOST_URL } from "@/lib/config";
 import { largeIndianColleges } from "@/lib/largeIndianColleges";
 import CollegeCombobox from "@/components/CollegeCombobox";
-import { generateAvatarUrl } from "@/utils/avatarGenerator";
+import { generateAvatarUrl, DICEBEAR_AVATAR_STYLES } from "@/utils/avatarGenerator"; // NEW: Import DICEBEAR_AVATAR_STYLES
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import ReportMissingCollegeForm from "@/components/forms/ReportMissingCollegeForm";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // NEW: Import Select components
 
 // Helper function to generate a random username
 const generateRandomUsername = (): string => {
@@ -57,6 +58,7 @@ const AuthPage = () => {
   const [gender, setGender] = useState<"male" | "female" | "prefer-not-to-say">("prefer-not-to-say");
   const [userType, setUserType] = useState<"student" | "staff">("student");
   const [collegeName, setCollegeName] = useState("");
+  const [avatarStyle, setAvatarStyle] = useState("lorelei"); // NEW: State for avatar style
   const [isReportMissingCollegeDialogOpen, setIsReportMissingCollegeDialogOpen] = useState(false);
 
   const { isAuthenticated, isLoading, login } = useAuth();
@@ -122,6 +124,11 @@ const AuthPage = () => {
           setLoading(false);
           return;
         }
+        if (!avatarStyle) { // NEW: Validate avatarStyle
+          toast.error("Please select an avatar style.");
+          setLoading(false);
+          return;
+        }
 
         const user = await account.create("unique()", email, password, selectedUsername);
         
@@ -166,6 +173,7 @@ const AuthPage = () => {
               ambassadorDeliveriesCount: 0,
               lastQuestCompletedDate: null,
               itemsListedToday: 0,
+              avatarStyle: avatarStyle, // NEW: Save avatarStyle
             }
           );
           toast.success("User profile saved.");
@@ -202,6 +210,7 @@ const AuthPage = () => {
         setGender("prefer-not-to-say");
         setUserType("student");
         setCollegeName("");
+        setAvatarStyle("lorelei"); // NEW: Reset avatar style
       }
     } catch (error: any) {
       toast.error(error.message || "An error occurred during authentication.");
@@ -327,8 +336,8 @@ const AuthPage = () => {
                     className="bg-input text-foreground border-border focus:ring-ring focus:border-ring file:text-primary-foreground file:bg-primary-blue-light file:border-0 file:mr-4 file:py-2 file:px-4 file:rounded-md"
                   />
                   {collegeIdPhoto && <p className="text-xs text-muted-foreground mt-1">File selected: {collegeIdPhoto.name}</p>}
-                  <Link to="https://compressjpeg.com/" target="_blank" rel="noopener noreferrer" className="text-xs text-secondary-neon hover:underline flex items-center gap-1 mt-1">
-                    <Image className="h-3 w-3" /> Compress your image here
+                  <Link to="/help/image-to-url" target="_blank" rel="noopener noreferrer" className="text-xs text-secondary-neon hover:underline flex items-center gap-1 mt-1">
+                    <Image className="h-3 w-3" /> How to get URL?
                   </Link>
                 </div>
 
@@ -378,6 +387,22 @@ const AuthPage = () => {
                     This is the only identifier visible to other users.
                   </p>
                 </div>
+
+                {/* NEW: Avatar Style Selection */}
+                <div>
+                  <Label htmlFor="avatarStyle" className="text-foreground">Choose Your Avatar Style</Label>
+                  <Select value={avatarStyle} onValueChange={setAvatarStyle} required disabled={loading}>
+                    <SelectTrigger className="w-full bg-input text-foreground border-border focus:ring-ring focus:border-ring">
+                      <SelectValue placeholder="Select avatar style" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover text-popover-foreground border-border max-h-60 overflow-y-auto">
+                      {DICEBEAR_AVATAR_STYLES.map((style) => (
+                        <SelectItem key={style} value={style}>{style.replace(/-/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="terms"

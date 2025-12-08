@@ -6,17 +6,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trophy, Calendar, DollarSign, Users, Gamepad2, Loader2, AlertTriangle } from "lucide-react";
+import { Trophy, Calendar, DollarSign, Users, Gamepad2, Loader2, AlertTriangle, Edit } from "lucide-react"; // NEW: Import Edit icon
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import DetailedTournamentRegistrationForm from "@/components/forms/DetailedTournamentRegistrationForm";
+import TournamentManagementForm from "@/components/forms/TournamentManagementForm"; // NEW: Import TournamentManagementForm
 import { useTournamentData, Tournament, TeamStanding, Winner } from "@/hooks/useTournamentData"; // Import hook and interfaces
+import { useAuth } from "@/context/AuthContext"; // NEW: Import useAuth
 
 const TournamentPage = () => {
+  const { user } = useAuth(); // NEW: Get current user
   const { tournaments, isLoading, error } = useTournamentData();
   const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
+  const [isManagementDialogOpen, setIsManagementDialogOpen] = useState(false); // NEW: State for management dialog
 
   // Aggregate data from all tournaments
   const upcomingTournaments = tournaments.filter(t => t.status === "Open");
@@ -41,6 +45,12 @@ const TournamentPage = () => {
     toast.success(`Successfully registered "${data.teamName}" (${data.players.length} players) for ${selectedTournament.name}!`);
     // Reset form state if needed, but closing the dialog handles it.
     setIsRegisterDialogOpen(false);
+  };
+
+  // NEW: Handle opening management dialog
+  const handleManageTournamentClick = (tournament: Tournament) => {
+    setSelectedTournament(tournament);
+    setIsManagementDialogOpen(true);
   };
 
   if (error) {
@@ -85,12 +95,24 @@ const TournamentPage = () => {
                       <DollarSign className="h-3 w-3" /> Fee: {tournament.fee === 0 ? "Free" : `₹${tournament.fee}`} | Prize: {tournament.prizePool}
                     </p>
                   </div>
-                  <Button
-                    className="mt-3 sm:mt-0 bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90"
-                    onClick={() => handleRegisterClick(tournament)}
-                  >
-                    Register
-                  </Button>
+                  <div className="flex gap-2 mt-3 sm:mt-0">
+                    {user?.$id === tournament.posterId && ( // NEW: Show manage button only to creator
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-blue-500 text-blue-500 hover:bg-blue-500/10"
+                        onClick={() => handleManageTournamentClick(tournament)}
+                      >
+                        <Edit className="mr-2 h-4 w-4" /> Manage
+                      </Button>
+                    )}
+                    <Button
+                      className="bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90"
+                      onClick={() => handleRegisterClick(tournament)}
+                    >
+                      Register
+                    </Button>
+                  </div>
                 </div>
               ))
             ) : (
@@ -186,6 +208,21 @@ const TournamentPage = () => {
               fee={selectedTournament.fee} // Pass the fee
               onRegister={handleRegistrationSubmit}
               onCancel={() => setIsRegisterDialogOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* NEW: Tournament Management Dialog */}
+      <Dialog open={isManagementDialogOpen} onOpenChange={setIsManagementDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] bg-card text-card-foreground border-border max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Manage Tournament: {selectedTournament?.name}</DialogTitle>
+          </DialogHeader>
+          {selectedTournament && (
+            <TournamentManagementForm
+              tournament={selectedTournament}
+              onClose={() => setIsManagementDialogOpen(false)}
             />
           )}
         </DialogContent>

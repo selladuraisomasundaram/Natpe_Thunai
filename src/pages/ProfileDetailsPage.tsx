@@ -39,7 +39,8 @@ const ProfileDetailsPage = () => {
   const avatarUrl = generateAvatarUrl(
     publicUsername,
     userProfile?.gender || "prefer-not-to-say",
-    userProfile?.userType || "student"
+    userProfile?.userType || "student",
+    userProfile?.avatarStyle || "lorelei" // NEW: Pass avatarStyle
   );
 
   const handleSaveProfile = async (data: {
@@ -51,6 +52,7 @@ const ProfileDetailsPage = () => {
     gender: "male" | "female" | "prefer-not-to-say";
     userType: "student" | "staff";
     collegeName: string;
+    avatarStyle: string; // NEW: Add avatarStyle
   }) => {
     if (userProfile) {
       await updateUserProfile(userProfile.$id, data);
@@ -215,6 +217,7 @@ const ProfileDetailsPage = () => {
                 gender: userProfile.gender,
                 userType: userProfile.userType,
                 collegeName: userProfile.collegeName,
+                avatarStyle: userProfile.avatarStyle, // NEW: Pass avatarStyle
               }}
               onSave={handleSaveProfile}
               onCancel={() => setIsEditDialogOpen(false)}
