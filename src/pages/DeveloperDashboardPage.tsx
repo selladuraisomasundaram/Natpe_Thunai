@@ -18,14 +18,14 @@ import { Query, ID } from "appwrite";
 import { BLOCKED_WORDS as STATIC_BLOCKED_WORDS } from "@/lib/moderation";
 import { useDeveloperMessages, DeveloperMessage } from "@/hooks/useDeveloperMessages";
 import { calculateCommissionRate } from "@/utils/commission";
-import { useReports, Report } from "@/hooks/useReports"; // NEW IMPORT
+import { useReports, Report } = "@/hooks/useReports"; // NEW IMPORT
 
 interface Transaction {
   $id: string;
   productId: string;
   buyerId: string;
   buyerName: string;
-  userId: string; // FIX: Changed from sellerId to userId
+  sellerId: string; // Changed from userId to sellerId
   sellerName: string;
   sellerUpiId: string;
   amount: number;
@@ -179,7 +179,7 @@ const DeveloperDashboardPage = () => {
       const sellerProfileResponse = await databases.listDocuments(
         APPWRITE_DATABASE_ID,
         APPWRITE_USER_PROFILES_COLLECTION_ID,
-        [Query.equal('userId', transaction.userId)] // FIX: Use transaction.userId
+        [Query.equal('userId', transaction.sellerId)] // Changed to transaction.sellerId
       );
 
       if (sellerProfileResponse.documents.length === 0) {

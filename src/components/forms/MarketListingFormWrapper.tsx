@@ -42,7 +42,7 @@ const MarketListingFormWrapper: React.FC<MarketListingFormWrapperProps> = ({ onC
       type: productType,
       
       // Seller Info (from Auth Context)
-      userId: user.$id, // FIX: Changed from sellerId to userId
+      userId: user.$id, // Consistently use userId for the seller's ID
       sellerName: user.name,
       sellerUpiId: userProfile.upiId,
       collegeName: userProfile.collegeName,

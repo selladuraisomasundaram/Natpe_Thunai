@@ -68,7 +68,7 @@ export default function ProductDetailsPage() {
     
     // Optional: Add real-time subscription for this specific product if needed, 
     // but for details page, a single fetch is often sufficient unless status changes frequently.
-    // We will skip the subscription here to keep it simple, relying on the user to refresh.
+    // We will skip the subscription here to keep it to a minimum, relying on the user to refresh.
 
   }, [productId]);
 
@@ -80,7 +80,7 @@ export default function ProductDetailsPage() {
     }
     if (!product) return;
 
-    if (user.$id === product.userId) { // FIX: Use product.userId
+    if (user.$id === product.userId) { // Consistently use product.userId
       toast.error("You cannot buy/rent your own listing.");
       return;
     }
@@ -131,7 +131,7 @@ export default function ProductDetailsPage() {
           productTitle: product.title,
           buyerId: user.$id,
           buyerName: user.name,
-          sellerId: product.userId, // FIX: Use product.userId
+          sellerId: product.userId, // Consistently use product.userId
           sellerName: product.sellerName,
           sellerUpiId: product.sellerUpiId,
           amount: transactionAmount,
@@ -177,7 +177,7 @@ export default function ProductDetailsPage() {
       navigate("/auth");
       return;
     }
-    if (user.$id === product.userId) { // FIX: Use product.userId
+    if (user.$id === product.userId) { // Consistently use product.userId
       toast.error("You cannot bargain on your own listing.");
       return;
     }
@@ -235,7 +235,7 @@ export default function ProductDetailsPage() {
 
   // Determine if bargain button should be disabled
   const isBargainDisabled = 
-    user?.$id === product.userId || // FIX: Use product.userId
+    user?.$id === product.userId || // Consistently use product.userId
     currentBargainStatus === 'pending' || // Already has a pending request
     currentBargainStatus === 'denied'; // Previous request was denied
 
@@ -368,7 +368,7 @@ export default function ProductDetailsPage() {
               <ReportListingForm
                 productId={product.$id}
                 productTitle={product.title}
-                sellerId={product.userId} // FIX: Use product.userId
+                sellerId={product.userId} // Consistently use product.userId
                 onReportSubmitted={() => setIsReportDialogOpen(false)}
                 onCancel={() => setIsReportDialogOpen(false)}
               />

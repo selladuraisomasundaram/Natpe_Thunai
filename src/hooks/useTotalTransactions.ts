@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { Query, Models } from 'appwrite';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext'; // NEW: Import useAuth
 

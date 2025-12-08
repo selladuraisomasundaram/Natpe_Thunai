@@ -8,7 +8,7 @@ export interface Product {
   sellerLevel?: number; // NEW: Add sellerLevel
   type: "sell" | "rent" | "gift" | "sports" | "gift-request";
   description: string;
-  userId: string; // FIX: Changed from sellerId to userId
+  userId: string; // Consistently use userId for the seller's ID
   sellerName: string;
   sellerUpiId: string; // Added UPI ID
   damages?: string;

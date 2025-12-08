@@ -14,7 +14,7 @@ export interface BargainRequest extends Models.Document {
   requestedPrice: string;
   buyerId: string;
   buyerName: string;
-  userId: string; // FIX: Changed from sellerId to userId
+  sellerId: string; // Reverted to sellerId to match Appwrite schema based on error
   sellerName: string;
   status: "pending" | "accepted" | "denied"; // Status of the bargain request
   collegeName: string;
@@ -67,7 +67,7 @@ export const useBargainRequests = (): UseBargainRequestsState => {
         APPWRITE_DATABASE_ID,
         APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID,
         [
-          Query.equal('userId', user.$id), // FIX: Use userId
+          Query.equal('sellerId', user.$id), // Changed to sellerId
           Query.equal('collegeName', userProfile.collegeName),
           Query.orderDesc('$createdAt'),
           Query.equal('status', 'pending') // Only show pending requests to seller
@@ -119,7 +119,7 @@ export const useBargainRequests = (): UseBargainRequestsState => {
         }
 
         // Update seller's requests
-        if (payload.userId === user.$id) { // FIX: Use userId
+        if (payload.sellerId === user.$id) { // Changed to sellerId
           setSellerRequests(prev => {
             const existingIndex = prev.findIndex(req => req.$id === payload.$id);
             if (response.events.includes("databases.*.collections.*.documents.*.create")) {
@@ -166,7 +166,7 @@ export const useBargainRequests = (): UseBargainRequestsState => {
           requestedPrice: requestedPrice.toFixed(2),
           buyerId: user.$id,
           buyerName: user.name,
-          userId: product.userId, // FIX: Use product.userId
+          sellerId: product.userId, // Changed to sellerId
           sellerName: product.sellerName,
           status: "pending",
           collegeName: userProfile.collegeName,
