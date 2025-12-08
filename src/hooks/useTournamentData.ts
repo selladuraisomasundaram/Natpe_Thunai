@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_TOURNAMENTS_COLLECTION_ID } from '@/lib/appwrite';
-import { Models, Query } from 'appwrite';
+import { Models, Query, ID } from 'appwrite';
 import { toast } from 'sonner';
+import { useAuth } from '@/context/AuthContext'; // NEW: Import useAuth
 
 export interface TeamStanding {
   rank: number;
@@ -27,7 +28,11 @@ export interface Tournament extends Models.Document {
   status: "Open" | "Closed";
   standings: TeamStanding[];
   winners: Winner[];
-  posterId: string; // NEW: Add posterId
+  posterId: string;
+  posterName: string; // NEW: Add posterName
+  collegeName: string; // NEW: Add collegeName
+  minPlayers: number; // NEW: Add minPlayers
+  maxPlayers: number; // NEW: Add maxPlayers
 }
 
 interface TournamentDataState {
@@ -35,7 +40,8 @@ interface TournamentDataState {
   isLoading: boolean;
   error: string | null;
   refetch: () => void;
-  updateTournament: (tournamentId: string, updates: Partial<Tournament>) => Promise<void>; // NEW: Add updateTournament
+  updateTournament: (tournamentId: string, updates: Partial<Tournament>) => Promise<void>;
+  createTournament: (data: Omit<Tournament, "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId" | "$sequence">) => Promise<void>; // NEW: Add createTournament
 }
 
 // Mock initial data structure for Appwrite if the collection is empty
@@ -60,16 +66,27 @@ const MOCK_INITIAL_TOURNAMENT: Tournament[] = [
     ],
     winners: [],
     posterId: 'mock-user-id', // Placeholder
+    posterName: 'Mock Host', // Placeholder
+    collegeName: 'Indian Institute of Technology Madras', // Placeholder
+    minPlayers: 2,
+    maxPlayers: 4,
   },
 ];
 
 
 export const useTournamentData = (): TournamentDataState => {
+  const { userProfile } = useAuth(); // NEW: Use useAuth hook to get current user's college
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchTournaments = useCallback(async () => {
+    if (!userProfile?.collegeName) { // NEW: Only fetch if collegeName is available
+      setIsLoading(false);
+      setTournaments([]); // Clear tournaments if no college is set
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     
@@ -77,7 +94,10 @@ export const useTournamentData = (): TournamentDataState => {
       const response = await databases.listDocuments(
         APPWRITE_DATABASE_ID,
         APPWRITE_TOURNAMENTS_COLLECTION_ID,
-        [Query.orderDesc('date')] // Order by date descending
+        [
+          Query.orderDesc('date'), // Order by date descending
+          Query.equal('collegeName', userProfile.collegeName) // NEW: Filter by collegeName
+        ]
       );
       
       let fetchedTournaments = response.documents as unknown as Tournament[];
@@ -98,7 +118,7 @@ export const useTournamentData = (): TournamentDataState => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [userProfile?.collegeName]); // NEW: Depend on userProfile.collegeName
 
   const updateTournament = useCallback(async (tournamentId: string, updates: Partial<Tournament>) => {
     try {
@@ -126,13 +146,41 @@ export const useTournamentData = (): TournamentDataState => {
     }
   }, [fetchTournaments]);
 
+  const createTournament = useCallback(async (data: Omit<Tournament, "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId" | "$sequence">) => {
+    try {
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_TOURNAMENTS_COLLECTION_ID,
+        ID.unique(),
+        {
+          ...data,
+          standings: JSON.stringify(data.standings || []), // Ensure standings are stringified
+          winners: JSON.stringify(data.winners || []), // Ensure winners are stringified
+        }
+      );
+      toast.success(`Tournament "${data.name}" created successfully!`);
+      fetchTournaments(); // Refetch to update local state
+    } catch (err: any) {
+      console.error("Error creating tournament:", err);
+      toast.error(err.message || "Failed to create tournament.");
+      throw err;
+    }
+  }, [fetchTournaments]);
+
   useEffect(() => {
     fetchTournaments();
+
+    if (!userProfile?.collegeName) return; // NEW: Only subscribe if collegeName is available
 
     const unsubscribe = databases.client.subscribe(
       `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_TOURNAMENTS_COLLECTION_ID}.documents`,
       (response) => {
         const payload = response.payload as unknown as Tournament;
+
+        // NEW: Filter real-time updates by collegeName
+        if (payload.collegeName !== userProfile.collegeName) {
+            return;
+        }
 
         setTournaments(prev => {
           const existingIndex = prev.findIndex(t => t.$id === payload.$id);
@@ -161,7 +209,7 @@ export const useTournamentData = (): TournamentDataState => {
     return () => {
       unsubscribe();
     };
-  }, [fetchTournaments]);
+  }, [fetchTournaments, userProfile?.collegeName]); // NEW: Depend on userProfile.collegeName
 
-  return { tournaments, isLoading, error, refetch: fetchTournaments, updateTournament };
+  return { tournaments, isLoading, error, refetch: fetchTournaments, updateTournament, createTournament };
 };
