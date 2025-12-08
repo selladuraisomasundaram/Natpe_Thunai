@@ -55,7 +55,7 @@ const BargainServiceDialog: React.FC<BargainServiceDialogProps> = ({ service, on
           productTitle: service.title,
           buyerId: user.$id,
           buyerName: user.name,
-          sellerId: service.posterId, // Service provider is the seller
+          userId: service.posterId, // Service provider is the seller, use userId
           sellerName: service.posterName,
           sellerUpiId: userProfile.upiId, // Buyer's UPI ID for now, actual seller UPI is service.contact
           amount: transactionAmount,

@@ -95,7 +95,7 @@ const DeveloperDashboardPage = () => {
           toast.info(`Transaction "${updatedTx.productTitle}" updated to status: ${updatedTx.status.replace(/_/g, ' ')}`);
           // NEW: Developer notification for payment confirmation
           if (updatedTx.status === 'payment_confirmed_to_developer' && updatedTx.utrId) {
-            toast.success(`New Payment Claim: Order ${updatedTx.$id} by ${updatedTx.buyerName}. TR ID: ${updatedTx.utrId}`);
+            toast.success(`New Payment Claim: Order ${updatedTx.$id} by ${updatedTx.buyerName}. TR ID: ${updatedTx.utrId}. Amount: ${updatedTx.amount}. Commission: ${updatedTx.commissionAmount}. Net to Seller: ${updatedTx.netSellerAmount}.`);
           }
         }
       }
@@ -619,7 +619,7 @@ const DeveloperDashboardPage = () => {
                       <TableCell className="text-foreground">₹{tx.amount.toFixed(2)}</TableCell>
                       <TableCell className="text-foreground">₹{(tx.commissionAmount || 0).toFixed(2)}</TableCell>
                       <TableCell className="text-foreground">₹{(tx.netSellerAmount || 0).toFixed(2)}</TableCell>
-                      <TableCell className="text-muted-foreground">{tx.sellerUpiId}</TableCell>
+                      <TableCell className="text-foreground">{tx.sellerUpiId}</TableCell>
                       <TableCell>
                         {tx.ambassadorDelivery ? (
                           <Badge variant="outline" className="flex items-center gap-1 bg-blue-100 text-blue-800">

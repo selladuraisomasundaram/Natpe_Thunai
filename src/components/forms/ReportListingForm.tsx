@@ -17,7 +17,7 @@ import { containsBlockedWords } from "@/lib/moderation";
 interface ReportListingFormProps {
   productId: string;
   productTitle: string;
-  sellerId: string;
+  sellerId: string; // Keep sellerId here as it's passed from ProductDetailsPage
   onReportSubmitted: () => void;
   onCancel: () => void;
 }
@@ -25,7 +25,7 @@ interface ReportListingFormProps {
 const ReportListingForm: React.FC<ReportListingFormProps> = ({
   productId,
   productTitle,
-  sellerId,
+  sellerId, // Use sellerId here
   onReportSubmitted,
   onCancel,
 }) => {
@@ -64,7 +64,7 @@ const ReportListingForm: React.FC<ReportListingFormProps> = ({
           reporterName: user.name,
           productId: productId,
           productTitle: productTitle,
-          sellerId: sellerId,
+          sellerId: sellerId, // Use sellerId here
           reason: reason,
           message: message.trim() || null,
           status: "Pending", // Initial status
