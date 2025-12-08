@@ -11,7 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { Models, Query } from "appwrite";
 import { calculateCommissionRate } from "@/utils/commission";
-import { useFoodOrders, FoodOrder } from "@/hooks/useFoodOrders"; // NEW IMPORT
+import { useFoodOrders, FoodOrder } from "@/hooks/useFoodOrders";
 import { Button } from "@/components/ui/button";
 
 // --- Tracking Item Interfaces ---
@@ -31,12 +31,12 @@ export interface MarketTransactionItem extends BaseTrackingItem {
   sellerName: string;
   buyerName: string;
   buyerId: string;
-  userId: string; // Consistently use userId for the seller's ID
+  sellerId: string; // Consistently use sellerId for the seller's ID
   commissionAmount?: number;
   netSellerAmount?: number;
-  collegeName: string; // NEW: Add collegeName
-  ambassadorDelivery?: boolean; // NEW
-  ambassadorMessage?: string; // NEW
+  collegeName: string;
+  ambassadorDelivery?: boolean;
+  ambassadorMessage?: string;
 }
 
 export interface FoodOrderItem extends BaseTrackingItem {
@@ -49,11 +49,11 @@ export interface FoodOrderItem extends BaseTrackingItem {
   providerId: string;
   orderStatus: FoodOrder["status"]; // Specific status for food orders
   quantity: number;
-  deliveryLocation: string; // Added missing property
-  notes: string; // Added missing property
-  collegeName: string; // NEW: Add collegeName
-  ambassadorDelivery?: boolean; // NEW
-  ambassadorMessage?: string; // NEW
+  deliveryLocation: string;
+  notes: string;
+  collegeName: string;
+  ambassadorDelivery?: boolean;
+  ambassadorMessage?: string;
 }
 
 interface OtherActivityItem extends BaseTrackingItem {
@@ -64,7 +64,6 @@ type TrackingItem = MarketTransactionItem | FoodOrderItem | OtherActivityItem;
 
 // --- Conversion Functions ---
 
-// Helper function to map Appwrite transaction status to TrackingItem status
 const mapAppwriteStatusToTrackingStatus = (appwriteStatus: string): string => {
   switch (appwriteStatus) {
     case "initiated":
@@ -82,7 +81,6 @@ const mapAppwriteStatusToTrackingStatus = (appwriteStatus: string): string => {
   }
 };
 
-// Helper function to convert Appwrite transaction document to TrackingItem
 const convertAppwriteTransactionToTrackingItem = (doc: Models.Document, currentUserId: string): MarketTransactionItem => {
   const transactionDoc = doc as any;
   const isBuyer = transactionDoc.buyerId === currentUserId;
@@ -90,7 +88,7 @@ const convertAppwriteTransactionToTrackingItem = (doc: Models.Document, currentU
   let description = `Payment for ${transactionDoc.productTitle}`;
   if (isBuyer) {
     description = `Purchase of ${transactionDoc.productTitle}`;
-  } else if (transactionDoc.userId === currentUserId) { // Consistently use transactionDoc.userId
+  } else if (transactionDoc.sellerId === currentUserId) { // Consistently use sellerId
     description = `Sale of ${transactionDoc.productTitle}`;
   }
 
@@ -105,17 +103,16 @@ const convertAppwriteTransactionToTrackingItem = (doc: Models.Document, currentU
     sellerName: transactionDoc.sellerName,
     buyerName: transactionDoc.buyerName,
     buyerId: transactionDoc.buyerId,
-    userId: transactionDoc.userId, // Consistently use transactionDoc.userId
+    sellerId: transactionDoc.sellerId, // Consistently use sellerId
     commissionAmount: transactionDoc.commissionAmount,
     netSellerAmount: transactionDoc.netSellerAmount,
-    isUserProvider: transactionDoc.userId === currentUserId, // Consistently use transactionDoc.userId
-    collegeName: transactionDoc.collegeName, // NEW: Add collegeName
-    ambassadorDelivery: transactionDoc.ambassadorDelivery, // NEW
-    ambassadorMessage: transactionDoc.ambassadorMessage, // NEW
+    isUserProvider: transactionDoc.sellerId === currentUserId, // Consistently use sellerId
+    collegeName: transactionDoc.collegeName,
+    ambassadorDelivery: transactionDoc.ambassadorDelivery,
+    ambassadorMessage: transactionDoc.ambassadorMessage,
   };
 };
 
-// New conversion function for Food Orders
 const convertAppwriteFoodOrderToTrackingItem = (doc: FoodOrder, currentUserId: string): FoodOrderItem => {
   const isBuyer = doc.buyerId === currentUserId;
   const description = isBuyer 
@@ -126,7 +123,7 @@ const convertAppwriteFoodOrderToTrackingItem = (doc: FoodOrder, currentUserId: s
     id: doc.$id,
     type: "Food Order",
     description: description,
-    status: doc.status, // Use specific order status
+    status: doc.status,
     date: new Date(doc.$createdAt).toLocaleDateString(),
     offeringTitle: doc.offeringTitle,
     totalAmount: doc.totalAmount,
@@ -137,11 +134,11 @@ const convertAppwriteFoodOrderToTrackingItem = (doc: FoodOrder, currentUserId: s
     orderStatus: doc.status,
     isUserProvider: doc.providerId === currentUserId,
     quantity: doc.quantity,
-    deliveryLocation: doc.deliveryLocation, // Mapped missing property
-    notes: doc.notes, // Mapped missing property
-    collegeName: doc.collegeName, // NEW: Add collegeName
-    ambassadorDelivery: doc.ambassadorDelivery, // NEW
-    ambassadorMessage: doc.ambassadorMessage, // NEW
+    deliveryLocation: doc.deliveryLocation,
+    notes: doc.notes,
+    collegeName: doc.collegeName,
+    ambassadorDelivery: doc.ambassadorDelivery,
+    ambassadorMessage: doc.ambassadorMessage,
   };
 };
 
@@ -163,7 +160,7 @@ const TrackingPage = () => {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const fetchMarketTransactions = useCallback(async () => {
-    if (!user?.$id || !userProfile?.collegeName) { // NEW: Only fetch if user and collegeName are available
+    if (!user?.$id || !userProfile?.collegeName) {
       setLoadingTransactions(false);
       return [];
     }
@@ -176,9 +173,9 @@ const TrackingPage = () => {
         [
           Query.or([
             Query.equal('buyerId', user.$id),
-            Query.equal('userId', user.$id) // Consistently use userId
+            Query.equal('sellerId', user.$id) // Consistently use sellerId
           ]),
-          Query.equal('collegeName', userProfile.collegeName), // NEW: Filter by collegeName
+          Query.equal('collegeName', userProfile.collegeName),
           Query.orderDesc('$createdAt')
         ]
       );
@@ -189,22 +186,17 @@ const TrackingPage = () => {
       toast.error("Failed to load market transactions.");
       return [];
     }
-  }, [user?.$id, userProfile?.collegeName]); // NEW: Depend on userProfile.collegeName
+  }, [user?.$id, userProfile?.collegeName]);
 
   const mergeAndSetItems = useCallback(async () => {
     const fetchedTransactions = await fetchMarketTransactions();
     
-    // foodOrders is already filtered by collegeName internally by useFoodOrders hook
     const foodOrderItems = foodOrders.map(o => convertAppwriteFoodOrderToTrackingItem(o, user!.$id));
 
-    // Filter dummy items by collegeName (assuming dummy items also have a collegeName or are global)
-    // For now, we'll assume dummy items are global or don't have collegeName, so they won't be filtered.
-    // In a real scenario, dummy items should also have a collegeName attribute.
-    const collegeFilteredDummyItems = dummyOtherItems; // No collegeName on dummy items, so they are "global" for now.
+    const collegeFilteredDummyItems = dummyOtherItems;
     
     const mergedItems = [...fetchedTransactions, ...foodOrderItems, ...collegeFilteredDummyItems];
     
-    // Sort by creation date (newest first)
     mergedItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     setTrackingItems(mergedItems);
@@ -216,8 +208,6 @@ const TrackingPage = () => {
       mergeAndSetItems();
     }
   }, [user, mergeAndSetItems]);
-
-  // --- Status Update Handlers ---
 
   const handleUpdateFoodOrderStatus = async (orderId: string, currentStatus: FoodOrder["status"]) => {
     if (isUpdatingStatus) return;
@@ -248,7 +238,7 @@ const TrackingPage = () => {
         { status: nextStatus }
       );
       toast.success(successMessage);
-      refetchFoodOrders(); // Trigger refetch to update local state immediately
+      refetchFoodOrders();
     } catch (error: any) {
       console.error("Error updating order status:", error);
       toast.error(error.message || "Failed to update order status.");
@@ -277,8 +267,6 @@ const TrackingPage = () => {
       setIsUpdatingStatus(false);
     }
   };
-
-  // --- UI Helpers ---
 
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
@@ -345,14 +333,11 @@ const TrackingPage = () => {
                 const isSellerOrProvider = item.isUserProvider;
                 const commissionRateDisplay = (dynamicCommissionRate * 100).toFixed(2);
                 
-                // Determine if it's a Food Order for specific logic
                 const isFoodOrder = item.type === "Food Order";
                 const foodItem = isFoodOrder ? (item as FoodOrderItem) : null;
 
-                // Calculate expected net amount if commission hasn't been deducted yet (Market only)
                 const marketItem = item.type === "Transaction" ? (item as MarketTransactionItem) : null;
                 
-                // Use dynamicCommissionRate for calculation if commissionAmount/netSellerAmount are missing (i.e., status is 'initiated' or 'payment_confirmed_to_developer')
                 const expectedCommission = marketItem?.amount ? marketItem.amount * dynamicCommissionRate : 0;
                 const expectedNet = marketItem?.amount ? marketItem.amount - expectedCommission : 0;
 
@@ -371,11 +356,10 @@ const TrackingPage = () => {
                       </div>
                     </div>
 
-                    {/* --- Market Transaction Details --- */}
                     {marketItem && (
                       <div className="space-y-1 text-xs border-t border-border pt-2">
                         <p className="text-muted-foreground">Amount: <span className="font-semibold text-foreground">₹{marketItem.amount?.toFixed(2)}</span></p>
-                        {marketItem.ambassadorDelivery && ( // NEW
+                        {marketItem.ambassadorDelivery && (
                           <p className="text-muted-foreground flex items-center gap-1">
                             <Truck className="h-3 w-3" /> Ambassador Delivery Requested
                             {marketItem.ambassadorMessage && <span className="ml-1">({marketItem.ambassadorMessage})</span>}
@@ -406,20 +390,18 @@ const TrackingPage = () => {
                       </div>
                     )}
 
-                    {/* --- Food Order Details & Actions --- */}
                     {foodItem && (
                       <div className="space-y-2 border-t border-border pt-2">
                         <p className="text-xs text-muted-foreground">Total: <span className="font-semibold text-foreground">₹{foodItem.totalAmount.toFixed(2)}</span> | Qty: {foodItem.quantity}</p>
                         <p className="text-xs text-muted-foreground">Delivery to: {foodItem.deliveryLocation}</p>
                         {foodItem.notes && <p className="text-xs text-muted-foreground">Notes: {foodItem.notes}</p>}
-                        {foodItem.ambassadorDelivery && ( // NEW
+                        {foodItem.ambassadorDelivery && (
                           <p className="text-xs text-muted-foreground flex items-center gap-1">
                             <Truck className="h-3 w-3" /> Ambassador Delivery Requested
                             {foodItem.ambassadorMessage && <span className="ml-1">({foodItem.ambassadorMessage})</span>}
                           </p>
                         )}
                         
-                        {/* Provider Actions */}
                         {isSellerOrProvider && foodItem.orderStatus !== "Delivered" && foodItem.orderStatus !== "Cancelled" && (
                           <div className="flex justify-end">
                             <Button
@@ -441,7 +423,6 @@ const TrackingPage = () => {
                           </div>
                         )}
 
-                        {/* Buyer Actions */}
                         {!isSellerOrProvider && foodItem.orderStatus === "Out for Delivery" && (
                           <div className="flex justify-end">
                             <Button

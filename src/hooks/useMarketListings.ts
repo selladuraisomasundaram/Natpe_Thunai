@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID, APPWRITE_USER_PROFILES_COLLECTION_ID } from '@/lib/appwrite'; // NEW: Import APPWRITE_USER_PROFILES_COLLECTION_ID
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID, APPWRITE_USER_PROFILES_COLLECTION_ID } from '@/lib/appwrite';
 import { Models, Query } from 'appwrite';
 import { toast } from 'sonner';
-import { Product } from '@/lib/mockData'; // Assuming Product interface is still needed
-import { useAuth } from '@/context/AuthContext'; // NEW: Import useAuth
+import { Product } from '@/lib/mockData';
+import { useAuth } from '@/context/AuthContext';
 
 interface MarketListingsState {
   products: Product[];
@@ -15,7 +15,7 @@ interface MarketListingsState {
 }
 
 export const useMarketListings = (): MarketListingsState => {
-  const { userProfile } = useAuth(); // NEW: Get userProfile to access collegeName
+  const { userProfile } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,9 +23,9 @@ export const useMarketListings = (): MarketListingsState => {
   const fetchProducts = useCallback(async () => {
     const isDeveloper = userProfile?.role === 'developer';
 
-    if (!isDeveloper && !userProfile?.collegeName) { // Only fetch if collegeName is available for non-developers
+    if (!isDeveloper && !userProfile?.collegeName) {
       setIsLoading(false);
-      setProducts([]); // Clear products if no college is set
+      setProducts([]);
       return;
     }
 
@@ -34,9 +34,9 @@ export const useMarketListings = (): MarketListingsState => {
     try {
       const queries = [
         Query.orderDesc('$createdAt'),
-        Query.equal('status', 'available'), // NEW: Only fetch available products
+        Query.equal('status', 'available'),
       ];
-      if (!isDeveloper) { // Apply collegeName filter ONLY for non-developers
+      if (!isDeveloper) {
         queries.push(Query.equal('collegeName', userProfile!.collegeName));
       }
 
@@ -46,23 +46,22 @@ export const useMarketListings = (): MarketListingsState => {
         queries
       );
       
-      // NEW: Fetch seller levels for each product
       const productsWithSellerInfo = await Promise.all(
         (response.documents as unknown as Product[]).map(async (product) => {
           try {
             const sellerProfileResponse = await databases.listDocuments(
               APPWRITE_DATABASE_ID,
               APPWRITE_USER_PROFILES_COLLECTION_ID,
-              [Query.equal('userId', product.userId), Query.limit(1)] // FIX: Use product.userId
+              [Query.equal('userId', product.sellerId), Query.limit(1)] // Consistently use sellerId
             );
             const sellerProfile = sellerProfileResponse.documents[0] as any;
             return {
               ...product,
-              sellerLevel: sellerProfile?.level ?? 1, // Default to 1 if profile not found
+              sellerLevel: sellerProfile?.level ?? 1,
             };
           } catch (sellerError) {
-            console.warn(`Could not fetch profile for seller ${product.userId}:`, sellerError); // FIX: Use product.userId
-            return { ...product, sellerLevel: 1 }; // Default level if profile fetch fails
+            console.warn(`Could not fetch profile for seller ${product.sellerId}:`, sellerError); // Consistently use sellerId
+            return { ...product, sellerLevel: 1 };
           }
         })
       );
@@ -75,20 +74,19 @@ export const useMarketListings = (): MarketListingsState => {
     } finally {
       setIsLoading(false);
     }
-  }, [userProfile?.collegeName, userProfile?.role]); // Depend on userProfile.collegeName AND userProfile.role
+  }, [userProfile?.collegeName, userProfile?.role]);
 
   useEffect(() => {
     fetchProducts();
 
     const isDeveloper = userProfile?.role === 'developer';
-    if (!isDeveloper && !userProfile?.collegeName) return; // Only subscribe if collegeName is available for non-developers
+    if (!isDeveloper && !userProfile?.collegeName) return;
 
     const unsubscribe = databases.client.subscribe(
       `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_PRODUCTS_COLLECTION_ID}.documents`,
       (response) => {
         const payload = response.payload as unknown as Product;
 
-        // NEW: Filter real-time updates by collegeName ONLY for non-developers
         if (!isDeveloper && payload.collegeName !== userProfile!.collegeName) {
             return;
         }
@@ -99,16 +97,14 @@ export const useMarketListings = (): MarketListingsState => {
           if (response.events.includes("databases.*.collections.*.documents.*.create")) {
             if (existingIndex === -1) {
               toast.info(`New listing posted: ${payload.title}`);
-              // For new items, we might not have sellerLevel immediately, refetch or fetch it here
-              fetchProducts(); // Simpler to refetch all for now
-              return prev; // Return previous state, refetch will update
+              fetchProducts();
+              return prev;
             }
           } else if (response.events.includes("databases.*.collections.*.documents.*.update")) {
             if (existingIndex !== -1) {
               toast.info(`Listing updated: ${payload.title}`);
-              // For updates, refetch to ensure sellerLevel is fresh
-              fetchProducts(); // Simpler to refetch all for now
-              return prev; // Return previous state, refetch will update
+              fetchProducts();
+              return prev;
             }
           } else if (response.events.includes("databases.*.collections.*.documents.*.delete")) {
             if (existingIndex !== -1) {
@@ -121,18 +117,14 @@ export const useMarketListings = (): MarketListingsState => {
       }
     );
 
-    // NEW: Subscribe to user profile changes to update seller levels in real-time
     const unsubscribeUserProfiles = databases.client.subscribe(
       `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_USER_PROFILES_COLLECTION_ID}.documents`,
       (response) => {
         const payload = response.payload as any;
-        // If a user profile is updated, and it's a seller, we need to refetch products
-        // to update their badge/level.
         if (response.events.includes("databases.*.collections.*.documents.*.update")) {
-          // Check if the updated profile belongs to a seller of an existing product
-          const isSellerOfExistingProduct = products.some(p => p.userId === payload.userId); // FIX: Use userId
+          const isSellerOfExistingProduct = products.some(p => p.sellerId === payload.userId); // Consistently use sellerId
           if (isSellerOfExistingProduct) {
-            fetchProducts(); // Refetch products to update seller levels/badges
+            fetchProducts();
           }
         }
       }
@@ -141,9 +133,9 @@ export const useMarketListings = (): MarketListingsState => {
 
     return () => {
       unsubscribe();
-      unsubscribeUserProfiles(); // NEW: Unsubscribe from user profiles
+      unsubscribeUserProfiles();
     };
-  }, [fetchProducts, userProfile?.collegeName, userProfile?.role, products]); // NEW: Depend on products state for user profile subscription
+  }, [fetchProducts, userProfile?.collegeName, userProfile?.role, products]);
 
   return { products, isLoading, error, refetch: fetchProducts };
 };

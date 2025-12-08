@@ -5,7 +5,7 @@ import { databases, APPWRITE_DATABASE_ID, APPWRITE_BARGAIN_REQUESTS_COLLECTION_I
 import { Models, Query, ID } from 'appwrite';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
-import { Product } from '@/lib/mockData'; // Assuming Product interface is available
+import { Product } from '@/lib/mockData';
 
 export interface BargainRequest extends Models.Document {
   productId: string;
@@ -14,9 +14,9 @@ export interface BargainRequest extends Models.Document {
   requestedPrice: string;
   buyerId: string;
   buyerName: string;
-  sellerId: string; // Reverted to sellerId to match Appwrite schema based on error
+  sellerId: string;
   sellerName: string;
-  status: "pending" | "accepted" | "denied"; // Status of the bargain request
+  status: "pending" | "accepted" | "denied";
   collegeName: string;
 }
 
@@ -50,7 +50,6 @@ export const useBargainRequests = (): UseBargainRequestsState => {
     setError(null);
 
     try {
-      // Fetch requests made by the current user (buyer)
       const buyerResponse = await databases.listDocuments(
         APPWRITE_DATABASE_ID,
         APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID,
@@ -62,15 +61,14 @@ export const useBargainRequests = (): UseBargainRequestsState => {
       );
       setBuyerRequests(buyerResponse.documents as unknown as BargainRequest[]);
 
-      // Fetch requests received by the current user (seller)
       const sellerResponse = await databases.listDocuments(
         APPWRITE_DATABASE_ID,
         APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID,
         [
-          Query.equal('sellerId', user.$id), // Changed to sellerId
+          Query.equal('sellerId', user.$id),
           Query.equal('collegeName', userProfile.collegeName),
           Query.orderDesc('$createdAt'),
-          Query.equal('status', 'pending') // Only show pending requests to seller
+          Query.equal('status', 'pending')
         ]
       );
       setSellerRequests(sellerResponse.documents as unknown as BargainRequest[]);
@@ -95,10 +93,9 @@ export const useBargainRequests = (): UseBargainRequestsState => {
         const payload = response.payload as unknown as BargainRequest;
 
         if (payload.collegeName !== userProfile.collegeName) {
-          return;
+            return;
         }
 
-        // Update buyer's requests
         if (payload.buyerId === user.$id) {
           setBuyerRequests(prev => {
             const existingIndex = prev.findIndex(req => req.$id === payload.$id);
@@ -118,8 +115,7 @@ export const useBargainRequests = (): UseBargainRequestsState => {
           });
         }
 
-        // Update seller's requests
-        if (payload.sellerId === user.$id) { // Changed to sellerId
+        if (payload.sellerId === user.$id) {
           setSellerRequests(prev => {
             const existingIndex = prev.findIndex(req => req.$id === payload.$id);
             if (response.events.includes("databases.*.collections.*.documents.*.create")) {
@@ -128,7 +124,6 @@ export const useBargainRequests = (): UseBargainRequestsState => {
                 return [payload, ...prev];
               }
             } else if (response.events.includes("databases.*.collections.*.documents.*.update")) {
-              // If status changes from pending, remove from seller's active requests
               if (existingIndex !== -1 && payload.status !== 'pending') {
                 return prev.filter(req => req.$id !== payload.$id);
               }
@@ -166,14 +161,14 @@ export const useBargainRequests = (): UseBargainRequestsState => {
           requestedPrice: requestedPrice.toFixed(2),
           buyerId: user.$id,
           buyerName: user.name,
-          sellerId: product.userId, // Changed to sellerId
+          sellerId: product.sellerId,
           sellerName: product.sellerName,
           status: "pending",
           collegeName: userProfile.collegeName,
         }
       );
       toast.success(`Bargain request for ₹${requestedPrice.toFixed(2)} sent to ${product.sellerName}!`);
-      fetchBargainRequests(); // Refetch to update buyerRequests state
+      fetchBargainRequests();
     } catch (err: any) {
       console.error("Error sending bargain request:", err);
       toast.error(err.message || "Failed to send bargain request.");
@@ -190,7 +185,7 @@ export const useBargainRequests = (): UseBargainRequestsState => {
         { status: newStatus }
       );
       toast.success(`Bargain request ${newStatus}.`);
-      fetchBargainRequests(); // Refetch to update sellerRequests state
+      fetchBargainRequests();
     } catch (err: any) {
       console.error("Error updating bargain status:", err);
       toast.error(err.message || "Failed to update bargain status.");
