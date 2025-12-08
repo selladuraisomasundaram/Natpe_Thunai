@@ -152,7 +152,7 @@ const ProfileDetailsPage = () => {
                 <TrendingUp className="h-4 w-4 text-secondary-neon" /> Level {userLevel}
               </p>
               <div className="flex items-center gap-2">
-                <Progress value={xpPercentage} className="h-2 bg-muted-foreground/30 [&::-webkit-progress-bar]:bg-secondary-neon [&::-webkit-progress-value]:bg-secondary-neon" />
+                <Progress value={xpPercentage} className="h-2 bg-muted-foreground/30 [&::-webkit-progress-bar]:bg-secondary-neon [&::-::-webkit-progress-value]:bg-secondary-neon" />
                 <span className="text-xs text-muted-foreground">{currentXp}/{maxXp} XP</span>
               </div>
             </div>
