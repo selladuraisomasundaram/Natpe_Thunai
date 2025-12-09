@@ -1,245 +1,221 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DialogFooter } from "@/components/ui/dialog";
-import { toast } from "sonner";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Import Select components
-import { useAuth } from "@/context/AuthContext";
-import { indianColleges } from "@/lib/collegeData"; // Import the static college list
-import CollegeCombobox from "@/components/CollegeCombobox"; // NEW: Import CollegeCombobox
-import { DICEBEAR_AVATAR_STYLES } from "@/utils/avatarGenerator"; // NEW: Import avatar styles
+import { DialogFooter } from "@/components/ui/dialog";
+import { Loader2, Save } from "lucide-react";
+import { toast } from "sonner";
+import { DICEBEAR_AVATAR_STYLES } from "@/utils/avatarGenerator"; // Import avatar styles
+
+const formSchema = z.object({
+  firstName: z.string().min(1, "First name is required."),
+  lastName: z.string().min(1, "Last name is required."),
+  age: z.number().min(16, "Must be at least 16 years old."),
+  mobileNumber: z.string().min(10, "Mobile number is required.").max(10, "Mobile number must be 10 digits."),
+  upiId: z.string().min(5, "UPI ID is required."),
+  gender: z.enum(["male", "female", "prefer-not-to-say"]),
+  userType: z.enum(["student", "staff"]),
+  collegeName: z.string().min(1, "College name is required."),
+  avatarStyle: z.string().min(1, "Avatar style is required."), // NEW: Avatar style
+});
 
 interface EditProfileFormProps {
-  initialData: {
-    firstName: string;
-    lastName: string;
-    age: number;
-    mobileNumber: string;
-    upiId: string;
-    gender: "male" | "female" | "prefer-not-to-say";
-    userType: "student" | "staff";
-    collegeName: string; // NEW: Added collegeName
-    avatarStyle: string; // NEW: Added avatarStyle
-  };
-  onSave: (data: {
-    firstName: string;
-    lastName: string;
-    age: number;
-    mobileNumber: string;
-    upiId: string;
-    gender: "male" | "female" | "prefer-not-to-say";
-    userType: "student" | "staff";
-    collegeName: string; // NEW: Added collegeName
-    avatarStyle: string; // NEW: Added avatarStyle
-  }) => Promise<void>;
-  onCancel: () => void;
+  initialData: z.infer<typeof formSchema>;
+  onSave: (data: z.infer<typeof formSchema>) => Promise<void>;
+  onCancel: () => void; // Add onCancel prop
 }
 
-const EditProfileForm: React.FC<EditProfileFormProps> = ({
-  initialData,
-  onSave,
-  onCancel,
-}) => {
-  const [firstName, setFirstName] = useState(initialData.firstName);
-  const [lastName, setLastName] = useState(initialData.lastName);
-  const [age, setAge] = useState(String(initialData.age));
-  const [mobileNumber, setMobileNumber] = useState(initialData.mobileNumber);
-  const [upiId, setUpiId] = useState(initialData.upiId);
-  const [gender, setGender] = useState<"male" | "female" | "prefer-not-to-say">(initialData.gender);
-  const [userType, setUserType] = useState<"student" | "staff">(initialData.userType);
-  const [collegeName, setCollegeName] = useState(initialData.collegeName); // NEW: State for college name
-  const [avatarStyle, setAvatarStyle] = useState(initialData.avatarStyle); // NEW: State for avatar style
-  const [loading, setLoading] = useState(false);
+const EditProfileForm: React.FC<EditProfileFormProps> = ({ initialData, onSave, onCancel }) => {
+  const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    setFirstName(initialData.firstName);
-    setLastName(initialData.lastName);
-    setAge(String(initialData.age));
-    setMobileNumber(initialData.mobileNumber);
-    setUpiId(initialData.upiId);
-    setGender(initialData.gender);
-    setUserType(initialData.userType);
-    setCollegeName(initialData.collegeName); // NEW: Set college name
-    setAvatarStyle(initialData.avatarStyle); // NEW: Set avatar style
-  }, [initialData]);
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: initialData,
+  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    if (!firstName || !lastName || !age || !mobileNumber || !upiId || !gender || !userType || !collegeName || !avatarStyle) { // NEW: Validate collegeName and avatarStyle
-      toast.error("Please fill in all required fields.");
-      setLoading(false);
-      return;
-    }
-
-    const parsedAge = parseInt(age);
-    if (isNaN(parsedAge) || parsedAge < 16) {
-      toast.error("Please enter a valid age (minimum 16).");
-      setLoading(false);
-      return;
-    }
-
+  const handleSave = async (data: z.infer<typeof formSchema>) => {
+    setIsSaving(true);
     try {
-      await onSave({
-        firstName,
-        lastName,
-        age: parsedAge,
-        mobileNumber,
-        upiId,
-        gender,
-        userType,
-        collegeName, // NEW: Pass collegeName
-        avatarStyle, // NEW: Pass avatarStyle
-      });
+      await onSave(data);
       toast.success("Profile updated successfully!");
-      onCancel();
+      onCancel(); // Close dialog on successful save
     } catch (error: any) {
+      console.error("Error saving profile:", error);
       toast.error(error.message || "Failed to update profile.");
-      console.error("Profile update error:", error);
     } finally {
-      setLoading(false);
+      setIsSaving(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="firstName" className="text-left sm:text-right text-foreground">
-          First Name
-        </Label>
-        <Input
-          id="firstName"
-          value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          required
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="firstName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">First Name</FormLabel>
+              <FormControl>
+                <Input {...field} disabled={isSaving} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="lastName" className="text-left sm:text-right text-foreground">
-          Last Name
-        </Label>
-        <Input
-          id="lastName"
-          value={lastName}
-          onChange={(e) => setLastName(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          required
+        <FormField
+          control={form.control}
+          name="lastName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Last Name</FormLabel>
+              <FormControl>
+                <Input {...field} disabled={isSaving} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="age" className="text-left sm:text-right text-foreground">
-          Age
-        </Label>
-        <Input
-          id="age"
-          type="number"
-          value={age}
-          onChange={(e) => setAge(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          min="16"
-          required
+        <FormField
+          control={form.control}
+          name="age"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Age</FormLabel>
+              <FormControl>
+                <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} disabled={isSaving} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="mobileNumber" className="text-left sm:text-right text-foreground">
-          Mobile Number
-        </Label>
-        <Input
-          id="mobileNumber"
-          type="tel"
-          value={mobileNumber}
-          onChange={(e) => setMobileNumber(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          required
+        <FormField
+          control={form.control}
+          name="mobileNumber"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Mobile Number</FormLabel>
+              <FormControl>
+                <Input {...field} disabled={isSaving} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="upiId" className="text-left sm:text-right text-foreground">
-          UPI ID
-        </Label>
-        <Input
-          id="upiId"
-          type="text"
-          value={upiId}
-          onChange={(e) => setUpiId(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          required
+        <FormField
+          control={form.control}
+          name="upiId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">UPI ID</FormLabel>
+              <FormControl>
+                <Input {...field} disabled={isSaving} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="collegeName" className="text-left sm:text-right text-foreground">Your College</Label>
-        <div className="col-span-3">
-          <CollegeCombobox
-            collegeList={indianColleges}
-            value={collegeName}
-            onValueChange={setCollegeName}
-            placeholder="Select your college"
-            disabled={loading}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label className="text-left sm:text-right text-foreground">Gender</Label>
-        <RadioGroup value={gender} onValueChange={(value: "male" | "female" | "prefer-not-to-say") => setGender(value)} className="col-span-3 flex flex-wrap gap-4">
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="male" id="edit-gender-male" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
-            <Label htmlFor="edit-gender-male" className="text-foreground">Male</Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="female" id="edit-gender-female" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
-            <Label htmlFor="edit-gender-female" className="text-foreground">Female</Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="prefer-not-to-say" id="edit-gender-prefer-not-to-say" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
-            <Label htmlFor="edit-gender-prefer-not-to-say" className="text-foreground">Prefer not to say</Label>
-          </div>
-        </RadioGroup>
-      </div>
-
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label className="text-left sm:text-right text-foreground">User Type</Label>
-        <RadioGroup value={userType} onValueChange={(value: "student" | "staff") => setUserType(value)} className="col-span-3 flex flex-wrap gap-4">
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="student" id="edit-user-type-student" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
-            <Label htmlFor="edit-user-type-student" className="text-foreground">Student</Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="staff" id="edit-user-type-staff" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
-            <Label htmlFor="edit-user-type-staff" className="text-foreground">Staff</Label>
-          </div>
-        </RadioGroup>
-      </div>
-
-      {/* NEW: Avatar Style Selection */}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="avatarStyle" className="text-left sm:text-right text-foreground">Avatar Style</Label>
-        <Select value={avatarStyle} onValueChange={setAvatarStyle} required disabled={loading}>
-          <SelectTrigger className="col-span-3 w-full bg-input text-foreground border-border focus:ring-ring focus:border-ring">
-            <SelectValue placeholder="Select avatar style" />
-          </SelectTrigger>
-          <SelectContent className="bg-popover text-popover-foreground border-border max-h-60 overflow-y-auto">
-            {DICEBEAR_AVATAR_STYLES.map((style) => (
-              <SelectItem key={style} value={style}>{style.replace(/-/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={loading} className="w-full sm:w-auto border-border text-primary-foreground hover:bg-muted">
-          Cancel
-        </Button>
-        <Button type="submit" disabled={loading} className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-          {loading ? "Saving..." : "Save Changes"}
-        </Button>
-      </DialogFooter>
-    </form>
+        <FormField
+          control={form.control}
+          name="gender"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Gender</FormLabel>
+              <FormControl>
+                <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-wrap gap-4" disabled={isSaving}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="male" id="gender-male" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
+                    <Label htmlFor="gender-male" className="text-foreground">Male</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="female" id="gender-female" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
+                    <Label htmlFor="gender-female" className="text-foreground">Female</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="prefer-not-to-say" id="gender-prefer-not-to-say" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
+                    <Label htmlFor="gender-prefer-not-to-say" className="text-foreground">Prefer not to say</Label>
+                  </div>
+                </RadioGroup>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="userType"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">User Type</FormLabel>
+              <FormControl>
+                <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-wrap gap-4" disabled={isSaving}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="student" id="user-type-student" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
+                    <Label htmlFor="user-type-student" className="text-foreground">Student</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="staff" id="user-type-staff" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
+                    <Label htmlFor="user-type-staff" className="text-foreground">Staff</Label>
+                  </div>
+                </RadioGroup>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="collegeName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">College Name</FormLabel>
+              <FormControl>
+                <Input {...field} disabled={isSaving} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="avatarStyle"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Avatar Style</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSaving}>
+                <FormControl>
+                  <SelectTrigger className="bg-input text-foreground border-border focus:ring-ring focus:border-ring">
+                    <SelectValue placeholder="Select avatar style" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent className="bg-popover text-popover-foreground border-border max-h-60 overflow-y-auto">
+                  {DICEBEAR_AVATAR_STYLES.map((style) => (
+                    <SelectItem key={style} value={style}>{style.replace(/-/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving} className="w-full sm:w-auto border-border text-primary-foreground hover:bg-muted">
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSaving} className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
+            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><Save className="mr-2 h-4 w-4" /> Save Changes</>}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Form>
   );
 };
 

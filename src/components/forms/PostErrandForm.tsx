@@ -1,206 +1,205 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogFooter } from "@/components/ui/dialog";
+import { Loader2, PlusCircle } from "lucide-react";
 import { toast } from "sonner";
-import { useAuth } from "@/context/AuthContext"; // NEW: Import useAuth
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_ERRANDS_COLLECTION_ID } from "@/lib/appwrite"; // NEW: Import Appwrite services
-import { ID } from 'appwrite'; // NEW: Import ID
-import { Loader2 } from "lucide-react"; // NEW: Import Loader2
 
-interface ErrandCategoryOption {
-  value: string;
-  label: string;
-}
+// Define the schema for the form
+const formSchema = z.object({
+  title: z.string().min(2, { message: "Title must be at least 2 characters." }),
+  description: z.string().min(10, { message: "Description must be at least 10 characters." }),
+  category: z.string().min(1, { message: "Please select a category." }),
+  otherCategoryDescription: z.string().optional(), // New field for 'other' category
+  compensation: z.string().min(2, { message: "Compensation details are required." }),
+  deadline: z.string().optional(),
+  contact: z.string().min(5, { message: "Contact information is required." }),
+});
 
-const ALL_ERRAND_CATEGORIES: ErrandCategoryOption[] = [
-  { value: "note-writing", label: "Note-writing/Transcription" },
-  { value: "small-job", label: "Small Job (e.g., moving books)" },
-  { value: "delivery", label: "Delivery Services (within campus)" },
-  { value: "instant-help", label: "Instant Help" },
-  { value: "emergency-delivery", label: "Emergency Deliveries" },
-  { value: "other", label: "Other" },
-];
-
+// Define the props for the component
 interface PostErrandFormProps {
-  onSubmit: (data: {
-    title: string;
-    description: string;
-    type: string;
-    compensation: string;
-    deadline?: string;
-    contact: string;
-  }) => void;
+  onSubmit: (data: z.infer<typeof formSchema>) => void;
   onCancel: () => void;
-  initialType?: string; // Optional prop to pre-select type
-  categoryOptions?: ErrandCategoryOption[]; // New prop for dynamic category filtering
+  categoryOptions: { value: string; label: string }[];
+  initialCategory?: string; // New prop for pre-filling category
 }
 
-const PostErrandForm: React.FC<PostErrandFormProps> = ({ onSubmit, onCancel, initialType = "", categoryOptions }) => {
-  const { user, userProfile } = useAuth(); // NEW: Use useAuth hook
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [type, setType] = useState(initialType);
-  const [compensation, setCompensation] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [contact, setContact] = useState("");
-  const [isPosting, setIsPosting] = useState(false); // NEW: Add loading state
+const PostErrandForm: React.FC<PostErrandFormProps> = ({
+  onSubmit,
+  onCancel,
+  categoryOptions,
+  initialCategory,
+}) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const categoriesToRender = categoryOptions || ALL_ERRAND_CATEGORIES;
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      category: initialCategory || "", // Use initialCategory if provided
+      otherCategoryDescription: "",
+      compensation: "",
+      deadline: "",
+      contact: "",
+    },
+  });
 
-  const handleSubmit = async (e: React.FormEvent) => { // NEW: Make handleSubmit async
-    e.preventDefault();
-    if (!user || !userProfile) {
-      toast.error("You must be logged in to post an errand.");
-      return;
+  // Update form's category if initialCategory changes
+  useEffect(() => {
+    if (initialCategory && initialCategory !== form.getValues("category")) {
+      form.setValue("category", initialCategory);
     }
-    if (!userProfile.collegeName) {
-      toast.error("Your profile is missing college information. Please update your profile first.");
-      return;
-    }
-    if (!title || !description || !type || !compensation || !contact) {
-      toast.error("Please fill in all required fields.");
-      return;
-    }
+  }, [initialCategory, form]);
 
-    setIsPosting(true); // NEW: Set loading state
+  const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
+    setIsSubmitting(true);
     try {
-      const newErrandData = {
-        title: title,
-        description: description,
-        type: type,
-        compensation: compensation,
-        deadline: deadline || null,
-        contact: contact,
-        posterId: user.$id,
-        posterName: user.name,
-        collegeName: userProfile.collegeName, // NEW: Add collegeName
-      };
-
-      await databases.createDocument(
-        APPWRITE_DATABASE_ID,
-        APPWRITE_ERRANDS_COLLECTION_ID,
-        ID.unique(),
-        newErrandData
-      );
-      
-      toast.success(`Your errand "${title}" has been posted!`);
-      onSubmit({ title, description, type, compensation, deadline, contact }); // Call original onSubmit prop
-      setTitle("");
-      setDescription("");
-      setType(initialType);
-      setCompensation("");
-      setDeadline("");
-      setContact("");
+      // If category is 'other' and otherCategoryDescription is empty, show error
+      if (data.category === 'other' && !data.otherCategoryDescription?.trim()) {
+        form.setError("otherCategoryDescription", {
+          type: "manual",
+          message: "Please specify the 'Other' category.",
+        });
+        toast.error("Please specify the 'Other' category.");
+        return;
+      }
+      await onSubmit(data);
+      form.reset();
     } catch (error: any) {
-      console.error("Error posting errand:", error);
-      toast.error(error.message || "Failed to post errand listing.");
+      toast.error(error.message || "Failed to post errand.");
     } finally {
-      setIsPosting(false); // NEW: Reset loading state
+      setIsSubmitting(false);
     }
   };
 
+  const selectedCategory = form.watch("category");
+
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="title" className="text-left sm:text-right text-foreground">
-          Errand Title
-        </Label>
-        <Input
-          id="title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          placeholder="e.g., Pick up groceries from store"
-          required
-          disabled={isPosting}
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="title"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Title</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., Need help moving books" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="description" className="text-left sm:text-right text-foreground">
-          Description
-        </Label>
-        <Textarea
-          id="description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          placeholder="Provide details about the task or service..."
-          required
-          disabled={isPosting}
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Description</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Provide details about the errand..." {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="type" className="text-left sm:text-right text-foreground">
-          Errand Type
-        </Label>
-        <Select value={type} onValueChange={setType} required disabled={isPosting}>
-          <SelectTrigger className="col-span-3 w-full bg-input text-foreground border-border focus:ring-ring focus:border-ring">
-            <SelectValue placeholder="Select errand type" />
-          </SelectTrigger>
-          <SelectContent className="bg-popover text-popover-foreground border-border">
-            {categoriesToRender.map(option => (
-              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="compensation" className="text-left sm:text-right text-foreground">
-          Compensation
-        </Label>
-        <Input
-          id="compensation"
-          value={compensation}
-          onChange={(e) => setCompensation(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          placeholder="e.g., ₹100, Lunch, Negotiable"
-          required
-          disabled={isPosting}
+        <FormField
+          control={form.control}
+          name="category"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Category</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
+                <FormControl>
+                  <SelectTrigger className="bg-input text-foreground border-border focus:ring-ring focus:border-ring">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent className="bg-popover text-popover-foreground border-border">
+                  {categoryOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="deadline" className="text-left sm:text-right text-foreground">
-          Deadline (Optional)
-        </Label>
-        <Input
-          id="deadline"
-          type="date"
-          value={deadline}
-          onChange={(e) => setDeadline(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          disabled={isPosting}
+        {selectedCategory === 'other' && (
+          <FormField
+            control={form.control}
+            name="otherCategoryDescription"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-foreground">Specify Other Category</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Academic Tutoring, Pet Sitting" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+        <FormField
+          control={form.control}
+          name="compensation"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Compensation</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., ₹200, Coffee, Help with a task" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="contact" className="text-left sm:text-right text-foreground">
-          Contact Email
-        </Label>
-        <Input
-          id="contact"
-          type="email"
-          value={contact}
-          onChange={(e) => setContact(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          placeholder="your.email@example.com"
-          required
-          disabled={isPosting}
+        <FormField
+          control={form.control}
+          name="deadline"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Deadline (Optional)</FormLabel>
+              <FormControl>
+                <Input type="text" placeholder="e.g., Tomorrow 5 PM, End of week" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isPosting} className="w-full sm:w-auto border-border text-primary-foreground hover:bg-muted">
-          Cancel
-        </Button>
-        <Button type="submit" disabled={isPosting} className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-          {isPosting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Post Errand"}
-        </Button>
-      </DialogFooter>
-    </form>
+        <FormField
+          control={form.control}
+          name="contact"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Contact Information</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., WhatsApp number, Email" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting} className="w-full sm:w-auto border-border text-primary-foreground hover:bg-muted">
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><PlusCircle className="mr-2 h-4 w-4" /> Post Request</>}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Form>
   );
 };
 

@@ -16,10 +16,10 @@ import { Eye, EyeOff, Building2, Image } from "lucide-react";
 import { APP_HOST_URL } from "@/lib/config";
 import { largeIndianColleges } from "@/lib/largeIndianColleges";
 import CollegeCombobox from "@/components/CollegeCombobox";
-import { generateAvatarUrl, DICEBEAR_AVATAR_STYLES } from "@/utils/avatarGenerator"; // NEW: Import DICEBEAR_AVATAR_STYLES
+import { generateAvatarUrl, DICEBEAR_AVATAR_STYLES } from "@/utils/avatarGenerator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import ReportMissingCollegeForm from "@/components/forms/ReportMissingCollegeForm";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // NEW: Import Select components
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Helper function to generate a random username
 const generateRandomUsername = (): string => {
@@ -58,11 +58,16 @@ const AuthPage = () => {
   const [gender, setGender] = useState<"male" | "female" | "prefer-not-to-say">("prefer-not-to-say");
   const [userType, setUserType] = useState<"student" | "staff">("student");
   const [collegeName, setCollegeName] = useState("");
-  const [avatarStyle, setAvatarStyle] = useState("lorelei"); // NEW: State for avatar style
+  const [avatarStyle, setAvatarStyle] = useState("lorelei");
   const [isReportMissingCollegeDialogOpen, setIsReportMissingCollegeDialogOpen] = useState(false);
 
   const { isAuthenticated, isLoading, login } = useAuth();
   const navigate = useNavigate();
+
+  // Scroll to top on component mount
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   // This useEffect handles redirection for *existing* authenticated users
   // and also for new signups once AuthContext updates.
@@ -124,7 +129,7 @@ const AuthPage = () => {
           setLoading(false);
           return;
         }
-        if (!avatarStyle) { // NEW: Validate avatarStyle
+        if (!avatarStyle) {
           toast.error("Please select an avatar style.");
           setLoading(false);
           return;
@@ -173,7 +178,7 @@ const AuthPage = () => {
               ambassadorDeliveriesCount: 0,
               lastQuestCompletedDate: null,
               itemsListedToday: 0,
-              avatarStyle: avatarStyle, // NEW: Save avatarStyle
+              avatarStyle: avatarStyle,
             }
           );
           toast.success("User profile saved.");
@@ -210,7 +215,7 @@ const AuthPage = () => {
         setGender("prefer-not-to-say");
         setUserType("student");
         setCollegeName("");
-        setAvatarStyle("lorelei"); // NEW: Reset avatar style
+        setAvatarStyle("lorelei");
       }
     } catch (error: any) {
       toast.error(error.message || "An error occurred during authentication.");

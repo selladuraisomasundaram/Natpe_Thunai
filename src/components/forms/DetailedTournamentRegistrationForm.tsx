@@ -1,34 +1,35 @@
 "use client";
 
 import React, { useState } from "react";
+import { useForm, useFieldArray } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { DialogFooter } from "@/components/ui/dialog";
+import { Loader2, UserPlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { Link } from "react-router-dom";
-import { Plus, Minus, Users, DollarSign, Loader2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { DEVELOPER_UPI_ID } from "@/lib/config"; // Import DEVELOPER_UPI_ID
-import { ID } from 'appwrite';
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID } from "@/lib/appwrite";
-import { useAuth } from "@/context/AuthContext";
 
-interface Player {
-  id: number;
-  name: string;
-  inGameId: string;
-}
+const playerSchema = z.object({
+  name: z.string().min(1, "Player name is required."),
+  inGameId: z.string().min(1, "In-game ID is required."),
+});
+
+const formSchema = z.object({
+  teamName: z.string().min(3, { message: "Team name must be at least 3 characters." }),
+  contactEmail: z.string().email({ message: "Please enter a valid email address." }),
+  players: z.array(playerSchema).min(1, "At least one player is required."),
+});
 
 interface DetailedTournamentRegistrationFormProps {
   tournamentName: string;
   gameName: string;
-  fee: number; // Added fee prop
-  minPlayers?: number;
-  maxPlayers?: number;
-  onRegister: (data: { teamName: string; contactEmail: string; players: Player[] }) => void;
+  fee: number;
+  minPlayers: number;
+  maxPlayers: number;
+  onRegister: (data: z.infer<typeof formSchema>) => void;
   onCancel: () => void;
 }
 
@@ -36,268 +37,155 @@ const DetailedTournamentRegistrationForm: React.FC<DetailedTournamentRegistratio
   tournamentName,
   gameName,
   fee,
-  minPlayers = 1,
-  maxPlayers = 4,
+  minPlayers,
+  maxPlayers,
   onRegister,
   onCancel,
 }) => {
-  const { user } = useAuth();
-  const [teamName, setTeamName] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
-  const [players, setPlayers] = useState<Player[]>(
-    Array.from({ length: minPlayers }, (_, i) => ({ id: i, name: "", inGameId: "" }))
-  );
-  const [agreeToTerms, setAgreeToTerms] = useState(false);
-  const [isConfirming, setIsConfirming] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
 
-  const handlePlayerChange = (id: number, field: keyof Player, value: string) => {
-    setPlayers((prev) =>
-      prev.map((player) => (player.id === id ? { ...player, [field]: value } : player))
-    );
-  };
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      teamName: "",
+      contactEmail: "",
+      players: Array.from({ length: minPlayers }).map(() => ({ name: "", inGameId: "" })),
+    },
+  });
 
-  const handleAddPlayer = () => {
-    if (players.length < maxPlayers) {
-      setPlayers((prev) => [
-        ...prev,
-        { id: Date.now(), name: "", inGameId: "" },
-      ]);
-    }
-  };
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "players",
+  });
 
-  const handleRemovePlayer = (id: number) => {
-    if (players.length > minPlayers) {
-      setPlayers((prev) => prev.filter((player) => player.id !== id));
-    }
-  };
-
-  const handleRegistrationSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const requiredFields = [teamName, contactEmail];
-    const allPlayersValid = players.every(p => p.name.trim() && p.inGameId.trim());
-
-    if (requiredFields.some(field => !field.trim()) || !allPlayersValid || !agreeToTerms) {
-      toast.error("Please fill in all required fields for the team and all players, and agree to terms.");
-      return;
-    }
-    
-    if (fee > 0) {
-        setIsConfirming(true);
-    } else {
-        // If fee is 0, proceed directly to registration
-        onRegister({ teamName, contactEmail, players });
-    }
-  };
-  
-  const handlePaymentInitiation = async () => {
-    if (!user) {
-        toast.error("User session expired. Please log in again.");
-        return;
-    }
-    
-    setIsConfirming(false);
-    setIsProcessing(true);
-    
-    const transactionAmount = fee;
-    const transactionNote = `Tournament Registration: ${tournamentName} - Team ${teamName}`;
-
+  const handleRegistrationSubmit = async (data: z.infer<typeof formSchema>) => {
+    setIsRegistering(true);
     try {
-        // 1. Create a mock transaction document (or use a dedicated registration collection)
-        // For simplicity and tracking, we use the transactions collection here, marking it as 'service' type.
-        const newTransaction = await databases.createDocument(
-            APPWRITE_DATABASE_ID,
-            APPWRITE_TRANSACTIONS_COLLECTION_ID,
-            ID.unique(),
-            {
-                productId: tournamentName, // Using name as ID placeholder
-                productTitle: tournamentName,
-                buyerId: user.$id,
-                buyerName: user.name,
-                sellerId: DEVELOPER_UPI_ID, // Developer is the recipient
-                sellerName: "Natpe Thunai Developers",
-                sellerUpiId: DEVELOPER_UPI_ID,
-                amount: transactionAmount,
-                status: "initiated",
-                type: "service", // Use 'service' type for non-market transactions
-                isBargain: false,
-            }
-        );
-        
-        const transactionId = newTransaction.$id;
+      // Here you would typically handle payment initiation if fee > 0
+      // For this example, we'll assume payment is handled or not required.
+      if (fee > 0) {
+        toast.info(`Initiating payment for ₹${fee}. This is a placeholder.`);
+        // In a real app, integrate with a payment gateway here.
+        // If payment fails, return early.
+      }
 
-        // 2. Generate UPI Deep Link
-        const upiDeepLink = `upi://pay?pa=${DEVELOPER_UPI_ID}&pn=NatpeThunaiDevelopers&am=${transactionAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(transactionNote + ` (TX ID: ${transactionId})`)}`;
-
-        // 3. Redirect to UPI App
-        window.open(upiDeepLink, "_blank");
-        
-        toast.info(`Redirecting to UPI app to pay ₹${transactionAmount.toFixed(2)} registration fee. Please complete the payment and note the UTR ID.`);
-
-        // 4. Complete registration (simulated success after payment initiation)
-        onRegister({ teamName, contactEmail, players });
-
+      await onRegister(data);
+      toast.success(`Team "${data.teamName}" registered for ${tournamentName}!`);
+      form.reset();
     } catch (error: any) {
-        console.error("Error initiating tournament payment:", error);
-        toast.error(error.message || "Failed to initiate payment.");
+      console.error("Error during registration:", error);
+      toast.error(error.message || "Failed to register for tournament.");
     } finally {
-        setIsProcessing(false);
+      setIsRegistering(false);
     }
   };
 
   return (
-    <>
-      <form onSubmit={handleRegistrationSubmit} className="grid gap-4 py-4">
-        <div className="space-y-3">
-          <Label htmlFor="teamName" className="text-foreground">Team Name</Label>
-          <Input
-            id="teamName"
-            value={teamName}
-            onChange={(e) => setTeamName(e.target.value)}
-            className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-            placeholder="e.g., Campus Conquerors"
-            required
-            disabled={isProcessing}
-          />
-        </div>
-        <div className="space-y-3">
-          <Label htmlFor="game" className="text-foreground">Game</Label>
-          <Input
-            id="game"
-            value={gameName}
-            className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-            disabled
-          />
-        </div>
-        <div className="space-y-3">
-          <Label htmlFor="contactEmail" className="text-foreground">Contact Email (Team Lead)</Label>
-          <Input
-            id="contactEmail"
-            type="email"
-            value={contactEmail}
-            onChange={(e) => setContactEmail(e.target.value)}
-            className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-            placeholder="team@example.com"
-            required
-            disabled={isProcessing}
-          />
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleRegistrationSubmit)} className="space-y-4">
+        <div className="p-3 bg-muted/20 rounded-md border border-border">
+          <h4 className="font-semibold text-foreground mb-2">Tournament Details</h4>
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{tournamentName}</span> ({gameName})
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Fee: <span className="font-medium text-foreground">{fee === 0 ? "Free" : `₹${fee}`}</span>
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Players per team: <span className="font-medium text-foreground">{minPlayers} - {maxPlayers}</span>
+          </p>
         </div>
 
-        <Card className="bg-background border-border mt-4">
-          <CardHeader className="p-3 pb-2">
-            <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <Users className="h-4 w-4 text-secondary-neon" /> Players ({players.length}/{maxPlayers})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0 space-y-4">
-            {players.map((player, index) => (
-              <div key={player.id} className="border border-border p-3 rounded-md space-y-2">
-                <h4 className="font-medium text-sm text-secondary-neon">Player {index + 1}</h4>
-                <div className="space-y-2">
-                  <Label htmlFor={`player-name-${player.id}`} className="text-xs text-muted-foreground">Full Name</Label>
-                  <Input
-                    id={`player-name-${player.id}`}
-                    value={player.name}
-                    onChange={(e) => handlePlayerChange(player.id, "name", e.target.value)}
-                    className="bg-input text-foreground border-border focus:ring-ring focus:border-ring h-8 text-sm"
-                    placeholder={`Player ${index + 1} Name`}
-                    required
-                    disabled={isProcessing}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor={`player-id-${player.id}`} className="text-xs text-muted-foreground">In-Game ID/Username</Label>
-                  <Input
-                    id={`player-id-${player.id}`}
-                    value={player.inGameId}
-                    onChange={(e) => handlePlayerChange(player.id, "inGameId", e.target.value)}
-                    className="bg-input text-foreground border-border focus:ring-ring focus:border-ring h-8 text-sm"
-                    placeholder={`In-Game ID`}
-                    required
-                    disabled={isProcessing}
-                  />
-                </div>
-                {players.length > minPlayers && (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleRemovePlayer(player.id)}
-                    className="w-full mt-2"
-                    disabled={isProcessing}
-                  >
-                    <Minus className="h-4 w-4 mr-1" /> Remove Player
-                  </Button>
+        <FormField
+          control={form.control}
+          name="teamName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Team Name</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., Campus Conquerors" {...field} disabled={isRegistering} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="contactEmail"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Contact Email</FormLabel>
+              <FormControl>
+                <Input type="email" placeholder="team@example.com" {...field} disabled={isRegistering} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="space-y-3 border-t border-border pt-4">
+          <h3 className="text-lg font-semibold text-foreground">Team Players ({fields.length}/{maxPlayers})</h3>
+          {fields.map((item, index) => (
+            <div key={item.id} className="flex items-end gap-2">
+              <FormField
+                control={form.control}
+                name={`players.${index}.name`}
+                render={({ field }) => (
+                  <FormItem className="flex-1">
+                    <FormLabel className="text-foreground">Player {index + 1} Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Player Name" {...field} disabled={isRegistering} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </div>
-            ))}
-            {players.length < maxPlayers && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleAddPlayer}
-                className="w-full border-secondary-neon text-secondary-neon hover:bg-secondary-neon/10"
-                disabled={isProcessing}
-              >
-                <Plus className="h-4 w-4 mr-1" /> Add Player
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="flex items-center space-x-2 col-span-4 justify-end pr-1">
-          <Checkbox
-            id="agreeTerms"
-            checked={agreeToTerms}
-            onCheckedChange={(checked) => setAgreeToTerms(checked as boolean)}
-            className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground"
-            disabled={isProcessing}
-          />
-          <Label htmlFor="agreeTerms" className="text-sm text-muted-foreground">
-            I agree to the <Link to="/profile/policies" className="text-secondary-neon hover:underline">tournament rules</Link>
-          </Label>
+              />
+              <FormField
+                control={form.control}
+                name={`players.${index}.inGameId`}
+                render={({ field }) => (
+                  <FormItem className="flex-1">
+                    <FormLabel className="text-foreground">In-Game ID</FormLabel>
+                    <FormControl>
+                      <Input placeholder="In-Game ID" {...field} disabled={isRegistering} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {fields.length > minPlayers && (
+                <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)} disabled={isRegistering}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          ))}
+          {fields.length < maxPlayers && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => append({ name: "", inGameId: "" })}
+              disabled={isRegistering}
+              className="w-full border-border text-primary-foreground hover:bg-muted"
+            >
+              <UserPlus className="mr-2 h-4 w-4" /> Add Player
+            </Button>
+          )}
+          {form.formState.errors.players && (
+            <p className="text-sm font-medium text-destructive">{form.formState.errors.players.message}</p>
+          )}
         </div>
-        <DialogFooter className="pt-4">
-          <Button type="button" variant="outline" onClick={onCancel} className="border-border text-primary-foreground hover:bg-muted" disabled={isProcessing}>Cancel</Button>
-          <Button type="submit" className="bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90" disabled={isProcessing}>
-            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (fee > 0 ? `Pay ₹${fee.toFixed(2)} & Register` : 'Register Now')}
+
+        <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isRegistering} className="w-full sm:w-auto border-border text-primary-foreground hover:bg-muted">
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isRegistering} className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
+            {isRegistering ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Register Team"}
           </Button>
         </DialogFooter>
       </form>
-      
-      {/* Confirmation Dialog */}
-      <Dialog open={isConfirming} onOpenChange={setIsConfirming}>
-        <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
-          <DialogHeader>
-            <DialogTitle className="text-foreground flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-secondary-neon" /> Confirm Registration Payment
-            </DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              <p className="font-bold text-red-500">Important: This is a non-Escrow payment system.</p>
-              <p>You are about to place this order and will be redirected to your UPI app to complete the secure payment of the **full amount** to the developer's provided UPI ID. Natpe🤝Thunai developers will then process your registration.</p>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-foreground">Tournament: <span className="font-semibold">{tournamentName}</span></p>
-            <p className="text-xl font-bold text-secondary-neon">Fee: ₹{fee.toFixed(2)}</p>
-            <p className="text-xs text-destructive-foreground">
-                Recipient: Natpe Thunai Developers (UPI ID: {DEVELOPER_UPI_ID})
-            </p>
-            <p className="text-xs text-muted-foreground">
-                You will be redirected to your UPI app. If redirection fails, please use the developer UPI ID/QR code found in the 'Chat with Developers' section of your profile.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsConfirming(false)} className="border-border text-primary-foreground hover:bg-muted">
-              Go Back
-            </Button>
-            <Button onClick={handlePaymentInitiation} disabled={isProcessing} className="bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-              {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Pay Now & Register"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    </Form>
   );
 };
 

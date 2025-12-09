@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,11 @@ const ProfileDetailsPage = () => {
   const { user, userProfile, updateUserProfile } = useAuth();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isReportMissingCollegeDialogOpen, setIsReportMissingCollegeDialogOpen] = useState(false);
+
+  // Scroll to top on component mount
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   const publicUsername = user?.name || "CampusExplorer";
   const userEmail = user?.email || "N/A";
@@ -202,7 +207,7 @@ const ProfileDetailsPage = () => {
       <MadeWithDyad />
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
+        <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-foreground">Edit Profile Details</DialogTitle>
           </DialogHeader>
@@ -220,7 +225,7 @@ const ProfileDetailsPage = () => {
                 avatarStyle: userProfile.avatarStyle, // NEW: Pass avatarStyle
               }}
               onSave={handleSaveProfile}
-              onCancel={() => setIsEditDialogOpen(false)}
+              onCancel={() => setIsEditDialogOpen(false)} // Pass onCancel to close dialog
             />
           )}
           <Dialog open={isReportMissingCollegeDialogOpen} onOpenChange={setIsReportMissingCollegeDialogOpen}>

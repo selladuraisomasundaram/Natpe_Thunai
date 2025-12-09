@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,10 @@ import { useErrandListings, ErrandPost } from "@/hooks/useErrandListings";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_ERRANDS_COLLECTION_ID } from "@/lib/appwrite";
 import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
+import * as z from "zod";
 
 // Errand types specific to this page (Urgent/Short-Term)
-const URGENT_TYPES = ["instant-help", "emergency-delivery"];
+const URGENT_TYPES = ["instant-help", "emergency-delivery", "other"]; // Include 'other' for filtering
 
 const URGENT_ERRAND_OPTIONS = [
   { value: "instant-help", label: "Instant Help" },
@@ -22,9 +23,21 @@ const URGENT_ERRAND_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
+// Define the Zod schema for the PostErrandForm data
+const ErrandFormSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  category: z.string(),
+  otherCategoryDescription: z.string().optional(),
+  compensation: z.string(),
+  deadline: z.string().optional(),
+  contact: z.string(),
+});
+
 const ShortTermNeedsPage = () => {
   const { user, userProfile } = useAuth();
   const [isPostErrandDialogOpen, setIsPostErrandDialogOpen] = useState(false);
+  const [initialCategoryForForm, setInitialCategoryForForm] = useState<string | undefined>(undefined);
   
   // Fetch only urgent requests for the user's college
   const { errands: postedUrgentRequests, isLoading, error } = useErrandListings(URGENT_TYPES);
@@ -32,11 +45,17 @@ const ShortTermNeedsPage = () => {
   // Content is age-gated if user is 25 or older
   const isAgeGated = (userProfile?.age ?? 0) >= 25; 
 
+  // Scroll to top on component mount
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const handleNeedClick = (needType: string) => {
-    toast.info(`You selected "${needType}". Post your urgent request using the button below.`);
+    setInitialCategoryForForm(needType);
+    setIsPostErrandDialogOpen(true);
   };
 
-  const handlePostErrand = async (data: Omit<ErrandPost, "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId" | "posterId" | "posterName" | "collegeName">) => { // NEW: Remove collegeName from Omit
+  const handlePostErrand = async (data: z.infer<typeof ErrandFormSchema>) => {
     if (!user || !userProfile) {
       toast.error("You must be logged in to post an urgent request.");
       return;
@@ -45,9 +64,13 @@ const ShortTermNeedsPage = () => {
     try {
       const newRequestData = {
         ...data,
+        // If category is 'other', use otherCategoryDescription as the actual category
+        category: data.category === 'other' && data.otherCategoryDescription 
+                  ? data.otherCategoryDescription 
+                  : data.category,
         posterId: user.$id,
         posterName: user.name,
-        collegeName: userProfile.collegeName, // Ensure collegeName is explicitly added
+        collegeName: userProfile.collegeName,
       };
 
       await databases.createDocument(
@@ -59,6 +82,7 @@ const ShortTermNeedsPage = () => {
       
       toast.success(`Your urgent request "${data.title}" has been posted!`);
       setIsPostErrandDialogOpen(false);
+      setInitialCategoryForForm(undefined); // Reset initial category
     } catch (e: any) {
       console.error("Error posting urgent request:", e);
       toast.error(e.message || "Failed to post urgent request listing.");
@@ -81,13 +105,13 @@ const ShortTermNeedsPage = () => {
             </p>
             <Button
               className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleNeedClick("Instant Help")}
+              onClick={() => handleNeedClick("instant-help")}
             >
               <Zap className="mr-2 h-4 w-4" /> Instant Help
             </Button>
             <Button
               className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleNeedClick("Emergency Deliveries")}
+              onClick={() => handleNeedClick("emergency-delivery")}
             >
               <Zap className="mr-2 h-4 w-4" /> Emergency Deliveries
             </Button>
@@ -97,14 +121,15 @@ const ShortTermNeedsPage = () => {
                   <PlusCircle className="mr-2 h-4 w-4" /> Post Urgent Request
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
+              <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="text-foreground">Post New Urgent Request</DialogTitle>
                 </DialogHeader>
                 <PostErrandForm 
                   onSubmit={handlePostErrand} 
-                  onCancel={() => setIsPostErrandDialogOpen(false)} 
+                  onCancel={() => { setIsPostErrandDialogOpen(false); setInitialCategoryForForm(undefined); }} 
                   categoryOptions={URGENT_ERRAND_OPTIONS}
+                  initialCategory={initialCategoryForForm}
                 />
               </DialogContent>
             </Dialog>

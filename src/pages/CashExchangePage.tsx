@@ -67,6 +67,11 @@ const CashExchangePage = () => {
   const [exchangeRequests, setExchangeRequests] = useState<CashExchangeRequest[]>([]);
   const [isPosting, setIsPosting] = useState(false);
 
+  // Scroll to top on component mount
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const fetchRequests = useCallback(async () => {
     if (!userProfile?.collegeName) { // NEW: Only fetch if collegeName is available
       setLoading(false);

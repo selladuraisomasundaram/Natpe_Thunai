@@ -1,15 +1,52 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogFooter } from "@/components/ui/dialog";
-import { toast } from "sonner";
 import { Loader2, PlusCircle } from "lucide-react";
+import { toast } from "sonner";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_TOURNAMENTS_COLLECTION_ID } from "@/lib/appwrite";
+import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
-import { useTournamentData } from "@/hooks/useTournamentData";
+
+// Define common game options
+const GAME_OPTIONS = [
+  { value: "valorant", label: "Valorant" },
+  { value: "cs2", label: "Counter-Strike 2" },
+  { value: "dota2", label: "Dota 2" },
+  { value: "mobile-legends", label: "Mobile Legends" },
+  { value: "bgmi", label: "BGMI" },
+  { value: "other", label: "Other" },
+];
+
+const formSchema = z.object({
+  name: z.string().min(3, { message: "Tournament name must be at least 3 characters." }),
+  game: z.string().min(1, { message: "Please select a game." }),
+  otherGameDescription: z.string().optional(), // For 'other' game type
+  date: z.string().min(1, { message: "Date is required." }),
+  fee: z.preprocess(
+    (val) => Number(val),
+    z.number().min(0, { message: "Fee cannot be negative." })
+  ),
+  prizePool: z.string().min(1, { message: "Prize pool details are required." }),
+  minPlayers: z.preprocess(
+    (val) => Number(val),
+    z.number().min(1, { message: "Minimum players must be at least 1." })
+  ),
+  maxPlayers: z.preprocess(
+    (val) => Number(val),
+    z.number().min(1, { message: "Maximum players must be at least 1." })
+  ),
+  description: z.string().min(10, { message: "Description must be at least 10 characters." }),
+  rules: z.string().min(10, { message: "Rules must be at least 10 characters." }),
+});
 
 interface PostTournamentFormProps {
   onTournamentPosted: () => void;
@@ -18,186 +55,235 @@ interface PostTournamentFormProps {
 
 const PostTournamentForm: React.FC<PostTournamentFormProps> = ({ onTournamentPosted, onCancel }) => {
   const { user, userProfile } = useAuth();
-  const { createTournament } = useTournamentData();
-  const [name, setName] = useState("");
-  const [game, setGame] = useState("");
-  const [date, setDate] = useState("");
-  const [fee, setFee] = useState("");
-  const [prizePool, setPrizePool] = useState("");
-  const [minPlayers, setMinPlayers] = useState("1");
-  const [maxPlayers, setMaxPlayers] = useState("4");
-  const [isPosting, setIsPosting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: "",
+      game: "",
+      otherGameDescription: "",
+      date: "",
+      fee: 0,
+      prizePool: "",
+      minPlayers: 1,
+      maxPlayers: 5,
+      description: "",
+      rules: "",
+    },
+  });
+
+  const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
     if (!user || !userProfile) {
       toast.error("You must be logged in to post a tournament.");
       return;
     }
-    if (!userProfile.collegeName) {
-      toast.error("Your profile is missing college information. Please update your profile first.");
-      return;
-    }
-    if (!name || !game || !date || !fee || !prizePool || !minPlayers || !maxPlayers) {
-      toast.error("Please fill in all required fields.");
-      return;
-    }
 
-    const parsedFee = parseFloat(fee);
-    const parsedMinPlayers = parseInt(minPlayers);
-    const parsedMaxPlayers = parseInt(maxPlayers);
-
-    if (isNaN(parsedFee) || parsedFee < 0) {
-      toast.error("Fee must be a valid non-negative number.");
-      return;
-    }
-    if (isNaN(parsedMinPlayers) || parsedMinPlayers < 1) {
-      toast.error("Minimum players must be at least 1.");
-      return;
-    }
-    if (isNaN(parsedMaxPlayers) || parsedMaxPlayers < parsedMinPlayers) {
-      toast.error("Maximum players must be greater than or equal to minimum players.");
-      return;
-    }
-
-    setIsPosting(true);
+    setIsSubmitting(true);
     try {
-      await createTournament({
-        name: name.trim(),
-        game: game.trim(),
-        date: date,
-        fee: parsedFee,
-        prizePool: prizePool.trim(),
-        status: "Open", // Default status for new tournaments
-        standings: [],
-        winners: [],
+      // If game is 'other' and otherGameDescription is empty, show error
+      if (data.game === 'other' && !data.otherGameDescription?.trim()) {
+        form.setError("otherGameDescription", {
+          type: "manual",
+          message: "Please specify the 'Other' game.",
+        });
+        toast.error("Please specify the 'Other' game.");
+        return;
+      }
+
+      const newTournamentData = {
+        ...data,
+        // Use otherGameDescription as the actual game if 'other' is selected
+        game: data.game === 'other' && data.otherGameDescription 
+              ? data.otherGameDescription 
+              : data.game,
         posterId: user.$id,
         posterName: user.name,
         collegeName: userProfile.collegeName,
-        minPlayers: parsedMinPlayers,
-        maxPlayers: parsedMaxPlayers,
-      });
+        status: "Open", // Default status
+        registeredTeams: [], // Initialize as empty array
+        standings: [], // Initialize as empty array
+        winners: [], // Initialize as empty array
+      };
+
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_TOURNAMENTS_COLLECTION_ID,
+        ID.unique(),
+        newTournamentData
+      );
+
+      toast.success(`Tournament "${data.name}" posted successfully!`);
       onTournamentPosted();
-    } catch (error) {
-      // Error handled in hook
+      form.reset();
+    } catch (error: any) {
+      console.error("Error posting tournament:", error);
+      toast.error(error.message || "Failed to post tournament.");
     } finally {
-      setIsPosting(false);
+      setIsSubmitting(false);
     }
   };
 
+  const selectedGame = form.watch("game");
+
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="name" className="text-left sm:text-right text-foreground">
-          Tournament Name
-        </Label>
-        <Input
-          id="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          placeholder="e.g., Valorant Campus Cup"
-          required
-          disabled={isPosting}
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Tournament Name</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., Campus Clash Valorant" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="game" className="text-left sm:text-right text-foreground">
-          Game
-        </Label>
-        <Input
-          id="game"
-          value={game}
-          onChange={(e) => setGame(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          placeholder="e.g., Valorant, Free Fire"
-          required
-          disabled={isPosting}
+        <FormField
+          control={form.control}
+          name="game"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Game</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
+                <FormControl>
+                  <SelectTrigger className="bg-input text-foreground border-border focus:ring-ring focus:border-ring">
+                    <SelectValue placeholder="Select a game" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent className="bg-popover text-popover-foreground border-border">
+                  {GAME_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="date" className="text-left sm:text-right text-foreground">
-          Date
-        </Label>
-        <Input
-          id="date"
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          required
-          disabled={isPosting}
+        {selectedGame === 'other' && (
+          <FormField
+            control={form.control}
+            name="otherGameDescription"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-foreground">Specify Other Game</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Chess, FIFA 24" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+        <FormField
+          control={form.control}
+          name="date"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Date</FormLabel>
+              <FormControl>
+                <Input type="text" placeholder="e.g., 2024-12-25" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="fee" className="text-left sm:text-right text-foreground">
-          Entry Fee (₹)
-        </Label>
-        <Input
-          id="fee"
-          type="number"
-          value={fee}
-          onChange={(e) => setFee(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          placeholder="e.g., 50 (0 for free)"
-          min="0"
-          required
-          disabled={isPosting}
+        <FormField
+          control={form.control}
+          name="fee"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Registration Fee (₹)</FormLabel>
+              <FormControl>
+                <Input type="number" placeholder="e.g., 100" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="prizePool" className="text-left sm:text-right text-foreground">
-          Prize Pool
-        </Label>
-        <Input
-          id="prizePool"
-          value={prizePool}
-          onChange={(e) => setPrizePool(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          placeholder="e.g., ₹5000, Trophies"
-          required
-          disabled={isPosting}
+        <FormField
+          control={form.control}
+          name="prizePool"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Prize Pool</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., ₹5000, Gaming Headset" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="minPlayers" className="text-left sm:text-right text-foreground">
-          Min Players
-        </Label>
-        <Input
-          id="minPlayers"
-          type="number"
-          value={minPlayers}
-          onChange={(e) => setMinPlayers(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          min="1"
-          required
-          disabled={isPosting}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="minPlayers"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-foreground">Min Players per Team</FormLabel>
+                <FormControl>
+                  <Input type="number" placeholder="e.g., 1" {...field} onChange={e => field.onChange(parseInt(e.target.value))} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="maxPlayers"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-foreground">Max Players per Team</FormLabel>
+                <FormControl>
+                  <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value))} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Description</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Describe the tournament, format, etc." {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="maxPlayers" className="text-left sm:text-right text-foreground">
-          Max Players
-        </Label>
-        <Input
-          id="maxPlayers"
-          type="number"
-          value={maxPlayers}
-          onChange={(e) => setMaxPlayers(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          min={minPlayers}
-          required
-          disabled={isPosting}
+        <FormField
+          control={form.control}
+          name="rules"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground">Rules</FormLabel>
+              <FormControl>
+                <Textarea placeholder="List out the rules for the tournament..." {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isPosting} className="w-full sm:w-auto border-border text-primary-foreground hover:bg-muted">
-          Cancel
-        </Button>
-        <Button type="submit" disabled={isPosting} className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-          {isPosting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><PlusCircle className="mr-2 h-4 w-4" /> Post Tournament</>}
-        </Button>
-      </DialogFooter>
-    </form>
+        <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting} className="w-full sm:w-auto border-border text-primary-foreground hover:bg-muted">
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><PlusCircle className="mr-2 h-4 w-4" /> Post Tournament</>}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Form>
   );
 };
 
