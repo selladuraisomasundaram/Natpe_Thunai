@@ -24,8 +24,8 @@ const ReportMissingCollegeForm: React.FC<ReportMissingCollegeFormProps> = ({
   const { user } = useAuth(); // Use user from AuthContext to check login status
   const [collegeName, setCollegeName] = useState("");
   const [location, setLocation] = useState("");
-  const [reporterName, setReporterName] = useState(user?.name || ""); // Pre-fill if logged in
-  const [reporterEmail, setReporterEmail] = useState(user?.email || ""); // Pre-fill if logged in
+  const [reporterName, setReporterName] = useState(""); // Initialize with empty string
+  const [reporterEmail, setReporterEmail] = useState(""); // Initialize with empty string
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Update pre-filled fields if user changes after component mounts
@@ -33,6 +33,10 @@ const ReportMissingCollegeForm: React.FC<ReportMissingCollegeFormProps> = ({
     if (user) {
       setReporterName(user.name);
       setReporterEmail(user.email);
+    } else {
+      // Clear if user logs out while form is open
+      setReporterName("");
+      setReporterEmail("");
     }
   }, [user]);
 

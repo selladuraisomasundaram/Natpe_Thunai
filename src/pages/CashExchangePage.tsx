@@ -244,7 +244,7 @@ const CashExchangePage = () => {
     if (!user) return;
 
     const contributionAmount = 500; // Example fixed contribution amount
-    const currentContributions = deserializeContributions(request.contributions ? serializeContributions(request.contributions) : undefined); // Deserialize first
+    const currentContributions = request.contributions; // Directly use req.contributions as it's already deserialized
     const currentContributionTotal = currentContributions.reduce((sum, c) => sum + c.amount, 0) || 0;
     const remainingAmount = request.amount - currentContributionTotal;
 
@@ -298,7 +298,7 @@ const CashExchangePage = () => {
 
     return filteredRequests.map((req) => {
       const isPoster = req.posterId === user?.$id;
-      const currentContributions = deserializeContributions(req.contributions); // Deserialize for display
+      const currentContributions = req.contributions; // Directly use req.contributions as it's already deserialized
       const currentContributionTotal = currentContributions.reduce((sum, c) => sum + c.amount, 0) || 0;
       const remainingAmount = req.amount - currentContributionTotal;
 
