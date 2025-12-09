@@ -31,11 +31,28 @@ interface CashExchangeRequest extends Models.Document {
   status: "Open" | "Accepted" | "Completed" | "Group Contribution";
   meetingLocation: string;
   meetingTime: string;
-  contributions?: Contribution[];
+  contributions?: Contribution[]; // Changed to Contribution[]
   posterId: string; // ID of the user who posted the request/offer
   posterName: string; // Name of the user who posted
   collegeName: string; // NEW: Add collegeName
 }
+
+// Helper functions for serialization/deserialization
+const serializeContributions = (contributions: Contribution[]): string[] => {
+  return contributions.map(c => JSON.stringify(c));
+};
+
+const deserializeContributions = (contributions: string[] | undefined): Contribution[] => {
+  if (!contributions || !Array.isArray(contributions)) return [];
+  return contributions.map(c => {
+    try {
+      return JSON.parse(c);
+    } catch (e) {
+      console.error("Failed to parse contribution item:", c, e);
+      return { userId: "unknown", amount: 0 };
+    }
+  });
+};
 
 const CashExchangePage = () => {
   const { user, userProfile } = useAuth();
@@ -67,7 +84,12 @@ const CashExchangePage = () => {
           Query.equal('collegeName', userProfile.collegeName) // NEW: Filter by collegeName
         ]
       );
-      setExchangeRequests(response.documents as unknown as CashExchangeRequest[]);
+      // Deserialize contributions when fetching
+      const deserializedRequests = (response.documents as any[]).map(doc => ({
+        ...doc,
+        contributions: deserializeContributions(doc.contributions),
+      })) as unknown as CashExchangeRequest[];
+      setExchangeRequests(deserializedRequests);
     } catch (error) {
       console.error("Error fetching cash exchange data:", error);
       toast.error("Failed to load cash exchange listings.");
@@ -93,21 +115,27 @@ const CashExchangePage = () => {
 
         setExchangeRequests(prev => {
           const existingIndex = prev.findIndex(r => r.$id === payload.$id);
+          
+          // Deserialize contributions from the payload
+          const deserializedPayload: CashExchangeRequest = { // Explicitly type deserializedPayload
+            ...payload,
+            contributions: deserializeContributions(payload.contributions as unknown as string[]),
+          };
 
           if (response.events.includes("databases.*.collections.*.documents.*.create")) {
             if (existingIndex === -1) {
-              toast.info(`New cash exchange post: ${payload.type} for ₹${payload.amount}`);
-              return [payload, ...prev];
+              toast.info(`New cash exchange post: ${deserializedPayload.type} for ₹${deserializedPayload.amount}`);
+              return [deserializedPayload, ...prev];
             }
           } else if (response.events.includes("databases.*.collections.*.documents.*.update")) {
             if (existingIndex !== -1) {
-              toast.info(`Cash exchange updated: ${payload.type} status is now ${payload.status}`);
-              return prev.map(r => r.$id === payload.$id ? payload : r);
+              toast.info(`Cash exchange updated: ${deserializedPayload.type} status is now ${deserializedPayload.status}`);
+              return prev.map(r => r.$id === deserializedPayload.$id ? deserializedPayload : r);
             }
           } else if (response.events.includes("databases.*.collections.*.documents.*.delete")) {
             if (existingIndex !== -1) {
               toast.info(`Cash exchange post removed.`);
-              return prev.filter(r => r.$id !== payload.$id);
+              return prev.filter(r => r.$id !== deserializedPayload.$id);
             }
           }
           return prev;
@@ -118,7 +146,7 @@ const CashExchangePage = () => {
     return () => {
       unsubscribe();
     };
-  }, [fetchRequests, userProfile?.collegeName]); // NEW: Depend on userProfile.collegeName
+  }, [fetchRequests, userProfile?.collegeName]);
 
 
   const handlePostSubmit = async (e: React.FormEvent) => {
@@ -151,7 +179,8 @@ const CashExchangePage = () => {
         status: postType === "group-contribution" ? "Group Contribution" : "Open",
         meetingLocation: meetingLocation.trim(),
         meetingTime: meetingTime.trim(),
-        contributions: postType === "group-contribution" ? [] : undefined,
+        // Serialize contributions array before sending to Appwrite
+        contributions: postType === "group-contribution" ? serializeContributions([]) : undefined,
         posterId: user.$id,
         posterName: user.name,
         collegeName: userProfile.collegeName, // NEW: Add collegeName
@@ -215,8 +244,9 @@ const CashExchangePage = () => {
     if (!user) return;
 
     const contributionAmount = 500; // Example fixed contribution amount
-    const currentContribution = request.contributions?.reduce((sum, c) => sum + c.amount, 0) || 0;
-    const remainingAmount = request.amount - currentContribution;
+    const currentContributions = deserializeContributions(request.contributions ? serializeContributions(request.contributions) : undefined); // Deserialize first
+    const currentContributionTotal = currentContributions.reduce((sum, c) => sum + c.amount, 0) || 0;
+    const remainingAmount = request.amount - currentContributionTotal;
 
     if (remainingAmount <= 0) {
       toast.error("This group contribution is already fully funded.");
@@ -226,13 +256,13 @@ const CashExchangePage = () => {
     const actualContribution = Math.min(contributionAmount, remainingAmount);
     
     // Check if user already contributed (optional, but good practice)
-    if (request.contributions?.some(c => c.userId === user.$id)) {
+    if (currentContributions.some(c => c.userId === user.$id)) {
         toast.warning("You have already contributed to this request.");
         // For simplicity, we allow multiple contributions until fully funded, but warn.
     }
 
     const newContributions: Contribution[] = [
-      ...(request.contributions || []),
+      ...currentContributions,
       { userId: user.$id, amount: actualContribution }
     ];
 
@@ -241,7 +271,7 @@ const CashExchangePage = () => {
         APPWRITE_DATABASE_ID,
         APPWRITE_CASH_EXCHANGE_COLLECTION_ID,
         request.$id,
-        { contributions: newContributions }
+        { contributions: serializeContributions(newContributions) } // Serialize back before updating
       );
       toast.success(`You contributed ₹${actualContribution} to this request!`);
     } catch (error: any) {
@@ -268,8 +298,9 @@ const CashExchangePage = () => {
 
     return filteredRequests.map((req) => {
       const isPoster = req.posterId === user?.$id;
-      const currentContribution = req.contributions?.reduce((sum, c) => sum + c.amount, 0) || 0;
-      const remainingAmount = req.amount - currentContribution;
+      const currentContributions = deserializeContributions(req.contributions ? serializeContributions(req.contributions) : undefined); // Deserialize for display
+      const currentContributionTotal = currentContributions.reduce((sum, c) => sum + c.amount, 0) || 0;
+      const remainingAmount = req.amount - currentContributionTotal;
 
       return (
         <div key={req.$id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border border-border rounded-md bg-background">
@@ -291,7 +322,7 @@ const CashExchangePage = () => {
             
             {req.type === "group-contribution" && (
               <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                <Users className="h-3 w-3" /> Contributed: ₹{currentContribution} / ₹{req.amount}
+                <Users className="h-3 w-3" /> Contributed: ₹{currentContributionTotal} / ₹{req.amount}
               </p>
             )}
           </div>

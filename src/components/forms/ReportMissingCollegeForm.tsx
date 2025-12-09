@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Loader2, Building2 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext"; // Keep useAuth to pre-fill if logged in
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_MISSING_COLLEGES_COLLECTION_ID } from "@/lib/appwrite";
 import { ID } from 'appwrite';
 
@@ -21,19 +21,32 @@ const ReportMissingCollegeForm: React.FC<ReportMissingCollegeFormProps> = ({
   onReportSubmitted,
   onCancel,
 }) => {
-  const { user, userProfile } = useAuth();
+  const { user } = useAuth(); // Use user from AuthContext to check login status
   const [collegeName, setCollegeName] = useState("");
   const [location, setLocation] = useState("");
+  const [reporterName, setReporterName] = useState(user?.name || ""); // Pre-fill if logged in
+  const [reporterEmail, setReporterEmail] = useState(user?.email || ""); // Pre-fill if logged in
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Update pre-filled fields if user changes after component mounts
+  useEffect(() => {
+    if (user) {
+      setReporterName(user.name);
+      setReporterEmail(user.email);
+    }
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !userProfile) {
-      toast.error("You must be logged in to report a missing college.");
-      return;
-    }
+    
     if (!collegeName.trim()) {
       toast.error("Please enter the college name.");
+      return;
+    }
+
+    // If user is not logged in, require name and email
+    if (!user && (!reporterName.trim() || !reporterEmail.trim())) {
+      toast.error("Please provide your name and email so we can contact you.");
       return;
     }
 
@@ -46,8 +59,9 @@ const ReportMissingCollegeForm: React.FC<ReportMissingCollegeFormProps> = ({
         {
           collegeName: collegeName.trim(),
           location: location.trim() || null,
-          requestingUserId: user.$id,
-          requestingUserName: user.name,
+          requestingUserId: user?.$id || 'guest', // Use user ID if logged in, otherwise 'guest'
+          requestingUserName: user?.name || reporterName.trim() || 'Anonymous', // Use user name if logged in, otherwise form input
+          requestingUserEmail: user?.email || reporterEmail.trim() || 'anonymous@example.com', // Use user email if logged in, otherwise form input
           status: "Pending",
         }
       );
@@ -95,6 +109,35 @@ const ReportMissingCollegeForm: React.FC<ReportMissingCollegeFormProps> = ({
           disabled={isSubmitting}
         />
       </div>
+      {!user && ( // Only show these fields if user is not logged in
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="reporterName" className="text-foreground">Your Name</Label>
+            <Input
+              id="reporterName"
+              value={reporterName}
+              onChange={(e) => setReporterName(e.target.value)}
+              placeholder="Your Name"
+              className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
+              required
+              disabled={isSubmitting}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="reporterEmail" className="text-foreground">Your Email</Label>
+            <Input
+              id="reporterEmail"
+              type="email"
+              value={reporterEmail}
+              onChange={(e) => setReporterEmail(e.target.value)}
+              placeholder="your.email@example.com"
+              className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
+              required
+              disabled={isSubmitting}
+            />
+          </div>
+        </>
+      )}
       <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2">
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting} className="w-full sm:w-auto border-border text-primary-foreground hover:bg-muted">
           Cancel
