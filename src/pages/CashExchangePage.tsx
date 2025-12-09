@@ -31,7 +31,7 @@ interface CashExchangeRequest extends Models.Document {
   status: "Open" | "Accepted" | "Completed" | "Group Contribution";
   meetingLocation: string;
   meetingTime: string;
-  contributions?: Contribution[]; // Changed to Contribution[]
+  contributions?: Contribution[]; // This is the deserialized type for the component's state
   posterId: string; // ID of the user who posted the request/offer
   posterName: string; // Name of the user who posted
   collegeName: string; // NEW: Add collegeName
@@ -87,7 +87,7 @@ const CashExchangePage = () => {
       // Deserialize contributions when fetching
       const deserializedRequests = (response.documents as any[]).map(doc => ({
         ...doc,
-        contributions: deserializeContributions(doc.contributions),
+        contributions: deserializeContributions(doc.contributions || []), // Ensure array is passed
       })) as unknown as CashExchangeRequest[];
       setExchangeRequests(deserializedRequests);
     } catch (error) {
@@ -106,8 +106,8 @@ const CashExchangePage = () => {
     const unsubscribe = databases.client.subscribe(
       `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_CASH_EXCHANGE_COLLECTION_ID}.documents`,
       (response) => {
-        const payload = response.payload as unknown as CashExchangeRequest;
-
+        const payload = response.payload as any; // Use 'any' for raw payload to handle mixed types
+        
         // NEW: Filter real-time updates by collegeName
         if (payload.collegeName !== userProfile.collegeName) {
             return;
@@ -116,10 +116,10 @@ const CashExchangePage = () => {
         setExchangeRequests(prev => {
           const existingIndex = prev.findIndex(r => r.$id === payload.$id);
           
-          // Deserialize contributions from the payload
-          const deserializedPayload: CashExchangeRequest = { // Explicitly type deserializedPayload
+          // Deserialize contributions from the payload, explicitly casting to string[]
+          const deserializedPayload: CashExchangeRequest = {
             ...payload,
-            contributions: deserializeContributions(payload.contributions as unknown as string[]),
+            contributions: deserializeContributions(payload.contributions as string[] || []), // Explicitly cast here
           };
 
           if (response.events.includes("databases.*.collections.*.documents.*.create")) {
@@ -298,7 +298,7 @@ const CashExchangePage = () => {
 
     return filteredRequests.map((req) => {
       const isPoster = req.posterId === user?.$id;
-      const currentContributions = deserializeContributions(req.contributions ? serializeContributions(req.contributions) : undefined); // Deserialize for display
+      const currentContributions = deserializeContributions(req.contributions); // Deserialize for display
       const currentContributionTotal = currentContributions.reduce((sum, c) => sum + c.amount, 0) || 0;
       const remainingAmount = req.amount - currentContributionTotal;
 
