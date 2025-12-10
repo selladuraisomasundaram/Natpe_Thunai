@@ -341,9 +341,9 @@ const AuthPage = () => {
                     className="bg-input text-foreground border-border focus:ring-ring focus:border-ring file:text-primary-foreground file:bg-primary-blue-light file:border-0 file:mr-4 file:py-2 file:px-4 file:rounded-md"
                   />
                   {collegeIdPhoto && <p className="text-xs text-muted-foreground mt-1">File selected: {collegeIdPhoto.name}</p>}
-                  <Link to="/help/How-to-URL" target="_blank" rel="noopener noreferrer" className="text-xs text-secondary-neon hover:underline flex items-center gap-1 mt-1">
-                    <Image className="h-3 w-3" /> How to get URL?
-                  </Link>
+                  <a href="https://tinypng.com" target="_blank" rel="noopener noreferrer" className="text-xs text-secondary-neon hover:underline flex items-center gap-1 mt-1">
+                    <Image className="h-3 w-3" /> Click here to compress your image
+                  </a>
                 </div>
 
                 <div>
