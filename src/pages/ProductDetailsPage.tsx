@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, MapPin, Star, DollarSign, MessageSquareText, Building2, Truck, Loader2, Flag } from 'lucide-react'; // Added Flag icon
+import { AlertTriangle, MapPin, Star, DollarSign, MessageSquareText, Building2, Truck, Loader2, Flag, Award } from 'lucide-react'; // Added Flag and Award icon
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, APPWRITE_PRODUCTS_COLLECTION_ID } from '@/lib/appwrite';
@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import AmbassadorDeliveryOption from "@/components/AmbassadorDeliveryOption"; // NEW: Import AmbassadorDeliveryOption
 import ReportListingForm from "@/components/forms/ReportListingForm"; // NEW: Import ReportListingForm
 import { useBargainRequests } from '@/hooks/useBargainRequests'; // NEW: Import useBargainRequests
+import { getLevelBadge } from "@/utils/badges"; // NEW: Import getLevelBadge
 
 export default function ProductDetailsPage() {
   const { productId } = useParams<{ productId: string }>();
@@ -232,6 +233,7 @@ export default function ProductDetailsPage() {
   const originalPrice = product.price.replace(/[₹,]/g, '').split('/')[0].trim();
   const bargainPrice = (parseFloat(originalPrice) * 0.85).toFixed(2); // 15% discount
   const currentPurchasePrice = isBargainPurchase ? parseFloat(bargainPrice) : parseFloat(originalPrice);
+  const sellerBadge = product.sellerLevel ? getLevelBadge(product.sellerLevel) : undefined; // Derive badge from sellerLevel
 
   // Determine if bargain button should be disabled
   const isBargainDisabled = 
@@ -262,7 +264,11 @@ export default function ProductDetailsPage() {
               <Star className="h-4 w-4 mr-1 fill-secondary-neon" />
               <span>{product.sellerRating}</span>
             </div>
-            {product.sellerBadge && <Badge variant="default" className="bg-accent text-accent-foreground">{product.sellerBadge}</Badge>}
+            {sellerBadge && ( // NEW: Display seller's level-based badge
+              <Badge className="bg-blue-500 text-white flex items-center gap-1">
+                  <Award className="h-3 w-3" /> {sellerBadge}
+              </Badge>
+            )}
             {product.status && product.status !== 'available' && ( // NEW: Display product status if not available
               <Badge variant="destructive" className="bg-red-500 text-white">
                 {product.status.charAt(0).toUpperCase() + product.status.slice(1)}

@@ -97,7 +97,7 @@ const ServicesPage = () => {
           </CardHeader>
           <CardContent className="p-0">
             <p className="text-muted-foreground">IRCTC, Abhi Bus, Paytm redirection for easy travel bookings.</p>
-          </CardContent>
+            </CardContent>
         </Card>
 
         <Card className="bg-card p-4 rounded-lg shadow-md border border-border cursor-pointer hover:shadow-xl transition-shadow" onClick={() => handleServiceClick("/services/collaborators", "Project Collaborator Tab")}>
