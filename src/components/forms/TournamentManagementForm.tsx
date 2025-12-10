@@ -39,8 +39,8 @@ const winnerSchema = z.object({
 // Main form schema for tournament management
 const formSchema = z.object({
   status: z.enum(["Open", "Ongoing", "Completed", "Closed"]),
-  standings: z.array(teamStandingSchema).optional(),
-  winners: z.array(winnerSchema).optional(),
+  standings: z.array(teamStandingSchema),
+  winners: z.array(winnerSchema),
 });
 
 interface TournamentManagementFormProps {
@@ -74,7 +74,13 @@ const TournamentManagementForm: React.FC<TournamentManagementFormProps> = ({ tou
   const handleSave = async (data: z.infer<typeof formSchema>) => {
     setIsSaving(true);
     try {
-      await updateTournament(tournament.$id, data);
+      // Explicitly cast standings and winners to their strict types
+      const dataToUpdate: Partial<Tournament> = {
+        status: data.status,
+        standings: data.standings as TeamStanding[],
+        winners: data.winners as Winner[],
+      };
+      await updateTournament(tournament.$id, dataToUpdate);
       toast.success("Tournament updated successfully!");
       onClose();
     } catch (error: any) {
