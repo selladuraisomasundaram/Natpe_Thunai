@@ -17,14 +17,14 @@ import BottomNavbar from "./components/layout/BottomNavbar";
 import Header from "./components/layout/Header";
 import React from "react";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { Loader2 } from "lucide-react"; // Import Loader2
-import VerificationBanner from "./components/VerificationBanner"; // Import VerificationBanner
-import { useOnlineStatus } from "./hooks/useOnlineStatus"; // Import useOnlineStatus
+import { Loader2 } from "lucide-react";
+import VerificationBanner from "./components/VerificationBanner";
+import { useOnlineStatus } from "./hooks/useOnlineStatus";
 
 // Import new Activity sub-pages
 import TrackingPage from "./pages/TrackingPage";
 import CashExchangePage from "./pages/CashExchangePage";
-import LostAndFoundPage from "./pages/LostAndFoundPage"; // NEW IMPORT
+import LostAndFoundPage from "./pages/LostAndFoundPage";
 
 // Import new Profile sub-pages
 import ProfileDetailsPage from "./pages/ProfileDetailsPage";
@@ -39,11 +39,11 @@ import FoodWellnessPage from "./pages/FoodWellnessPage";
 import TicketBookingPage from "./pages/TicketBookingPage";
 import CollaboratorsPage from "./pages/CollaboratorsPage";
 import PostJobPage from "./pages/PostJobPage";
-import AmbassadorProgramPage from "./pages/AmbassadorProgramPage"; // NEW IMPORT
+import AmbassadorProgramPage from "./pages/AmbassadorProgramPage";
 
 // Import new Market sub-pages
 import ProductDetailsPage from "./pages/ProductDetailsPage";
-import PaymentConfirmationPage from "./pages/PaymentConfirmationPage"; // New Import
+import PaymentConfirmationPage from "./pages/PaymentConfirmationPage";
 
 // Import new Auth-related pages
 import VerifyEmailPage from "./pages/VerifyEmailPage";
@@ -66,7 +66,6 @@ const AppLayout = () => {
   const { isAuthenticated, isVerified } = useAuth();
 
   if (!isAuthenticated) {
-    // If not authenticated, redirect to auth page
     return <Navigate to="/auth" replace />;
   }
 
@@ -82,7 +81,6 @@ const AppLayout = () => {
   );
 };
 
-// New layout for developer-only routes
 const DeveloperLayout = () => {
   const { isAuthenticated, userProfile, isLoading } = useAuth();
 
@@ -110,61 +108,56 @@ const DeveloperLayout = () => {
   );
 };
 
-// This component will contain the main application logic,
-// assuming the user is online.
-const MainAppContent = () => {
+// New component to hold all the routes when online
+const OnlineRoutes = () => {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<AuthPage />} />
-          <Route path="/verify-email" element={<VerifyEmailPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/help/image-to-url" element={<ImageToUrlHelpPage />} />
-          
-          {/* Protected Routes for all authenticated users */}
-          <Route element={<AppLayout />}>
-            <Route path="/home" element={<HomePage />} />
-            <Route path="/market" element={<MarketPage />} />
-            <Route path="/market/product/:productId" element={<ProductDetailsPage />} />
-            <Route path="/market/confirm-payment/:transactionId" element={<PaymentConfirmationPage />} />
-            <Route path="/services" element={<ServicesPage />} />
-            <Route path="/activity" element={<ActivityPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/tournaments" element={<TournamentPage />} />
+    <Routes>
+      <Route path="/" element={<Index />} />
+      <Route path="/auth" element={<AuthPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/help/image-to-url" element={<ImageToUrlHelpPage />} />
+      
+      {/* Protected Routes for all authenticated users */}
+      <Route element={<AppLayout />}>
+        <Route path="/home" element={<HomePage />} />
+        <Route path="/market" element={<MarketPage />} />
+        <Route path="/market/product/:productId" element={<ProductDetailsPage />} />
+        <Route path="/market/confirm-payment/:transactionId" element={<PaymentConfirmationPage />} />
+        <Route path="/services" element={<ServicesPage />} />
+        <Route path="/activity" element={<ActivityPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/tournaments" element={<TournamentPage />} />
 
-            {/* Activity Sub-pages */}
-            <Route path="/activity/tracking" element={<TrackingPage />} />
-            <Route path="/activity/cash-exchange" element={<CashExchangePage />} />
-            <Route path="/activity/lost-found" element={<LostAndFoundPage />} />
+        {/* Activity Sub-pages */}
+        <Route path="/activity/tracking" element={<TrackingPage />} />
+        <Route path="/activity/cash-exchange" element={<CashExchangePage />} />
+        <Route path="/activity/lost-found" element={<LostAndFoundPage />} />
 
-            {/* Profile Sub-pages */}
-            <Route path="/profile/details" element={<ProfileDetailsPage />} />
-            <Route path="/profile/wallet" element={<WalletPage />} />
-            <Route path="/profile/policies" element={<PoliciesPage />} />
+        {/* Profile Sub-pages */}
+        <Route path="/profile/details" element={<ProfileDetailsPage />} />
+        <Route path="/profile/wallet" element={<WalletPage />} />
+        <Route path="/profile/policies" element={<PoliciesPage />} />
 
-            {/* Services Sub-pages */}
-            <Route path="/services/freelance" element={<FreelancePage />} />
-            <Route path="/services/errands" element={<ErrandsPage />} />
-            <Route path="/services/short-term" element={<ShortTermNeedsPage />} />
-            <Route path="/services/food-wellness" element={<FoodWellnessPage />} />
-            <Route path="/services/ticket-booking" element={<TicketBookingPage />} />
-            <Route path="/services/collaborators" element={<CollaboratorsPage />} />
-            <Route path="/services/post-job" element={<PostJobPage />} />
-            <Route path="/services/ambassador-program" element={<AmbassadorProgramPage />} />
-          </Route>
+        {/* Services Sub-pages */}
+        <Route path="/services/freelance" element={<FreelancePage />} />
+        <Route path="/services/errands" element={<ErrandsPage />} />
+        <Route path="/services/short-term" element={<ShortTermNeedsPage />} />
+        <Route path="/services/food-wellness" element={<FoodWellnessPage />} />
+        <Route path="/services/ticket-booking" element={<TicketBookingPage />} />
+        <Route path="/services/collaborators" element={<CollaboratorsPage />} />
+        <Route path="/services/post-job" element={<PostJobPage />} />
+        <Route path="/services/ambassador-program" element={<AmbassadorProgramPage />} />
+      </Route>
 
-          {/* Protected Routes for Developers Only */}
-          <Route element={<DeveloperLayout />}>
-            <Route path="/developer-dashboard" element={<DeveloperDashboardPage />} />
-          </Route>
+      {/* Protected Routes for Developers Only */}
+      <Route element={<DeveloperLayout />}>
+        <Route path="/developer-dashboard" element={<DeveloperDashboardPage />} />
+      </Route>
 
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </AuthProvider>
-    </BrowserRouter>
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 };
 
@@ -176,7 +169,11 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        {isOnline ? <MainAppContent /> : <OfflinePage />} {/* Conditional rendering based on isOnline */}
+        <BrowserRouter>
+          <AuthProvider>
+            {isOnline ? <OnlineRoutes /> : <OfflinePage />}
+          </AuthProvider>
+        </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
   );
