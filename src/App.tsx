@@ -110,81 +110,76 @@ const DeveloperLayout = () => {
   );
 };
 
-
-const AppContent = () => {
-  const isOnline = useOnlineStatus();
-
-  if (!isOnline) {
-    return <OfflinePage />;
-  }
-
+// This component will contain the main application logic,
+// assuming the user is online.
+const MainAppContent = () => {
   return (
-    <Routes>
-      <Route path="/" element={<Index />} />
-      <Route path="/auth" element={<AuthPage />} />
-      <Route path="/verify-email" element={<VerifyEmailPage />} />
-      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      
-      {/* NEW: Route for Image to URL Help Page */}
-      <Route path="/help/image-to-url" element={<ImageToUrlHelpPage />} />
-      
-      {/* Protected Routes for all authenticated users */}
-      <Route element={<AppLayout />}>
-        <Route path="/home" element={<HomePage />} />
-        <Route path="/market" element={<MarketPage />} />
-        <Route path="/market/product/:productId" element={<ProductDetailsPage />} />
-        <Route path="/market/confirm-payment/:transactionId" element={<PaymentConfirmationPage />} /> {/* New Route */}
-        <Route path="/services" element={<ServicesPage />} />
-        <Route path="/activity" element={<ActivityPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/tournaments" element={<TournamentPage />} />
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/help/image-to-url" element={<ImageToUrlHelpPage />} />
+          
+          {/* Protected Routes for all authenticated users */}
+          <Route element={<AppLayout />}>
+            <Route path="/home" element={<HomePage />} />
+            <Route path="/market" element={<MarketPage />} />
+            <Route path="/market/product/:productId" element={<ProductDetailsPage />} />
+            <Route path="/market/confirm-payment/:transactionId" element={<PaymentConfirmationPage />} />
+            <Route path="/services" element={<ServicesPage />} />
+            <Route path="/activity" element={<ActivityPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/tournaments" element={<TournamentPage />} />
 
-        {/* Activity Sub-pages */}
-        <Route path="/activity/tracking" element={<TrackingPage />} />
-        <Route path="/activity/cash-exchange" element={<CashExchangePage />} />
-        <Route path="/activity/lost-found" element={<LostAndFoundPage />} /> {/* NEW ROUTE */}
+            {/* Activity Sub-pages */}
+            <Route path="/activity/tracking" element={<TrackingPage />} />
+            <Route path="/activity/cash-exchange" element={<CashExchangePage />} />
+            <Route path="/activity/lost-found" element={<LostAndFoundPage />} />
 
-        {/* Profile Sub-pages */}
-        <Route path="/profile/details" element={<ProfileDetailsPage />} />
-        <Route path="/profile/wallet" element={<WalletPage />} />
-        <Route path="/profile/policies" element={<PoliciesPage />} />
+            {/* Profile Sub-pages */}
+            <Route path="/profile/details" element={<ProfileDetailsPage />} />
+            <Route path="/profile/wallet" element={<WalletPage />} />
+            <Route path="/profile/policies" element={<PoliciesPage />} />
 
-        {/* Services Sub-pages */}
-        <Route path="/services/freelance" element={<FreelancePage />} />
-        {/* Removed: <Route path="/services/freelance/:category" element={<ServiceListingPage />} /> */}
-        <Route path="/services/errands" element={<ErrandsPage />} />
-        <Route path="/services/short-term" element={<ShortTermNeedsPage />} />
-        <Route path="/services/food-wellness" element={<FoodWellnessPage />} />
-        <Route path="/services/ticket-booking" element={<TicketBookingPage />} />
-        <Route path="/services/collaborators" element={<CollaboratorsPage />} />
-        <Route path="/services/post-job" element={<PostJobPage />} />
-        <Route path="/services/ambassador-program" element={<AmbassadorProgramPage />} /> {/* NEW ROUTE */}
-      </Route>
+            {/* Services Sub-pages */}
+            <Route path="/services/freelance" element={<FreelancePage />} />
+            <Route path="/services/errands" element={<ErrandsPage />} />
+            <Route path="/services/short-term" element={<ShortTermNeedsPage />} />
+            <Route path="/services/food-wellness" element={<FoodWellnessPage />} />
+            <Route path="/services/ticket-booking" element={<TicketBookingPage />} />
+            <Route path="/services/collaborators" element={<CollaboratorsPage />} />
+            <Route path="/services/post-job" element={<PostJobPage />} />
+            <Route path="/services/ambassador-program" element={<AmbassadorProgramPage />} />
+          </Route>
 
-      {/* Protected Routes for Developers Only */}
-      <Route element={<DeveloperLayout />}>
-        <Route path="/developer-dashboard" element={<DeveloperDashboardPage />} />
-      </Route>
+          {/* Protected Routes for Developers Only */}
+          <Route element={<DeveloperLayout />}>
+            <Route path="/developer-dashboard" element={<DeveloperDashboardPage />} />
+          </Route>
 
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   );
 };
 
+const App = () => {
+  const isOnline = useOnlineStatus(); // Call hook unconditionally at the top level of App
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <AppContent />
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        {isOnline ? <MainAppContent /> : <OfflinePage />} {/* Conditional rendering based on isOnline */}
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
