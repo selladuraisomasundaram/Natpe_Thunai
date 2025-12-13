@@ -1,40 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
-import { MarketWarningBanner } from "@/components/MarketWarningBanner";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import MarketTabs from "@/components/MarketTabs";
-import MarketListingFormWrapper from "@/components/forms/MarketListingFormWrapper";
-import { PlusCircle } from "lucide-react";
+import React from 'react';
+import { MadeWithDyad } from '@/components/made-with-dyad';
 
-export default function MarketPage() {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-
+const MarketPage = () => {
   return (
-    <div className="container mx-auto p-4 pb-20">
-      <h1 className="text-4xl font-bold mb-6 text-center text-foreground">The Exchange (Market)</h1>
-      
-      <div className="max-w-4xl mx-auto space-y-6">
-        <MarketWarningBanner />
-        
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-semibold text-foreground">Listings</h2>
-          
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-                <PlusCircle className="mr-2 h-4 w-4" /> Create New Listing
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px] bg-card text-card-foreground border-border max-h-[90vh] overflow-y-auto">
-              <MarketListingFormWrapper onClose={() => setIsDialogOpen(false)} />
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <MarketTabs initialTab="all" />
-      </div>
+    <div className="min-h-screen bg-background text-foreground p-4 pb-20 flex flex-col items-center justify-center text-center">
+      <h1 className="text-3xl font-bold text-foreground mb-4">Campus Market</h1>
+      <p className="text-muted-foreground mb-8">
+        Browse and list items for sale or exchange within the campus community.
+        Marketplace features coming soon!
+      </p>
+      <MadeWithDyad />
     </div>
   );
-}
+};
+
+export default MarketPage;

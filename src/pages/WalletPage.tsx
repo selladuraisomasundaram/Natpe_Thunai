@@ -1,78 +1,129 @@
 "use client";
 
-import React from "react";
-import { MadeWithDyad } from "@/components/made-with-dyad";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { DollarSign, Wallet, TrendingUp, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { useAuth } from "@/context/AuthContext";
-import { calculateCommissionRate, formatCommissionRate } from "@/utils/commission";
-import { useWalletBalance } from "@/hooks/useWalletBalance";
-import { DEVELOPER_UPI_ID } from "@/lib/config"; // Import DEVELOPER_UPI_ID
+import React from 'react';
+import { MadeWithDyad } from '@/components/made-with-dyad';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DollarSign, TrendingUp, TrendingDown, Wallet as WalletIcon } from 'lucide-react';
+import { useWalletBalance } from '@/hooks/useWalletBalance';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import { MarketTransactionItem, FoodOrderItem } from '@/types/activity';
 
 const WalletPage = () => {
-  const { userProfile } = useAuth();
-  const { earnedBalance, spentBalance, isLoading, error } = useWalletBalance();
-  
-  // Dynamic Commission Calculation
-  const userLevel = userProfile?.level ?? 1;
-  const dynamicCommissionRateValue = calculateCommissionRate(userLevel);
-  const dynamicCommissionRateDisplay = formatCommissionRate(dynamicCommissionRateValue);
+  const { balance, transactions, earnedBalance, spentBalance, isLoading, error } = useWalletBalance();
 
-  // Dummy data for wallet
-  const currentBalance = 1250.75; // This is still dummy, but the request was to make earned/spent functional.
+  const renderTransactionItem = (item: MarketTransactionItem | FoodOrderItem) => {
+    const isMarketItem = 'itemName' in item;
+    const isEarned = isMarketItem && item.sellerName === 'You' && item.status === 'completed';
+    const isSpent = (isMarketItem && item.buyerName === 'You' && item.status === 'completed') || (!isMarketItem && item.status === 'delivered');
 
-  // Removed handleAddFunds function as it's no longer needed.
-
-  // Removed handleWithdrawFunds function as it's no longer needed.
+    return (
+      <div key={item.id} className="flex items-center justify-between py-3 border-b border-border last:border-b-0">
+        <div className="flex items-center gap-3">
+          {isEarned ? (
+            <TrendingUp className="h-5 w-5 text-green-500" />
+          ) : isSpent ? (
+            <TrendingDown className="h-5 w-5 text-red-500" />
+          ) : (
+            <WalletIcon className="h-5 w-5 text-muted-foreground" />
+          )}
+          <div>
+            <p className="font-medium text-foreground">
+              {isMarketItem ? item.itemName : item.restaurantName}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {isMarketItem
+                ? `Transaction with ${item.sellerName === 'You' ? item.buyerName : item.sellerName}`
+                : `Order: ${item.items.join(', ')}`}
+            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className={cn(
+            "font-semibold",
+            isEarned && "text-green-500",
+            isSpent && "text-red-500"
+          )}>
+            {isEarned ? '+' : isSpent ? '-' : ''}₹{(isMarketItem ? item.amount : item.totalAmount).toFixed(2)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {new Date(item.date).toLocaleDateString()}
+          </p>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
-      <h1 className="text-4xl font-bold mb-6 text-center text-foreground">Wallet & Payments</h1>
+      <h1 className="text-4xl font-bold mb-6 text-center text-foreground">My Wallet</h1>
+
       <div className="max-w-md mx-auto space-y-6">
-        <Card className="bg-card text-card-foreground shadow-lg border-border">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-secondary-neon" /> Your Wallet
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 space-y-4">
+        <Card className="bg-gradient-to-br from-primary-blue-light to-secondary-neon text-white shadow-lg border-none">
+          <CardContent className="p-6 flex flex-col items-center text-center space-y-3">
+            <WalletIcon className="h-10 w-10 text-white/80" />
+            <p className="text-lg font-medium text-white/90">Current Balance</p>
             {isLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
-                <p className="ml-3 text-muted-foreground">Loading balances...</p>
-              </div>
+              <Skeleton className="h-10 w-40 bg-white/30" />
             ) : error ? (
-              <p className="text-center text-destructive py-4">Error: {error}</p>
+              <p className="text-xl font-bold text-red-300">Error</p>
             ) : (
-              <>
-                <div className="flex justify-between items-center border-b border-border pb-3">
-                  <p className="text-lg text-muted-foreground">Total Earned:</p>
-                  <p className="text-2xl font-bold text-secondary-neon">₹{earnedBalance.toFixed(2)}</p>
-                </div>
-                <div className="flex justify-between items-center pt-3">
-                  <p className="text-lg text-muted-foreground">Total Spent:</p>
-                  <p className="text-2xl font-bold text-destructive">₹{spentBalance.toFixed(2)}</p>
-                </div>
-              </>
+              <p className="text-5xl font-extrabold tracking-tight text-white drop-shadow-md">
+                ₹{balance?.toFixed(2) || '0.00'}
+              </p>
             )}
           </CardContent>
         </Card>
 
-        <Card className="bg-destructive/10 border-destructive text-destructive-foreground shadow-lg">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xl font-semibold text-destructive flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-destructive" /> Dynamic Commission Policy
-            </CardTitle>
+        <div className="grid grid-cols-2 gap-4">
+          <Card className="bg-card border-border shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Earned</CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <Skeleton className="h-6 w-24" />
+              ) : (
+                <div className="text-2xl font-bold text-foreground">₹{earnedBalance.toFixed(2)}</div>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="bg-card border-border shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Spent</CardTitle>
+              <TrendingDown className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <Skeleton className="h-6 w-24" />
+              ) : (
+                <div className="text-2xl font-bold text-foreground">₹{spentBalance.toFixed(2)}</div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="bg-card border-border shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-xl font-semibold text-foreground">Recent Activity</CardTitle>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <p className="text-sm text-gray-800">
-              Your current commission rate is <span className="font-bold">{dynamicCommissionRateDisplay}</span> (Level {userLevel}). This rate is applied to all successful transactions facilitated through Natpe🤝Thunai.
-            </p>
-            <p className="text-xs text-gray-600 mt-2">
-              This rate decreases as your user level increases. For full details, please refer to the Dynamic Commission Policy in the Policies section.
-            </p>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="p-4 space-y-3">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : error ? (
+              <p className="text-center text-destructive py-4">Error loading transactions: {error}</p>
+            ) : transactions.length > 0 ? (
+              <div className="divide-y divide-border">
+                {transactions.map(renderTransactionItem)}
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-4">No recent transactions.</p>
+            )}
           </CardContent>
         </Card>
       </div>
