@@ -4,138 +4,122 @@ import React, { useState } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Utensils, Heart, PlusCircle, Loader2, ShoppingBag } from "lucide-react";
+import { Soup, HeartPulse, ShieldCheck, PlusCircle, Utensils, Loader2, MessageSquareText } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import PostFoodOfferingForm, { FoodOfferingPostData } from "@/components/forms/PostFoodOfferingForm"; // Import PostFoodOfferingForm
-import RequestCustomOrderForm, { FoodRequestPostData } from "@/components/forms/RequestCustomOrderForm"; // Import RequestCustomOrderForm
-import { useFoodOfferings, FoodOffering, FoodRequest } from "@/hooks/useFoodOfferings"; // Import useFoodOfferings hook
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_FOOD_OFFERINGS_COLLECTION_ID, APPWRITE_FOOD_REQUESTS_COLLECTION_ID } from "@/lib/appwrite";
+import PostServiceForm from "@/components/forms/PostServiceForm";
+import { useServiceListings, ServicePost } from "@/hooks/useServiceListings";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_SERVICES_COLLECTION_ID } from "@/lib/appwrite";
 import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
-import FoodOfferingCard from "@/components/FoodOfferingCard"; // Import FoodOfferingCard
-import FoodCustomRequestsList from "@/components/FoodCustomRequestsList"; // Import FoodCustomRequestsList
+import FoodOfferingCard from "@/components/FoodOfferingCard";
+import FoodCustomRequestsList from "@/components/FoodCustomRequestsList";
 
-// Category options for offerings
-const OFFERING_CATEGORY_OPTIONS = [
-  { value: "homemade-meal", label: "Homemade Meal" },
-  { value: "home-remedy", label: "Home Remedy" },
-  { value: "baked-goods", label: "Baked Goods" },
-  { value: "snacks", label: "Snacks" },
+// Service categories specific to this page
+const OFFERING_CATEGORIES = ["homemade-meals", "wellness-remedies"];
+
+// Define category options for Offerings
+const OFFERING_OPTIONS = [
+  { value: "homemade-meals", label: "Food" },
+  { value: "wellness-remedies", label: "Remedy" },
   { value: "other", label: "Other" },
 ];
 
-// Category options for requests
-const REQUEST_CATEGORY_OPTIONS = [
-  { value: "custom-meal", label: "Custom Meal" },
-  { value: "special-remedy", label: "Special Remedy" },
-  { value: "dietary-specific", label: "Dietary Specific" },
-  { value: "event-catering", label: "Event Catering" },
+// Define category options for Custom Requests
+const CUSTOM_REQUEST_OPTIONS = [
+  { value: "homemade-meals", label: "Custom Food" },
+  { value: "wellness-remedies", label: "Custom Remedy" },
   { value: "other", label: "Other" },
 ];
+
 
 const FoodWellnessPage = () => {
-  const { user, userProfile } = useAuth();
-  const [isPostOfferingDialogOpen, setIsPostOfferingDialogOpen] = useState(false);
-  const [isRequestOrderDialogOpen, setIsRequestOrderDialogOpen] = useState(false);
-  const [initialOfferingCategory, setInitialOfferingCategory] = useState<string | undefined>(undefined);
-  const [initialRequestCategory, setInitialRequestCategory] = useState<string | undefined>(undefined);
+  const { user, userProfile, incrementAmbassadorDeliveriesCount } = useAuth();
+  const [isPostServiceDialogOpen, setIsPostServiceDialogOpen] = useState(false);
+  const [isPostCustomOrderDialogOpen, setIsPostCustomOrderDialogOpen] = useState(false);
   
-  const { offerings, requests, isLoadingOfferings, isLoadingRequests, errorOfferings, errorRequests } = useFoodOfferings();
+  // Fetch all food/wellness related posts for the user's college
+  const { services: allPosts, isLoading, error } = useServiceListings(undefined); 
 
-  const isAgeGated = (userProfile?.age ?? 0) >= 25; 
+  const postedOfferings = allPosts.filter(p => !p.isCustomOrder && OFFERING_CATEGORIES.includes(p.category));
+  const postedCustomRequests = allPosts.filter(p => p.isCustomOrder);
 
-  // NEW: Function to open Post Offering dialog with pre-filled category
-  const handleOpenPostOfferingDialog = (category?: string) => {
-    if (isAgeGated) {
-      toast.error("Access denied: Food & Wellness offerings are not available for users aged 25 and above.");
-      return;
-    }
-    setInitialOfferingCategory(category);
-    setIsPostOfferingDialogOpen(true);
-  };
-
-  // NEW: Function to open Request Order dialog with pre-filled category
-  const handleOpenRequestOrderDialog = (category?: string) => {
-    if (isAgeGated) {
-      toast.error("Access denied: Food & Wellness requests are not available for users aged 25 and above.");
-      return;
-    }
-    setInitialRequestCategory(category);
-    setIsRequestOrderDialogOpen(true);
-  };
-
-  const handlePostOffering = async (data: FoodOfferingPostData) => {
+  const handlePostService = async (data: {
+    title: string;
+    description: string;
+    category: string;
+    price: string;
+    contact: string;
+    customOrderDescription?: string;
+    ambassadorDelivery: boolean;
+    ambassadorMessage: string;
+  }) => {
     if (!user || !userProfile) {
-      toast.error("You must be logged in to post an offering.");
+      toast.error("You must be logged in to post.");
       return;
     }
 
     try {
-      const newOfferingData = {
+      const newPostData = {
         ...data,
         posterId: user.$id,
         posterName: user.name,
+        isCustomOrder: false,
         collegeName: userProfile.collegeName,
-        status: "available", // Default status
       };
 
       await databases.createDocument(
         APPWRITE_DATABASE_ID,
-        APPWRITE_FOOD_OFFERINGS_COLLECTION_ID,
+        APPWRITE_SERVICES_COLLECTION_ID,
         ID.unique(),
-        newOfferingData
+        newPostData
       );
       
       toast.success(`Your offering "${data.title}" has been posted!`);
-      setIsPostOfferingDialogOpen(false);
-      setInitialOfferingCategory(undefined);
+      setIsPostServiceDialogOpen(false);
     } catch (e: any) {
-      console.error("Error posting offering:", e);
-      toast.error(e.message || "Failed to post food offering.");
+      console.error("Error posting service:", e);
+      toast.error(e.message || "Failed to post offering.");
     }
   };
 
-  const handleRequestOrder = async (data: FoodRequestPostData) => {
+  const handlePostCustomOrder = async (data: {
+    title: string;
+    description: string;
+    category: string;
+    price: string;
+    contact: string;
+    customOrderDescription?: string;
+    ambassadorDelivery: boolean;
+    ambassadorMessage: string;
+  }) => {
     if (!user || !userProfile) {
-      toast.error("You must be logged in to request an order.");
+      toast.error("You must be logged in to post a custom request.");
       return;
     }
 
     try {
-      const newRequestData = {
+      const newRequest = {
         ...data,
-        requesterId: user.$id,
-        requesterName: user.name,
+        posterId: user.$id,
+        posterName: user.name,
+        isCustomOrder: true,
         collegeName: userProfile.collegeName,
-        status: "open", // Default status
       };
 
       await databases.createDocument(
         APPWRITE_DATABASE_ID,
-        APPWRITE_FOOD_REQUESTS_COLLECTION_ID,
+        APPWRITE_SERVICES_COLLECTION_ID,
         ID.unique(),
-        newRequestData
+        newRequest
       );
       
       toast.success(`Your custom order request "${data.title}" has been posted!`);
-      setIsRequestOrderDialogOpen(false);
-      setInitialRequestCategory(undefined);
+      setIsPostCustomOrderDialogOpen(false);
     } catch (e: any) {
-      console.error("Error requesting order:", e);
-      toast.error(e.message || "Failed to request custom order.");
+      console.error("Error posting custom request:", e);
+      toast.error(e.message || "Failed to post custom request.");
     }
-  };
-
-  const handleViewOfferingDetails = (offering: FoodOffering) => {
-    toast.info(`Viewing details for "${offering.title}"`);
-    // navigate(`/services/food-wellness/${offering.$id}`); // Uncomment if you have a details page
-  };
-
-  const handlePlaceOrder = (offering: FoodOffering) => {
-    toast.info(`Placing order for "${offering.title}"`);
-    // This would typically open a PlaceFoodOrderForm dialog
-    // For now, just a toast.
   };
 
   return (
@@ -145,30 +129,16 @@ const FoodWellnessPage = () => {
         <Card className="bg-card text-card-foreground shadow-lg border-border">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
-              <Utensils className="h-5 w-5 text-secondary-neon" /> Campus Kitchen
+              <Soup className="h-5 w-5 text-secondary-neon" /> Post Your Offerings
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-3">
             <p className="text-sm text-muted-foreground">
-              Share your culinary skills or find delicious homemade food and wellness remedies from peers!
+              Post your homemade food or wellness remedies for your college peers to order.
             </p>
-            <Button
-              className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleOpenPostOfferingDialog("homemade-meal")} // Prefill
-              disabled={isAgeGated}
-            >
-              <Utensils className="mr-2 h-4 w-4" /> Post Homemade Meal
-            </Button>
-            <Button
-              className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleOpenPostOfferingDialog("home-remedy")} // Prefill
-              disabled={isAgeGated}
-            >
-              <Heart className="mr-2 h-4 w-4" /> Post Home Remedy
-            </Button>
-            <Dialog open={isPostOfferingDialogOpen} onOpenChange={setIsPostOfferingDialogOpen}>
+            <Dialog open={isPostServiceDialogOpen} onOpenChange={setIsPostServiceDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 mt-4" disabled={isAgeGated} onClick={() => handleOpenPostOfferingDialog()}>
+                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
                   <PlusCircle className="mr-2 h-4 w-4" /> Post New Offering
                 </Button>
               </DialogTrigger>
@@ -176,64 +146,46 @@ const FoodWellnessPage = () => {
                 <DialogHeader>
                   <DialogTitle className="text-foreground">Post New Food/Wellness Offering</DialogTitle>
                 </DialogHeader>
-                <PostFoodOfferingForm 
-                  onSubmit={handlePostOffering} 
-                  onCancel={() => { setIsPostOfferingDialogOpen(false); setInitialOfferingCategory(undefined); }} 
-                  categoryOptions={OFFERING_CATEGORY_OPTIONS}
-                  initialCategory={initialOfferingCategory} // Pass initial category
+                <PostServiceForm 
+                  onSubmit={handlePostService} 
+                  onCancel={() => setIsPostServiceDialogOpen(false)} 
+                  categoryOptions={OFFERING_OPTIONS}
+                  titlePlaceholder="e.g., Delicious Homemade Biryani"
+                  descriptionPlaceholder="Describe your food or remedy, ingredients, benefits, etc."
+                  pricePlaceholder="e.g., 150 INR per plate or 200 INR for a wellness drink"
+                  contactPlaceholder="e.g., +91 9876543210 or @your_telegram_id"
+                  ambassadorMessagePlaceholder="e.g., Deliver to Block A, Room 101 by 7 PM"
                 />
               </DialogContent>
             </Dialog>
-            <p className="text-xs text-destructive-foreground mt-4">
-              Note: This section is age-gated for users under 25. 
-            </p>
-          </CardContent>
-        </Card>
 
-        <Card className="bg-card text-card-foreground shadow-lg border-border">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
-              <ShoppingBag className="h-5 w-5 text-secondary-neon" /> Custom Order Requests
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Can't find what you need? Request a custom meal or remedy from your peers!
-            </p>
-            <Button
-              className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleOpenRequestOrderDialog("custom-meal")} // Prefill
-              disabled={isAgeGated}
-            >
-              <Utensils className="mr-2 h-4 w-4" /> Request Custom Meal
-            </Button>
-            <Button
-              className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleOpenRequestOrderDialog("special-remedy")} // Prefill
-              disabled={isAgeGated}
-            >
-              <Heart className="mr-2 h-4 w-4" /> Request Special Remedy
-            </Button>
-            <Dialog open={isRequestOrderDialogOpen} onOpenChange={setIsRequestOrderDialogOpen}>
+            <Dialog open={isPostCustomOrderDialogOpen} onOpenChange={setIsPostCustomOrderDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 mt-4" disabled={isAgeGated} onClick={() => handleOpenRequestOrderDialog()}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Request Custom Order
+                <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90 mt-2">
+                  <Utensils className="mr-2 h-4 w-4" /> Request Custom Order
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
                 <DialogHeader>
-                  <DialogTitle className="text-foreground">Request New Custom Order</DialogTitle>
+                  <DialogTitle className="text-foreground">Request Custom Food/Remedy</DialogTitle>
                 </DialogHeader>
-                <RequestCustomOrderForm 
-                  onSubmit={handleRequestOrder} 
-                  onCancel={() => { setIsRequestOrderDialogOpen(false); setInitialRequestCategory(undefined); }} 
-                  categoryOptions={REQUEST_CATEGORY_OPTIONS}
-                  initialCategory={initialRequestCategory} // Pass initial category
+                <PostServiceForm 
+                  onSubmit={handlePostCustomOrder} 
+                  onCancel={() => setIsPostCustomOrderDialogOpen(false)} 
+                  isCustomOrder={true} 
+                  categoryOptions={CUSTOM_REQUEST_OPTIONS}
+                  titlePlaceholder="e.g., Request for Vegan Pasta"
+                  descriptionPlaceholder="Describe the custom food or remedy you need, specific requirements, etc."
+                  customOrderDescriptionPlaceholder="Specify details like ingredients, dietary restrictions, quantity, preferred time."
+                  pricePlaceholder="e.g., 250 INR (negotiable) or Your budget"
+                  contactPlaceholder="e.g., +91 9876543210 or @your_telegram_id"
+                  ambassadorMessagePlaceholder="e.g., Pick up from my room, Block B, Room 205"
                 />
               </DialogContent>
             </Dialog>
-            <p className="text-xs text-destructive-foreground mt-4">
-              Note: This section is age-gated for users under 25.
+
+            <p className="text-xs text-destructive-foreground mt-4 flex items-center gap-1">
+              <ShieldCheck className="h-3 w-3" /> Quality assurance and cancellation warnings apply.
             </p>
           </CardContent>
         </Card>
@@ -243,29 +195,35 @@ const FoodWellnessPage = () => {
             <CardTitle className="text-xl font-semibold text-card-foreground">Available Offerings</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
-            {isLoadingOfferings ? (
+            {isLoading ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
                 <p className="ml-3 text-muted-foreground">Loading offerings...</p>
               </div>
-            ) : errorOfferings ? (
-              <p className="text-center text-destructive py-4">Error loading offerings: {errorOfferings}</p>
-            ) : offerings.length > 0 ? (
-              offerings.map((offering) => (
-                <FoodOfferingCard
-                  key={offering.$id}
-                  offering={offering}
-                  onViewDetails={handleViewOfferingDetails}
-                  onPlaceOrder={handlePlaceOrder}
-                />
-              ))
+            ) : error ? (
+              <p className="text-center text-destructive py-4">Error loading offerings: {error}</p>
+            ) : postedOfferings.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4">
+                {postedOfferings.map((offering) => (
+                  <FoodOfferingCard key={offering.$id} offering={offering} />
+                ))}
+              </div>
             ) : (
-              <p className="text-center text-muted-foreground py-4">No offerings posted yet for your college. Be the first!</p>
+              <p className="text-center text-muted-foreground py-4">No food or wellness offerings posted yet for your college.</p>
             )}
           </CardContent>
         </Card>
 
-        <FoodCustomRequestsList requests={requests} isLoading={isLoadingRequests} error={errorRequests} />
+        <Card className="bg-card text-card-foreground shadow-lg border-border">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
+              <Utensils className="h-5 w-5 text-secondary-neon" /> Custom Order Requests
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 space-y-4">
+            <FoodCustomRequestsList requests={postedCustomRequests} isLoading={isLoading} error={error} />
+          </CardContent>
+        </Card>
       </div>
       <MadeWithDyad />
     </div>

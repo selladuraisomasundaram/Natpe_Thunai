@@ -1,131 +1,122 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID } from '@/lib/appwrite';
+import { Query, Models } from 'appwrite';
+import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
-import { MarketTransactionItem, FoodOrderItem } from '@/types/activity'; // Corrected import path
+import { MarketTransactionItem, FoodOrderItem } from '@/pages/TrackingPage'; // Re-using interfaces from TrackingPage
 
-// Placeholder for fetching wallet balance from Appwrite
-const fetchWalletBalance = async (userId: string): Promise<number> => {
-  // In a real application, you would fetch this from your Appwrite database
-  // For now, we'll return a mock value
-  console.log(`Fetching wallet balance for user: ${userId}`);
-  return new Promise((resolve) => setTimeout(() => resolve(1500.75), 500)); // Mock API call
-};
+interface WalletBalanceState {
+  earnedBalance: number;
+  spentBalance: number;
+  isLoading: boolean;
+  error: string | null;
+  refetch: () => void;
+}
 
-// Placeholder for fetching recent transactions
-const fetchRecentTransactions = async (userId: string): Promise<(MarketTransactionItem | FoodOrderItem)[]> => {
-  // In a real application, you would fetch this from your Appwrite database
-  // For now, we'll return mock data
-  console.log(`Fetching recent transactions for user: ${userId}`);
-  return new Promise((resolve) =>
-    setTimeout(
-      () =>
-        resolve([
-          {
-            id: 'mkt-001',
-            itemName: 'Textbook: Calculus I',
-            sellerName: 'Alice Johnson',
-            buyerName: 'You',
-            amount: 350.00,
-            date: '2023-10-26T10:00:00Z',
-            status: 'completed',
-          },
-          {
-            id: 'food-001',
-            restaurantName: 'Campus Cafe',
-            items: ['Latte', 'Croissant'],
-            totalAmount: 120.50,
-            date: '2023-10-25T14:30:00Z',
-            status: 'delivered',
-          },
-          {
-            id: 'mkt-002',
-            itemName: 'Gaming Mouse',
-            sellerName: 'You',
-            buyerName: 'Bob Williams',
-            amount: 800.00,
-            date: '2023-10-24T18:00:00Z',
-            status: 'pending',
-          },
-          {
-            id: 'mkt-003',
-            itemName: 'Used Bicycle',
-            sellerName: 'You',
-            buyerName: 'Charlie Brown',
-            amount: 2000.00,
-            date: '2023-10-23T12:00:00Z',
-            status: 'completed',
-          },
-          {
-            id: 'food-002',
-            restaurantName: 'Pizza Palace',
-            items: ['Large Pizza'],
-            totalAmount: 450.00,
-            date: '2023-10-22T19:00:00Z',
-            status: 'delivered',
-          },
-        ]),
-      700
-    )
-  );
-};
-
-export const useWalletBalance = () => {
+export const useWalletBalance = (): WalletBalanceState => {
   const { user } = useAuth();
-  const [balance, setBalance] = useState<number | null>(null);
-  const [transactions, setTransactions] = useState<(MarketTransactionItem | FoodOrderItem)[]>([]);
-  const [earnedBalance, setEarnedBalance] = useState<number>(0);
-  const [spentBalance, setSpentBalance] = useState<number>(0);
+  const [earnedBalance, setEarnedBalance] = useState(0);
+  const [spentBalance, setSpentBalance] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchBalances = useCallback(async () => {
+    if (!user?.$id) {
+      setEarnedBalance(0);
+      setSpentBalance(0);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    let totalEarned = 0;
+    let totalSpent = 0;
+
+    try {
+      // Fetch Market Transactions (Buy/Sell)
+      const marketTransactionsResponse = await databases.listDocuments(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_TRANSACTIONS_COLLECTION_ID,
+        [
+          Query.or([
+            Query.equal('buyerId', user.$id),
+            Query.equal('sellerId', user.$id) // Changed to sellerId
+          ]),
+          Query.limit(100) // Fetch a reasonable number of transactions
+        ]
+      );
+
+      marketTransactionsResponse.documents.forEach((doc: Models.Document) => {
+        const tx = doc as unknown as MarketTransactionItem;
+        if (tx.sellerId === user.$id && tx.status === 'paid_to_seller' && tx.netSellerAmount !== undefined) { // Changed to sellerId
+          totalEarned += tx.netSellerAmount;
+        }
+        if (tx.buyerId === user.$id && tx.status !== 'failed') { // Count all non-failed purchases as spent
+          totalSpent += tx.amount;
+        }
+      });
+
+      // Fetch Food Orders
+      const foodOrdersResponse = await databases.listDocuments(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_FOOD_ORDERS_COLLECTION_ID,
+        [
+          Query.or([
+            Query.equal('buyerId', user.$id),
+            Query.equal('providerId', user.$id)
+          ]),
+          Query.limit(100) // Fetch a reasonable number of orders
+        ]
+      );
+
+      foodOrdersResponse.documents.forEach((doc: Models.Document) => {
+        const order = doc as unknown as FoodOrderItem;
+        if (order.providerId === user.$id && order.status === 'Delivered') {
+          totalEarned += order.totalAmount;
+        }
+        if (order.buyerId === user.$id && order.status === 'Delivered') { // Count delivered orders as spent
+          totalSpent += order.totalAmount;
+        }
+      });
+
+      setEarnedBalance(totalEarned);
+      setSpentBalance(totalSpent);
+
+    } catch (err: any) {
+      console.error("Error fetching wallet balances:", err);
+      setError(err.message || "Failed to load wallet balances.");
+      toast.error("Failed to load wallet balances.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
-    const loadWalletData = async () => {
-      if (!user?.$id) {
-        setBalance(null);
-        setTransactions([]);
-        setEarnedBalance(0);
-        setSpentBalance(0);
-        setIsLoading(false);
-        return;
+    fetchBalances();
+
+    // Setup real-time subscriptions for transactions and food orders
+    const unsubscribeTransactions = databases.client.subscribe(
+      `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_TRANSACTIONS_COLLECTION_ID}.documents`,
+      () => {
+        fetchBalances(); // Refetch balances on any transaction change
       }
+    );
 
-      setIsLoading(true);
-      setError(null);
-      try {
-        const [userBalance, userTransactions] = await Promise.all([
-          fetchWalletBalance(user.$id),
-          fetchRecentTransactions(user.$id),
-        ]);
-        setBalance(userBalance);
-        setTransactions(userTransactions);
-
-        let totalEarned = 0;
-        let totalSpent = 0;
-
-        userTransactions.forEach(tx => {
-          if ('buyerName' in tx && tx.buyerName === 'You' && tx.status === 'completed') {
-            totalSpent += tx.amount;
-          } else if ('sellerName' in tx && tx.sellerName === 'You' && tx.status === 'completed') {
-            totalEarned += tx.amount;
-          } else if ('restaurantName' in tx && tx.status === 'delivered') {
-            totalSpent += tx.totalAmount;
-          }
-        });
-
-        setEarnedBalance(totalEarned);
-        setSpentBalance(totalSpent);
-
-      } catch (err: any) {
-        console.error("Failed to load wallet data:", err);
-        setError(err.message || "Failed to load wallet data.");
-      } finally {
-        setIsLoading(false);
+    const unsubscribeFoodOrders = databases.client.subscribe(
+      `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_FOOD_ORDERS_COLLECTION_ID}.documents`,
+      () => {
+        fetchBalances(); // Refetch balances on any food order change
       }
+    );
+
+    return () => {
+      unsubscribeTransactions();
+      unsubscribeFoodOrders();
     };
+  }, [fetchBalances]);
 
-    loadWalletData();
-  }, [user?.$id]);
-
-  return { balance, transactions, earnedBalance, spentBalance, isLoading, error };
+  return { earnedBalance, spentBalance, isLoading, error, refetch: fetchBalances };
 };

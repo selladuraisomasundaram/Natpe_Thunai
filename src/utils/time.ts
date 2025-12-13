@@ -1,56 +1,71 @@
-import { differenceInSeconds, addYears, intervalToDuration, isPast, Duration } from 'date-fns';
+"use client";
 
-const GRADUATION_PERIOD_YEARS = 4; // 4 years for graduation
+import { differenceInSeconds, addYears, addMonths, addDays, format, intervalToDuration } from 'date-fns';
 
-export interface GraduationData {
+interface GraduationData {
+  totalDurationSeconds: number;
+  elapsedSeconds: number;
+  remainingSeconds: number;
   progressPercentage: number;
-  isGraduationProtocolActive: boolean;
-  isGraduated: boolean;
-  countdown: Duration;
-}
-
-export function getGraduationData(userCreationDate: string): GraduationData {
-  const creationDate = new Date(userCreationDate);
-  const graduationDate = addYears(creationDate, GRADUATION_PERIOD_YEARS);
-  const protocolActivationDate = addYears(creationDate, GRADUATION_PERIOD_YEARS - 0.5); // 3.5 years mark
-
-  const now = new Date();
-
-  const totalDurationSeconds = differenceInSeconds(graduationDate, creationDate);
-  const elapsedDurationSeconds = differenceInSeconds(now, creationDate);
-
-  let progressPercentage = (elapsedDurationSeconds / totalDurationSeconds) * 100;
-  progressPercentage = Math.max(0, Math.min(100, progressPercentage)); // Clamp between 0 and 100
-
-  const isGraduated = isPast(graduationDate);
-  const isGraduationProtocolActive = isPast(protocolActivationDate) && !isGraduated;
-
-  let countdown: Duration;
-  if (isGraduated) {
-    countdown = { years: 0, months: 0, days: 0, hours: 0, minutes: 0, seconds: 0 };
-  } else {
-    countdown = intervalToDuration({ start: now, end: graduationDate });
-  }
-
-  return {
-    progressPercentage,
-    isGraduationProtocolActive,
-    isGraduated,
-    countdown,
+  isGraduationProtocolActive: boolean; // After 3.5 years
+  isGraduated: boolean; // After 4 years
+  countdown: {
+    days: number;
+    hours: number;
+    minutes: number;
+    seconds: number;
   };
 }
 
-export function formatDuration(duration: Duration): string {
-  const parts: string[] = [];
-  if (duration.years && duration.years > 0) parts.push(`${duration.years}y`);
-  if (duration.months && duration.months > 0) parts.push(`${duration.months}m`);
-  if (duration.days && duration.days > 0) parts.push(`${duration.days}d`);
-  if (duration.hours && parts.length < 2) parts.push(`${duration.hours}h`); // Only show hours if less than 2 larger units
-  if (duration.minutes && parts.length < 2) parts.push(`${duration.minutes}m`); // Only show minutes if less than 2 larger units
-  if (duration.seconds && parts.length < 2) parts.push(`${duration.seconds}s`); // Only show seconds if less than 2 larger units
+/**
+ * Calculates the graduation meter data based on a given start date.
+ * @param startDateString The ISO string of the user's account creation date (e.g., '2024-01-01T00:00:00Z').
+ * @returns GraduationData object.
+ */
+export const getGraduationData = (startDateString: string): GraduationData => {
+  const startDate = new Date(startDateString);
+  const now = new Date();
 
-  if (parts.length === 0) {
-    return "Graduated!";
-  }
-  return parts.join(" ");
-}
+  const fourYearsLater = addYears(startDate, 4);
+  const threePointFiveYearsLater = addMonths(addYears(startDate, 3), 6); // 3 years and 6 months
+
+  const totalDurationSeconds = differenceInSeconds(fourYearsLater, startDate);
+  const elapsedSeconds = differenceInSeconds(now, startDate);
+  const remainingSeconds = differenceInSeconds(fourYearsLater, now);
+
+  const progressPercentage = Math.max(0, Math.min(100, (elapsedSeconds / totalDurationSeconds) * 100));
+
+  const isGraduationProtocolActive = now >= threePointFiveYearsLater && now < fourYearsLater;
+  const isGraduated = now >= fourYearsLater;
+
+  const duration = intervalToDuration({ start: now, end: fourYearsLater });
+
+  return {
+    totalDurationSeconds,
+    elapsedSeconds: Math.max(0, elapsedSeconds),
+    remainingSeconds: Math.max(0, remainingSeconds),
+    progressPercentage,
+    isGraduationProtocolActive,
+    isGraduated,
+    countdown: {
+      days: Math.max(0, duration.days || 0),
+      hours: Math.max(0, duration.hours || 0),
+      minutes: Math.max(0, duration.minutes || 0),
+      seconds: Math.max(0, duration.seconds || 0),
+    },
+  };
+};
+
+/**
+ * Formats a duration object into a human-readable string.
+ * @param duration The duration object from date-fns.
+ * @returns Formatted string (e.g., "123d 10h 30m 15s").
+ */
+export const formatDuration = (duration: { days: number; hours: number; minutes: number; seconds: number }): string => {
+  const parts = [];
+  if (duration.days > 0) parts.push(`${duration.days}d`);
+  if (duration.hours > 0) parts.push(`${duration.hours}h`);
+  if (duration.minutes > 0) parts.push(`${duration.minutes}m`);
+  if (duration.seconds > 0 || parts.length === 0) parts.push(`${duration.seconds}s`); // Always show seconds if nothing else, or if it's the last part
+  return parts.join(' ');
+};

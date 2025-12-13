@@ -1,72 +1,120 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Loader2, PlusCircle } from "lucide-react";
 import { toast } from "sonner";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
-import { Calendar } from "@/components/ui/calendar";
-import { cn } from "@/lib/utils";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_TOURNAMENTS_COLLECTION_ID } from "@/lib/appwrite";
+import { ID } from 'appwrite';
+import { useAuth } from "@/context/AuthContext";
 
-// Define the form schema using Zod
+// Define common game options
+const GAME_OPTIONS = [
+  { value: "valorant", label: "Valorant" },
+  { value: "cs2", label: "Counter-Strike 2" },
+  { value: "dota2", label: "Dota 2" },
+  { value: "mobile-legends", label: "Mobile Legends" },
+  { value: "bgmi", label: "BGMI" },
+  { value: "other", label: "Other" },
+];
+
 const formSchema = z.object({
-  name: z.string().min(1, "Tournament name is required."),
-  game: z.string().min(1, "Game name is required."),
-  date: z.date({
-    required_error: "A date for the tournament is required.",
-  }),
-  fee: z.coerce.number().min(0, "Fee cannot be negative."),
-  prizePool: z.string().min(1, "Prize pool details are required."),
-  minPlayers: z.coerce.number().min(1, "Minimum players must be at least 1."),
-  maxPlayers: z.coerce.number().min(1, "Maximum players must be at least 1."),
-  description: z.string().min(1, "Description is required."),
-  rules: z.string().min(1, "Rules are required."),
-  status: z.enum(["Open", "Ongoing", "Completed", "Closed"], {
-    required_error: "Status is required.",
-  }),
+  name: z.string().min(3, { message: "Tournament name must be at least 3 characters." }),
+  game: z.string().min(1, { message: "Please select a game." }),
+  otherGameDescription: z.string().optional(), // For 'other' game type
+  date: z.string().min(1, { message: "Date is required." }),
+  fee: z.preprocess(
+    (val) => Number(val),
+    z.number().min(0, { message: "Fee cannot be negative." })
+  ),
+  prizePool: z.string().min(1, { message: "Prize pool details are required." }),
+  minPlayers: z.preprocess(
+    (val) => Number(val),
+    z.number().min(1, { message: "Minimum players must be at least 1." })
+  ),
+  maxPlayers: z.preprocess(
+    (val) => Number(val),
+    z.number().min(1, { message: "Maximum players must be at least 1." })
+  ),
+  description: z.string().min(10, { message: "Description must be at least 10 characters." }),
+  rules: z.string().min(10, { message: "Rules must be at least 10 characters." }),
 });
 
-export type TournamentPostData = z.infer<typeof formSchema>;
-
 interface PostTournamentFormProps {
-  onSubmit: (data: TournamentPostData) => Promise<void>;
+  onTournamentPosted: () => void;
   onCancel: () => void;
 }
 
-const PostTournamentForm: React.FC<PostTournamentFormProps> = ({ onSubmit, onCancel }) => {
+const PostTournamentForm: React.FC<PostTournamentFormProps> = ({ onTournamentPosted, onCancel }) => {
+  const { user, userProfile } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const form = useForm<TournamentPostData>({
+  const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
       game: "",
-      date: undefined,
+      otherGameDescription: "",
+      date: "",
       fee: 0,
       prizePool: "",
       minPlayers: 1,
-      maxPlayers: 1,
+      maxPlayers: 5,
       description: "",
       rules: "",
-      status: "Open",
     },
   });
 
-  const handleSubmit = async (data: TournamentPostData) => {
+  const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
+    if (!user || !userProfile) {
+      toast.error("You must be logged in to post a tournament.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      await onSubmit(data);
+      // If game is 'other' and otherGameDescription is empty, show error
+      if (data.game === 'other' && !data.otherGameDescription?.trim()) {
+        form.setError("otherGameDescription", {
+          type: "manual",
+          message: "Please specify the 'Other' game.",
+        });
+        toast.error("Please specify the 'Other' game.");
+        return;
+      }
+
+      const newTournamentData = {
+        ...data,
+        // Use otherGameDescription as the actual game if 'other' is selected
+        game: data.game === 'other' && data.otherGameDescription 
+              ? data.otherGameDescription 
+              : data.game,
+        posterId: user.$id,
+        posterName: user.name,
+        collegeName: userProfile.collegeName,
+        status: "Open", // Default status
+        registeredTeams: [], // Initialize as empty array
+        standings: [], // Initialize as empty array
+        winners: [], // Initialize as empty array
+      };
+
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_TOURNAMENTS_COLLECTION_ID,
+        ID.unique(),
+        newTournamentData
+      );
+
+      toast.success(`Tournament "${data.name}" posted successfully!`);
+      onTournamentPosted();
       form.reset();
     } catch (error: any) {
       console.error("Error posting tournament:", error);
@@ -76,9 +124,11 @@ const PostTournamentForm: React.FC<PostTournamentFormProps> = ({ onSubmit, onCan
     }
   };
 
+  const selectedGame = form.watch("game");
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
         <FormField
           control={form.control}
           name="name"
@@ -86,7 +136,7 @@ const PostTournamentForm: React.FC<PostTournamentFormProps> = ({ onSubmit, onCan
             <FormItem>
               <FormLabel className="text-foreground">Tournament Name</FormLabel>
               <FormControl>
-                <Input {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                <Input placeholder="e.g., Campus Clash Valorant" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -98,45 +148,48 @@ const PostTournamentForm: React.FC<PostTournamentFormProps> = ({ onSubmit, onCan
           render={({ field }) => (
             <FormItem>
               <FormLabel className="text-foreground">Game</FormLabel>
-              <FormControl>
-                <Input {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
-              </FormControl>
+              <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
+                <FormControl>
+                  <SelectTrigger className="bg-input text-foreground border-border focus:ring-ring focus:border-ring">
+                    <SelectValue placeholder="Select a game" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent className="bg-popover text-popover-foreground border-border">
+                  {GAME_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}
         />
+        {selectedGame === 'other' && (
+          <FormField
+            control={form.control}
+            name="otherGameDescription"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-foreground">Specify Other Game</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Chess, FIFA 24" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <FormField
           control={form.control}
           name="date"
           render={({ field }) => (
-            <FormItem className="flex flex-col">
+            <FormItem>
               <FormLabel className="text-foreground">Date</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full pl-3 text-left font-normal bg-input text-foreground border-border hover:bg-input",
-                        !field.value && "text-muted-foreground"
-                      )}
-                      disabled={isSubmitting}
-                    >
-                      {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-card text-card-foreground border-border" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={field.value}
-                    onSelect={field.onChange}
-                    disabled={(date) => date < new Date("1900-01-01")} // Disable past dates
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <FormControl>
+                <Input type="text" placeholder="e.g., 2024-12-25" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -148,7 +201,7 @@ const PostTournamentForm: React.FC<PostTournamentFormProps> = ({ onSubmit, onCan
             <FormItem>
               <FormLabel className="text-foreground">Registration Fee (₹)</FormLabel>
               <FormControl>
-                <Input type="number" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                <Input type="number" placeholder="e.g., 100" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -161,7 +214,7 @@ const PostTournamentForm: React.FC<PostTournamentFormProps> = ({ onSubmit, onCan
             <FormItem>
               <FormLabel className="text-foreground">Prize Pool</FormLabel>
               <FormControl>
-                <Input {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                <Input placeholder="e.g., ₹5000, Gaming Headset" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -173,9 +226,9 @@ const PostTournamentForm: React.FC<PostTournamentFormProps> = ({ onSubmit, onCan
             name="minPlayers"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-foreground">Min Players/Team</FormLabel>
+                <FormLabel className="text-foreground">Min Players per Team</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                  <Input type="number" placeholder="e.g., 1" {...field} onChange={e => field.onChange(parseInt(e.target.value))} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -186,9 +239,9 @@ const PostTournamentForm: React.FC<PostTournamentFormProps> = ({ onSubmit, onCan
             name="maxPlayers"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-foreground">Max Players/Team</FormLabel>
+                <FormLabel className="text-foreground">Max Players per Team</FormLabel>
                 <FormControl>
-                  <Input type="number" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                  <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value))} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -202,7 +255,7 @@ const PostTournamentForm: React.FC<PostTournamentFormProps> = ({ onSubmit, onCan
             <FormItem>
               <FormLabel className="text-foreground">Description</FormLabel>
               <FormControl>
-                <Textarea {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                <Textarea placeholder="Describe the tournament, format, etc." {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -215,31 +268,8 @@ const PostTournamentForm: React.FC<PostTournamentFormProps> = ({ onSubmit, onCan
             <FormItem>
               <FormLabel className="text-foreground">Rules</FormLabel>
               <FormControl>
-                <Textarea {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                <Textarea placeholder="List out the rules for the tournament..." {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
               </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="text-foreground">Status</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
-                <FormControl>
-                  <SelectTrigger className="bg-input text-foreground border-border focus:ring-ring focus:border-ring">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent className="bg-popover text-popover-foreground border-border">
-                  <SelectItem value="Open">Open</SelectItem>
-                  <SelectItem value="Ongoing">Ongoing</SelectItem>
-                  <SelectItem value="Completed">Completed</SelectItem>
-                  <SelectItem value="Closed">Closed</SelectItem>
-                </SelectContent>
-              </Select>
               <FormMessage />
             </FormItem>
           )}

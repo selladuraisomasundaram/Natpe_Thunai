@@ -13,16 +13,16 @@ const QuickUpdatesBar = () => {
   const handleAction = (actionType: string) => {
     switch (actionType) {
       case "post-job":
-        toast.info("Navigating to Services section...");
-        navigate("/services"); // Navigate to main services page
+        toast.info("Navigating to Post a Job section...");
+        navigate("/services/post-job"); // Navigate to a specific coming soon page for jobs
         break;
       case "list-item":
-        toast.info("Navigating to Market section...");
-        navigate("/market"); // Navigate to main market page
+        toast.info("Navigating to Market to list an item...");
+        navigate("/market?action=list-sell"); // Navigate to market and trigger sell form
         break;
       case "cash-exchange":
-        toast.info("Navigating to Activity section...");
-        navigate("/activity"); // Navigate to main activity page
+        toast.info("Navigating to Cash Exchange section...");
+        navigate("/activity/cash-exchange"); // Navigate to existing cash exchange coming soon page
         break;
       default:
         toast.info(`"${actionType}" feature coming soon!`);
