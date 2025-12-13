@@ -230,10 +230,10 @@ const AuthPage = () => {
       <Card className="w-full max-w-md bg-card text-foreground shadow-lg rounded-lg border-border animate-fade-in">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold text-foreground">
-            {isLogin ? "Campus Hustle: Log In" : "Join the Campus Hustle"}
+            {isLogin ? "Welcome Back!" : "Join the Community"}
           </CardTitle>
           <CardDescription className="text-foreground">
-            {isLogin ? "Your campus connection awaits." : "Unlock your campus potential."}
+            {isLogin ? "Log in to connect and thrive." : "Sign up and unlock campus potential."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -262,7 +262,7 @@ const AuthPage = () => {
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
                       required
-                      className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
+                      className="bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring"
                     />
                   </div>
                 </div>
@@ -276,7 +276,7 @@ const AuthPage = () => {
                     onChange={(e) => setAge(e.target.value)}
                     required
                     min="16"
-                    className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
+                    className="bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring"
                   />
                 </div>
                 <div>
@@ -288,7 +288,7 @@ const AuthPage = () => {
                     value={mobileNumber}
                     onChange={(e) => setMobileNumber(e.target.value)}
                     required
-                    className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
+                    className="bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring"
                   />
                 </div>
                 <div>
@@ -300,7 +300,7 @@ const AuthPage = () => {
                     value={upiId}
                     onChange={(e) => setUpiId(e.target.value)}
                     required
-                    className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
+                    className="bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring"
                   />
                 </div>
                 <div>
@@ -338,7 +338,7 @@ const AuthPage = () => {
                     accept="image/*"
                     onChange={handleCollegeIdPhotoChange}
                     required
-                    className="bg-input text-foreground border-border focus:ring-ring focus:border-ring file:text-primary-foreground file:bg-primary-blue-light file:border-0 file:mr-4 file:py-2 file:px-4 file:rounded-md"
+                    className="bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring file:text-primary-foreground file:bg-primary-blue-light file:border-0 file:mr-4 file:py-2 file:px-4 file:rounded-md"
                   />
                   {collegeIdPhoto && <p className="text-xs text-muted-foreground mt-1">File selected: {collegeIdPhoto.name}</p>}
                   <a href="https://tinypng.com" target="_blank" rel="noopener noreferrer" className="text-xs text-secondary-neon hover:underline flex items-center gap-1 mt-1">
@@ -397,7 +397,7 @@ const AuthPage = () => {
                 <div>
                   <Label htmlFor="avatarStyle" className="text-foreground">Choose Your Avatar Style</Label>
                   <Select value={avatarStyle} onValueChange={setAvatarStyle} required disabled={loading}>
-                    <SelectTrigger className="w-full bg-input text-foreground border-border focus:ring-ring focus:border-ring">
+                    <SelectTrigger className="w-full bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring">
                       <SelectValue placeholder="Select avatar style" />
                     </SelectTrigger>
                     <SelectContent className="bg-popover text-popover-foreground border-border max-h-60 overflow-y-auto">
@@ -433,7 +433,7 @@ const AuthPage = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
+                className="bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring"
               />
             </div>
             <div>
@@ -446,7 +446,7 @@ const AuthPage = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="bg-input text-foreground border-border focus:ring-ring focus:border-ring pr-10"
+                  className="bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring pr-10"
                 />
                 <Button
                   type="button"
@@ -472,9 +472,9 @@ const AuthPage = () => {
             </Button>
           </form>
           <div className="mt-4 text-center text-sm text-muted-foreground">
-            {isLogin ? "Don't have an account? " : "Already have an account? "}
+            {isLogin ? "New here? " : "Already a member? "}
             <Button variant="link" onClick={() => setIsLogin(!isLogin)} className="p-0 h-auto text-secondary-neon hover:text-secondary-neon/80" disabled={loading}>
-              {isLogin ? "Sign Up" : "Log In"}
+              {isLogin ? "Create an Account" : "Log In"}
             </Button>
           </div>
         </CardContent>
