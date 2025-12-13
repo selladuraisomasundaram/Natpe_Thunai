@@ -24,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // Helper function to generate a random username
 const generateRandomUsername = (): string => {
   const adjectives = ["swift", "brave", "silent", "golden", "shadow", "mystic", "cosmic", "iron", "ruby", "emerald", "Hidden", "Veiled", "Phantom", "Ghost", "Arcane", "Cryptic", "Shrouded", "Astral"];
-  const nouns = ["wolf", "eagle", "phoenix", "dragon", "tiger", "badger", "viper", "golem", "knight", "wizard"];
+  const nouns = ["wolf", "eagle", "phoenix", "dragon", "tiger", "badger", "viper", "golem", "knight", "wizard", "Lynx", "Panther", "Falcon", "Shark", "Cobra", "Grizzly", "Leopard", "Raptor"];
   const randomAdjective = adjectives[Math.floor(Math.random() * adjectives.length)];
   const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
   const randomNumber = Math.floor(Math.random() * 100);
