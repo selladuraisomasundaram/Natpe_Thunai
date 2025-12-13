@@ -121,7 +121,7 @@ const GraduationMeter: React.FC = () => {
     }
 
     if (daysRemaining > 0 && levelsToGo > 0) {
-      motivationMessage += ` You have approximately ${daysRemaining} days left before graduation.`;
+      motivationMessage += ` You have approximately ${daysRemaining} days left before deletion of this account.`;
     } else if (daysRemaining <= 0 && levelsToGo > 0) {
       motivationMessage += ` Time is running out! Focus on learning new skills to reach Level ${targetLevel}.`;
     }
