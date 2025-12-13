@@ -21,24 +21,27 @@ export const useMarketListings = (): MarketListingsState => {
   const [error, setError] = useState<string | null>(null);
 
   const fetchProducts = useCallback(async () => {
-    // Wait for AuthContext to finish loading
+    // If AuthContext is still loading, we can't determine user's college or role yet.
+    // We should wait for AuthContext to finish its initial loading.
     if (isAuthLoading) {
-      setIsLoading(true); // Keep loading state true while auth is loading
+      // Keep local isLoading true while auth is still determining its state.
+      // This prevents premature API calls.
       return;
     }
 
     const isDeveloper = userProfile?.role === 'developer';
     const collegeToFilterBy = userProfile?.collegeName;
 
-    // If not a developer and no college is set in profile, then there's nothing to fetch for this user.
+    // If not a developer AND no college is set in profile, then there's nothing to fetch for this user.
+    // In this case, we should set isLoading to false and potentially an error.
     if (!isDeveloper && !collegeToFilterBy) {
-      setIsLoading(false);
+      setIsLoading(false); // Crucial: set to false here
       setProducts([]);
       setError("User profile is missing college information. Please update your profile.");
       return;
     }
 
-    setIsLoading(true);
+    setIsLoading(true); // Start loading for data fetch
     setError(null);
     try {
       const queries = [
@@ -81,7 +84,7 @@ export const useMarketListings = (): MarketListingsState => {
       setError(err.message || "Failed to load market listings.");
       toast.error("Failed to load market listings.");
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Crucial: always set to false after fetch attempt
     }
   }, [isAuthLoading, userProfile?.collegeName, userProfile?.role]); // Depend on auth loading state as well
 
