@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, Settings, MessageSquare } from 'lucide-react';
+import { Bell, Settings } from 'lucide-react'; // Removed MessageSquare import
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/context/AuthContext';
 import { generateAvatarUrl } from '@/utils/avatarGenerator';
@@ -26,9 +26,7 @@ const TopNavbar = () => {
         </Link>
 
         <div className="flex items-center space-x-4">
-          <Link to="/chat" className="text-muted-foreground hover:text-foreground transition-colors">
-            <MessageSquare className="h-5 w-5" />
-          </Link>
+          {/* Removed chat icon */}
           <Link to="/settings" className="text-muted-foreground hover:text-foreground transition-colors">
             <Settings className="h-5 w-5" />
           </Link>

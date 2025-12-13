@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingBag, Briefcase, Activity, User } from 'lucide-react';
+import { Home, ShoppingBag, Briefcase, Activity, User, Truck } from 'lucide-react'; // Added Truck icon
 import { cn } from '@/lib/utils';
 
 const BottomNavbar = () => {
@@ -13,6 +13,7 @@ const BottomNavbar = () => {
     { name: 'Market', icon: ShoppingBag, path: '/market' },
     { name: 'Services', icon: Briefcase, path: '/services' },
     { name: 'Activity', icon: Activity, path: '/activity' },
+    { name: 'Tracking', icon: Truck, path: '/tracking' }, // Added Tracking
     { name: 'Profile', icon: User, path: '/profile' },
   ];
 

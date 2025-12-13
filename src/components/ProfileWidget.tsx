@@ -127,7 +127,7 @@ const ProfileWidget = () => {
         </div>
         
         {renderMotivationalMessage() && (
-          <div className="mt-3 p-3 bg-white/10 rounded-md text-white/90 text-sm italic max-w-sm">
+          <div className="mt-3 p-3 bg-black/20 rounded-md text-white text-sm italic max-w-sm">
             {renderMotivationalMessage()}
           </div>
         )}

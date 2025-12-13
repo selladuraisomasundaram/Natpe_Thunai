@@ -29,6 +29,13 @@ export const useLostFoundListings = (collegeName?: string) => {
     const fetchListings = async () => {
       setIsLoading(true);
       setError(null);
+
+      if (!APPWRITE_LOST_FOUND_COLLECTION_ID) {
+        setError("Appwrite Lost & Found Collection ID is not configured. Please check your environment variables.");
+        setIsLoading(false);
+        return;
+      }
+
       try {
         let queries = [Query.orderDesc("$createdAt")];
         if (targetCollegeName) {
@@ -51,28 +58,34 @@ export const useLostFoundListings = (collegeName?: string) => {
     fetchListings();
 
     // Real-time subscription
-    const unsubscribe = databases.client.subscribe(
-      `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_LOST_FOUND_COLLECTION_ID}.documents`,
-      (response) => {
-        if (response.events.includes("databases.*.collections.*.documents.*.create")) {
-          const newListing = response.payload as unknown as LostFoundPost;
-          if (newListing.collegeName === targetCollegeName) {
-            setListings((prev) => [newListing, ...prev]);
+    let unsubscribe: () => void;
+    if (APPWRITE_LOST_FOUND_COLLECTION_ID) { // Only subscribe if collection ID is available
+      unsubscribe = databases.client.subscribe(
+        `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_LOST_FOUND_COLLECTION_ID}.documents`,
+        (response) => {
+          if (response.events.includes("databases.*.collections.*.documents.*.create")) {
+            const newListing = response.payload as unknown as LostFoundPost;
+            if (newListing.collegeName === targetCollegeName) {
+              setListings((prev) => [newListing, ...prev]);
+            }
+          } else if (response.events.includes("databases.*.collections.*.documents.*.update")) {
+            const updatedListing = response.payload as unknown as LostFoundPost;
+            setListings((prev) =>
+              prev.map((l) => (l.$id === updatedListing.$id ? updatedListing : l))
+            );
+          } else if (response.events.includes("databases.*.collections.*.documents.*.delete")) {
+            const deletedListing = response.payload as unknown as LostFoundPost;
+            setListings((prev) => prev.filter((l) => l.$id !== deletedListing.$id));
           }
-        } else if (response.events.includes("databases.*.collections.*.documents.*.update")) {
-          const updatedListing = response.payload as unknown as LostFoundPost;
-          setListings((prev) =>
-            prev.map((l) => (l.$id === updatedListing.$id ? updatedListing : l))
-          );
-        } else if (response.events.includes("databases.*.collections.*.documents.*.delete")) {
-          const deletedListing = response.payload as unknown as LostFoundPost;
-          setListings((prev) => prev.filter((l) => l.$id !== deletedListing.$id));
         }
-      }
-    );
+      );
+    }
+
 
     return () => {
-      unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, [targetCollegeName]);
 
