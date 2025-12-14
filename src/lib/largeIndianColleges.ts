@@ -3062,3 +3062,4 @@ export const largeIndianColleges = [
   "Indian Institute of Information Technology, Bhubaneswar",
   "Indian Institute of Information Technology, Naya Raipur",
   "Indian Institute of Information Technology, Raichur"
+]
