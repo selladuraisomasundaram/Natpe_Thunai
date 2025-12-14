@@ -32,18 +32,6 @@ const ServicesPage = () => {
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
       <h1 className="text-4xl font-bold mb-6 text-center text-foreground">The Grind (Services)</h1>
       <div className="max-w-md mx-auto space-y-6">
-        {/* New Tournament Card */}
-        <Link to="/tournaments">
-          <Card className="bg-card p-4 rounded-lg shadow-md border border-border cursor-pointer hover:shadow-xl transition-shadow">
-            <CardHeader className="p-0 pb-2">
-              <CardTitle className="text-xl font-semibold text-card-foreground">Esports Arena</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <p className="text-muted-foreground">Register for mobile esports tournaments, view winners, and check standings.</p>
-            </CardContent>
-          </Card>
-        </Link>
-        
         {/* Student Welfare & E-commerce Links */}
         <StudentWelfareLinks />
 
