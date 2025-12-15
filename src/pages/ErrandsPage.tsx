@@ -26,6 +26,7 @@ const STANDARD_ERRAND_OPTIONS = [
 const ErrandsPage = () => {
   const { user, userProfile } = useAuth();
   const [isPostErrandDialogOpen, setIsPostErrandDialogOpen] = useState(false);
+  const [initialCategoryForForm, setInitialCategoryForForm] = useState<string | undefined>(undefined);
   
   // Fetch only standard errands for the user's college
   const { errands: postedErrands, isLoading, error } = useErrandListings(ERRAND_TYPES);
@@ -33,11 +34,12 @@ const ErrandsPage = () => {
   // Content is age-gated if user is 25 or older
   const isAgeGated = (userProfile?.age ?? 0) >= 25; 
 
-  const handleErrandClick = (errandType: string) => {
-    toast.info(`You selected "${errandType}". Post your errand using the button below.`);
+  const handleErrandClick = (categoryValue: string) => {
+    setInitialCategoryForForm(categoryValue);
+    setIsPostErrandDialogOpen(true);
   };
 
-  const handlePostErrand = async (data: Omit<ErrandPost, "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId" | "posterId" | "posterName" | "collegeName">) => { // NEW: Remove collegeName from Omit
+  const handlePostErrand = async (data: Omit<ErrandPost, "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId" | "posterId" | "posterName" | "collegeName">) => {
     if (!user || !userProfile) {
       toast.error("You must be logged in to post an errand.");
       return;
@@ -60,6 +62,7 @@ const ErrandsPage = () => {
       
       toast.success(`Your errand "${data.title}" has been posted!`);
       setIsPostErrandDialogOpen(false);
+      setInitialCategoryForForm(undefined); // Reset initial category
     } catch (e: any) {
       console.error("Error posting errand:", e);
       toast.error(e.message || "Failed to post errand listing.");
@@ -82,25 +85,25 @@ const ErrandsPage = () => {
             </p>
             <Button
               className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleErrandClick("Note-writing/Transcription")}
+              onClick={() => handleErrandClick("note-writing")}
             >
               <NotebookPen className="mr-2 h-4 w-4" /> Note-writing/Transcription
             </Button>
             <Button
               className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleErrandClick("Small Jobs (e.g., moving books)")}
+              onClick={() => handleErrandClick("small-job")}
             >
               <Bike className="mr-2 h-4 w-4" /> Small Jobs (e.g., moving books)
             </Button>
             <Button
               className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleErrandClick("Delivery Services (within campus)")}
+              onClick={() => handleErrandClick("delivery")}
             >
               <Bike className="mr-2 h-4 w-4" /> Delivery Services (within campus)
             </Button>
             <Dialog open={isPostErrandDialogOpen} onOpenChange={setIsPostErrandDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 mt-4" disabled={isAgeGated}>
+                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 mt-4" disabled={isAgeGated} onClick={() => handleErrandClick(undefined)}>
                   <PlusCircle className="mr-2 h-4 w-4" /> Post Your Errand
                 </Button>
               </DialogTrigger>
@@ -110,8 +113,12 @@ const ErrandsPage = () => {
                 </DialogHeader>
                 <PostErrandForm 
                   onSubmit={handlePostErrand} 
-                  onCancel={() => setIsPostErrandDialogOpen(false)} 
+                  onCancel={() => {
+                    setIsPostErrandDialogOpen(false);
+                    setInitialCategoryForForm(undefined); // Reset initial category on cancel
+                  }} 
                   categoryOptions={STANDARD_ERRAND_OPTIONS}
+                  initialCategory={initialCategoryForForm}
                 />
               </DialogContent>
             </Dialog>
@@ -134,17 +141,22 @@ const ErrandsPage = () => {
             ) : error ? (
               <p className="text-center text-destructive py-4">Error loading errands: {error}</p>
             ) : postedErrands.length > 0 ? (
-              postedErrands.map((errand) => (
-                <div key={errand.$id} className="p-3 border border-border rounded-md bg-background">
-                  <h3 className="font-semibold text-foreground">{errand.title}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{errand.description}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Type: <span className="font-medium text-foreground">{errand.type}</span></p>
-                  <p className="text-xs text-muted-foreground">Compensation: <span className="font-medium text-foreground">{errand.compensation}</span></p>
-                  {errand.deadline && <p className="text-xs text-muted-foreground">Deadline: <span className="font-medium text-foreground">{errand.deadline}</span></p>}
-                  <p className="text-xs text-muted-foreground">Contact: <span className="font-medium text-foreground">{errand.contact}</span></p>
-                  <p className="text-xs text-muted-foreground">Posted: {new Date(errand.$createdAt).toLocaleDateString()}</p>
-                </div>
-              ))
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"> {/* NEW: 2-column layout */}
+                {postedErrands.map((errand) => (
+                  <div key={errand.$id} className="p-3 border border-border rounded-md bg-background">
+                    <h3 className="font-semibold text-foreground">{errand.title}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">{errand.description}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Category: <span className="font-medium text-foreground">{STANDARD_ERRAND_OPTIONS.find(opt => opt.value === errand.category)?.label || errand.category}</span></p>
+                    {errand.category === 'other' && errand.otherCategoryDescription && (
+                      <p className="text-xs text-muted-foreground">Other: <span className="font-medium text-foreground">{errand.otherCategoryDescription}</span></p>
+                    )}
+                    <p className="text-xs text-muted-foreground">Compensation: <span className="font-medium text-foreground">{errand.compensation}</span></p>
+                    {errand.deadline && <p className="text-xs text-muted-foreground">Deadline: <span className="font-medium text-foreground">{errand.deadline}</span></p>}
+                    <p className="text-xs text-muted-foreground">Contact: <span className="font-medium text-foreground">{errand.contact}</span></p>
+                    <p className="text-xs text-muted-foreground">Posted: {new Date(errand.$createdAt).toLocaleDateString()}</p>
+                  </div>
+                ))}
+              </div>
             ) : (
               <p className="text-center text-muted-foreground py-4">No errands posted yet for your college. Be the first!</p>
             )}
