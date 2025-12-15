@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import BargainRequestsWidget from "@/components/BargainRequestsWidget";
+import UnlockingSoonCard from "@/components/UnlockingSoonCard"; // NEW IMPORT
 
 const ActivityPage = () => {
   const navigate = useNavigate();
@@ -64,6 +65,9 @@ const ActivityPage = () => {
             <p className="text-muted-foreground">Stay updated with esports dates, points tables, and winner announcements.</p>
           </CardContent>
         </Card>
+
+        {/* NEW: Unlocking Soon Card */}
+        <UnlockingSoonCard />
       </div>
       <MadeWithDyad />
     </div>
