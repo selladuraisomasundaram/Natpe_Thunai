@@ -20,25 +20,20 @@ export const useTotalUsers = (collegeNameFilter?: string): TotalUsersState => {
   const [error, setError] = useState<string | null>(null);
 
   const fetchTotalUsers = useCallback(async () => {
-    if (isAuthLoading || userProfile === null) {
-      setIsLoading(true); // Keep loading true while auth is resolving
-      return;
-    }
-
     const isDeveloper = userProfile?.role === 'developer';
     const collegeToFilterBy = collegeNameFilter || userProfile?.collegeName;
 
-    if (!isDeveloper && !collegeToFilterBy) {
+    if (!userProfile || (!isDeveloper && !collegeToFilterBy)) {
       setIsLoading(false);
       setTotalUsers(0);
-      setError("User profile is missing college information. Cannot fetch total users.");
+      setError("User profile not loaded or missing college information. Cannot fetch total users.");
       return;
     }
 
     setIsLoading(true);
     setError(null);
     try {
-      const queries = []; // Removed Query.limit(1)
+      const queries = []; 
 
       if (!isDeveloper && collegeToFilterBy) {
         queries.push(Query.equal('collegeName', collegeToFilterBy));
@@ -57,15 +52,22 @@ export const useTotalUsers = (collegeNameFilter?: string): TotalUsersState => {
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthLoading, collegeNameFilter, userProfile]);
+  }, [collegeNameFilter, userProfile]);
 
   useEffect(() => {
-    if (!isAuthLoading && userProfile !== null) {
-      fetchTotalUsers();
+    if (isAuthLoading) {
+      setIsLoading(true);
+      return;
     }
-    if (isAuthLoading || userProfile === null) {
-        setIsLoading(true);
+
+    if (userProfile === null) {
+      setIsLoading(false);
+      setTotalUsers(0);
+      setError("User profile not loaded. Cannot fetch total users.");
+      return;
     }
+
+    fetchTotalUsers();
   }, [fetchTotalUsers, isAuthLoading, userProfile]);
 
   return { totalUsers, isLoading, error, refetch: fetchTotalUsers };
