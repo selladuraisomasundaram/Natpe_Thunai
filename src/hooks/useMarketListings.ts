@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID, APPWRITE_USER_PROFILES_COLLECTION_ID } from '@/lib/appwrite'; // NEW: Import APPWRITE_USER_PROFILES_COLLECTION_ID
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID, APPWRITE_USER_PROFILES_COLLECTION_ID } from '@/lib/appwrite';
 import { Models, Query } from 'appwrite';
 import { toast } from 'sonner';
-import { Product } from '@/lib/mockData'; // Assuming Product interface is still needed
-import { useAuth } from '@/context/AuthContext'; // NEW: Import useAuth
+import { Product } from '@/lib/mockData';
+import { useAuth } from '@/context/AuthContext';
 
 interface MarketListingsState {
   products: Product[];
@@ -15,17 +15,18 @@ interface MarketListingsState {
 }
 
 export const useMarketListings = (): MarketListingsState => {
-  const { userProfile, isLoading: isAuthLoading } = useAuth(); // Get auth loading state
+  const { userProfile, isLoading: isAuthLoading } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchProducts = useCallback(async () => {
-    // If AuthContext is still loading, we can't determine user's college or role yet.
-    // We should wait for AuthContext to finish its initial loading.
-    if (isAuthLoading) {
-      // Keep local isLoading true while auth is still determining its state.
-      // This prevents premature API calls.
+    // If AuthContext is still loading, or if userProfile isn't ready,
+    // we can't determine the college filter or developer role.
+    // In this state, the AnalyticsCard should be showing the global auth loading.
+    // So, this specific hook should not be "loading" its own data yet.
+    if (isAuthLoading || userProfile === null) {
+      setIsLoading(true); // Keep loading true while auth is resolving
       return;
     }
 
@@ -33,9 +34,9 @@ export const useMarketListings = (): MarketListingsState => {
     const collegeToFilterBy = userProfile?.collegeName;
 
     // If not a developer AND no college is set in profile, then there's nothing to fetch for this user.
-    // In this case, we should set isLoading to false and potentially an error.
+    // Set loading to false and potentially an error.
     if (!isDeveloper && !collegeToFilterBy) {
-      setIsLoading(false); // Crucial: set to false here
+      setIsLoading(false);
       setProducts([]);
       setError("User profile is missing college information. Please update your profile.");
       return;
@@ -49,7 +50,7 @@ export const useMarketListings = (): MarketListingsState => {
         Query.equal('status', 'available'),
       ];
       if (!isDeveloper) {
-        queries.push(Query.equal('collegeName', collegeToFilterBy!)); // Use the determined college name
+        queries.push(Query.equal('collegeName', collegeToFilterBy!));
       }
 
       const response = await databases.listDocuments(
@@ -84,13 +85,22 @@ export const useMarketListings = (): MarketListingsState => {
       setError(err.message || "Failed to load market listings.");
       toast.error("Failed to load market listings.");
     } finally {
-      setIsLoading(false); // Crucial: always set to false after fetch attempt
+      setIsLoading(false);
     }
-  }, [isAuthLoading, userProfile?.collegeName, userProfile?.role]); // Depend on auth loading state as well
+  }, [isAuthLoading, userProfile]);
 
   useEffect(() => {
-    fetchProducts();
+    // Only call fetchProducts when isAuthLoading is false and userProfile is resolved
+    if (!isAuthLoading && userProfile !== null) {
+      fetchProducts();
+    }
+    // If auth is loading, or userProfile is null, ensure this hook's loading state is true
+    if (isAuthLoading || userProfile === null) {
+        setIsLoading(true);
+    }
 
+
+    // Subscription logic
     // Only set up subscriptions if auth is not loading and userProfile is available
     if (isAuthLoading || !userProfile) return;
 
@@ -152,7 +162,7 @@ export const useMarketListings = (): MarketListingsState => {
       unsubscribe();
       unsubscribeUserProfiles();
     };
-  }, [fetchProducts, isAuthLoading, userProfile, products]); // Added userProfile to dependencies
+  }, [fetchProducts, isAuthLoading, userProfile, products]);
 
   return { products, isLoading, error, refetch: fetchProducts };
 };

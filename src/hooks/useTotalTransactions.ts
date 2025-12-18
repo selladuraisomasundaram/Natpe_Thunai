@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID } from '@/lib/appwrite';
 import { Query, Models } from 'appwrite';
 import { toast } from 'sonner';
-import { useAuth } from '@/context/AuthContext'; // NEW: Import useAuth
+import { useAuth } from '@/context/AuthContext';
 
 interface TotalTransactionsState {
   totalTransactions: number;
@@ -13,20 +13,18 @@ interface TotalTransactionsState {
   refetch: () => void;
 }
 
-export const useTotalTransactions = (collegeNameFilter?: string): TotalTransactionsState => { // NEW: Renamed parameter to collegeNameFilter
-  const { userProfile, isLoading: isAuthLoading } = useAuth(); // NEW: Get isAuthLoading
+export const useTotalTransactions = (collegeNameFilter?: string): TotalTransactionsState => {
+  const { userProfile, isLoading: isAuthLoading } = useAuth();
   const [totalTransactions, setTotalTransactions] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchTotalTransactions = useCallback(async () => {
-    if (isAuthLoading) { // NEW: Wait for AuthContext to load
-      setIsLoading(true);
+    if (isAuthLoading || userProfile === null) {
+      setIsLoading(true); // Keep loading true while auth is resolving
       return;
     }
 
-    // NEW: If user is not a developer and their collegeName is not set, exit early.
-    // This prevents unnecessary API calls and ensures isLoading is set to false.
     const isDeveloper = userProfile?.role === 'developer';
     const collegeToFilterBy = collegeNameFilter || userProfile?.collegeName;
 
@@ -40,8 +38,8 @@ export const useTotalTransactions = (collegeNameFilter?: string): TotalTransacti
     setIsLoading(true);
     setError(null);
     try {
-      const queries = [Query.limit(1)]; // We only need the total count
-      if (!isDeveloper && collegeToFilterBy) { // Apply collegeName filter ONLY for non-developers
+      const queries = [Query.limit(1)];
+      if (!isDeveloper && collegeToFilterBy) {
         queries.push(Query.equal('collegeName', collegeToFilterBy));
       }
 
@@ -58,11 +56,16 @@ export const useTotalTransactions = (collegeNameFilter?: string): TotalTransacti
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthLoading, collegeNameFilter, userProfile?.role, userProfile?.collegeName]); // NEW: Depend on isAuthLoading
+  }, [isAuthLoading, collegeNameFilter, userProfile]);
 
   useEffect(() => {
-    fetchTotalTransactions();
-  }, [fetchTotalTransactions]);
+    if (!isAuthLoading && userProfile !== null) {
+      fetchTotalTransactions();
+    }
+    if (isAuthLoading || userProfile === null) {
+        setIsLoading(true);
+    }
+  }, [fetchTotalTransactions, isAuthLoading, userProfile]);
 
   return { totalTransactions, isLoading, error, refetch: fetchTotalTransactions };
 };

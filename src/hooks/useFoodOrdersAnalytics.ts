@@ -5,7 +5,7 @@ import { databases, APPWRITE_DATABASE_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID } f
 import { Query } from 'appwrite';
 import { toast } from 'sonner';
 import { subDays, formatISO } from 'date-fns';
-import { useAuth } from '@/context/AuthContext'; // NEW: Import useAuth
+import { useAuth } from '@/context/AuthContext';
 
 interface FoodOrdersAnalyticsState {
   foodOrdersLastWeek: number;
@@ -14,20 +14,18 @@ interface FoodOrdersAnalyticsState {
   refetch: () => void;
 }
 
-export const useFoodOrdersAnalytics = (collegeNameFilter?: string): FoodOrdersAnalyticsState => { // NEW: Renamed parameter to collegeNameFilter
-  const { userProfile, isLoading: isAuthLoading } = useAuth(); // NEW: Get isAuthLoading
+export const useFoodOrdersAnalytics = (collegeNameFilter?: string): FoodOrdersAnalyticsState => {
+  const { userProfile, isLoading: isAuthLoading } = useAuth();
   const [foodOrdersLastWeek, setFoodOrdersLastWeek] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchFoodOrdersLastWeek = useCallback(async () => {
-    if (isAuthLoading) { // NEW: Wait for AuthContext to load
-      setIsLoading(true);
+    if (isAuthLoading || userProfile === null) {
+      setIsLoading(true); // Keep loading true while auth is resolving
       return;
     }
 
-    // NEW: If user is not a developer and their collegeName is not set, exit early.
-    // This prevents unnecessary API calls and ensures isLoading is set to false.
     const isDeveloper = userProfile?.role === 'developer';
     const collegeToFilterBy = collegeNameFilter || userProfile?.collegeName;
 
@@ -46,9 +44,9 @@ export const useFoodOrdersAnalytics = (collegeNameFilter?: string): FoodOrdersAn
 
       const queries = [
         Query.greaterThanEqual('$createdAt', isoDate),
-        Query.limit(1) // We only need the total count
+        Query.limit(1)
       ];
-      if (!isDeveloper && collegeToFilterBy) { // Apply collegeName filter ONLY for non-developers
+      if (!isDeveloper && collegeToFilterBy) {
         queries.push(Query.equal('collegeName', collegeToFilterBy));
       }
 
@@ -65,11 +63,16 @@ export const useFoodOrdersAnalytics = (collegeNameFilter?: string): FoodOrdersAn
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthLoading, collegeNameFilter, userProfile?.role, userProfile?.collegeName]); // NEW: Depend on isAuthLoading
+  }, [isAuthLoading, collegeNameFilter, userProfile]);
 
   useEffect(() => {
-    fetchFoodOrdersLastWeek();
-  }, [fetchFoodOrdersLastWeek]);
+    if (!isAuthLoading && userProfile !== null) {
+      fetchFoodOrdersLastWeek();
+    }
+    if (isAuthLoading || userProfile === null) {
+        setIsLoading(true);
+    }
+  }, [fetchFoodOrdersLastWeek, isAuthLoading, userProfile]);
 
   return { foodOrdersLastWeek, isLoading, error, refetch: fetchFoodOrdersLastWeek };
 };

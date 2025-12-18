@@ -13,22 +13,20 @@ interface TotalUsersState {
   refetch: () => void;
 }
 
-export const useTotalUsers = (collegeNameFilter?: string): TotalUsersState => { // NEW: Renamed parameter to collegeNameFilter
-  const { userProfile, isLoading: isAuthLoading } = useAuth(); // NEW: Get isAuthLoading
+export const useTotalUsers = (collegeNameFilter?: string): TotalUsersState => {
+  const { userProfile, isLoading: isAuthLoading } = useAuth();
   const [totalUsers, setTotalUsers] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchTotalUsers = useCallback(async () => {
-    if (isAuthLoading) { // NEW: Wait for AuthContext to load
-      setIsLoading(true);
+    if (isAuthLoading || userProfile === null) {
+      setIsLoading(true); // Keep loading true while auth is resolving
       return;
     }
 
-    // NEW: If user is not a developer and their collegeName is not set, exit early.
-    // This prevents unnecessary API calls and ensures isLoading is set to false.
     const isDeveloper = userProfile?.role === 'developer';
-    const collegeToFilterBy = collegeNameFilter || userProfile?.collegeName; // Use explicit filter or user's college
+    const collegeToFilterBy = collegeNameFilter || userProfile?.collegeName;
 
     if (!isDeveloper && !collegeToFilterBy) {
       setIsLoading(false);
@@ -40,9 +38,9 @@ export const useTotalUsers = (collegeNameFilter?: string): TotalUsersState => { 
     setIsLoading(true);
     setError(null);
     try {
-      const queries = [Query.limit(1)]; // We only need the total count
+      const queries = [Query.limit(1)];
 
-      if (!isDeveloper && collegeToFilterBy) { // Apply collegeName filter ONLY for non-developers
+      if (!isDeveloper && collegeToFilterBy) {
         queries.push(Query.equal('collegeName', collegeToFilterBy));
       }
 
@@ -59,11 +57,16 @@ export const useTotalUsers = (collegeNameFilter?: string): TotalUsersState => { 
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthLoading, collegeNameFilter, userProfile?.role, userProfile?.collegeName]); // NEW: Depend on isAuthLoading
+  }, [isAuthLoading, collegeNameFilter, userProfile]);
 
   useEffect(() => {
-    fetchTotalUsers();
-  }, [fetchTotalUsers]);
+    if (!isAuthLoading && userProfile !== null) {
+      fetchTotalUsers();
+    }
+    if (isAuthLoading || userProfile === null) {
+        setIsLoading(true);
+    }
+  }, [fetchTotalUsers, isAuthLoading, userProfile]);
 
   return { totalUsers, isLoading, error, refetch: fetchTotalUsers };
 };
