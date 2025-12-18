@@ -1,122 +1,100 @@
 "use client";
 
 import React, { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_USER_PROFILES_COLLECTION_ID } from "@/lib/appwrite";
 import { Query } from "appwrite";
 
-const formSchema = z.object({
-  userId: z.string().min(1, { message: "User ID is required." }),
-  role: z.enum(["user", "ambassador", "developer", "staff"], { message: "Please select a valid role." }), // Added 'staff'
-});
+interface ChangeUserRoleFormProps {
+  onRoleChanged?: () => void; // Optional callback after role is changed
+}
 
-const ChangeUserRoleForm = () => {
-  const { user, userProfile, updateUserProfile } = useAuth();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+const ChangeUserRoleForm: React.FC<ChangeUserRoleFormProps> = ({ onRoleChanged }) => {
+  const { updateUserProfile } = useAuth();
+  const [targetUserId, setTargetUserId] = useState("");
+  const [newRole, setNewRole] = useState<"user" | "developer">("user"); // Explicitly type newRole
+  const [loading, setLoading] = useState(false);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      userId: "",
-      role: "user",
-    },
-  });
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
 
-  const onSubmit = async (data: z.infer<typeof formSchema>) => {
-    if (!userProfile || userProfile.role !== "developer") {
-      toast.error("You do not have permission to change user roles.");
-      return;
-    }
-    if (data.userId === user?.$id) {
-      toast.error("You cannot change your own role.");
+    if (!targetUserId.trim()) {
+      toast.error("Please enter a User ID.");
+      setLoading(false);
       return;
     }
 
-    setIsSubmitting(true);
     try {
       // First, find the user's profile document ID using their userId
-      const profileResponse = await databases.listDocuments(
+      const response = await databases.listDocuments(
         APPWRITE_DATABASE_ID,
         APPWRITE_USER_PROFILES_COLLECTION_ID,
-        [Query.equal("userId", data.userId)]
+        [Query.equal('userId', targetUserId.trim())]
       );
 
-      if (profileResponse.documents.length === 0) {
+      if (response.documents.length === 0) {
         toast.error("User profile not found for the given User ID.");
+        setLoading(false);
         return;
       }
 
-      const targetUserProfile = profileResponse.documents[0];
-      
-      await databases.updateDocument(
-        APPWRITE_DATABASE_ID,
-        APPWRITE_USER_PROFILES_COLLECTION_ID,
-        targetUserProfile.$id,
-        { role: data.role }
-      );
-      toast.success(`User ${data.userId} role updated to ${data.role}.`);
-      form.reset();
+      const userProfileDoc = response.documents[0];
+      const profileId = userProfileDoc.$id;
+
+      // Then, update the role using the profile document ID
+      await updateUserProfile(profileId, { role: newRole });
+      toast.success(`User ${targetUserId} role changed to "${newRole}" successfully!`);
+      setTargetUserId("");
+      setNewRole("user");
+      onRoleChanged?.(); // Call optional callback
     } catch (error: any) {
       console.error("Error changing user role:", error);
       toast.error(error.message || "Failed to change user role.");
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="userId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="text-foreground">Target User ID</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter Appwrite User ID" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="targetUserId" className="text-foreground">Target User ID</Label>
+        <Input
+          id="targetUserId"
+          type="text"
+          placeholder="Enter user's Appwrite ID (e.g., 65e...)"
+          value={targetUserId}
+          onChange={(e) => setTargetUserId(e.target.value)}
+          required
+          className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
+          disabled={loading}
         />
-        <FormField
-          control={form.control}
-          name="role"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="text-foreground">New Role</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
-                <FormControl>
-                  <SelectTrigger className="bg-input text-foreground border-border focus:ring-ring focus:border-ring">
-                    <SelectValue placeholder="Select a role" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent className="bg-popover text-popover-foreground border-border">
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="ambassador">Ambassador</SelectItem>
-                  <SelectItem value="developer">Developer</SelectItem>
-                  <SelectItem value="staff">Staff</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type="submit" disabled={isSubmitting} className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-          {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Change Role"}
-        </Button>
-      </form>
-    </Form>
+        <p className="text-xs text-muted-foreground mt-1">
+          You can find this ID in the Appwrite Console under "Auth" {"->"} "Users".
+        </p>
+      </div>
+      <div>
+        <Label htmlFor="newRole" className="text-foreground">New Role</Label>
+        <Select value={newRole} onValueChange={(value: "user" | "developer") => setNewRole(value)} required disabled={loading}>
+          <SelectTrigger className="w-full bg-input text-foreground border-border focus:ring-ring focus:border-ring">
+            <SelectValue placeholder="Select new role" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover text-popover-foreground border-border">
+            <SelectItem value="user">User</SelectItem>
+            <SelectItem value="developer">Developer</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <Button type="submit" className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90" disabled={loading}>
+        {loading ? "Changing Role..." : "Change User Role"}
+      </Button>
+    </form>
   );
 };
 
