@@ -70,7 +70,6 @@ const PostErrandForm: React.FC<PostErrandFormProps> = ({
           message: "Please specify the 'Other' category.",
         });
         toast.error("Please specify the 'Other' category.");
-        setIsSubmitting(false); // Ensure submitting state is reset on validation error
         return;
       }
       await onSubmit(data);

@@ -8,8 +8,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import BargainRequestsWidget from "@/components/BargainRequestsWidget";
-import UnlockingSoonCard from "@/components/UnlockingSoonCard";
-// import CampusServicesCard from "@/components/CampusServicesCard"; // REMOVED IMPORT
+import UnlockingSoonCard from "@/components/UnlockingSoonCard"; // NEW IMPORT
 
 const ActivityPage = () => {
   const navigate = useNavigate();
@@ -67,10 +66,7 @@ const ActivityPage = () => {
           </CardContent>
         </Card>
 
-        {/* Campus Services Card - REMOVED FROM HERE */}
-        {/* <CampusServicesCard /> */}
-
-        {/* Unlocking Soon Card */}
+        {/* NEW: Unlocking Soon Card */}
         <UnlockingSoonCard />
       </div>
       <MadeWithDyad />
