@@ -3,12 +3,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_BLOCKED_WORDS_COLLECTION_ID } from '@/lib/appwrite';
 import { ID, Query } from 'appwrite';
-import { toast } from 'sonner';
 
 export interface BlockedWord {
   $id: string;
-  word: string;
   $createdAt: string;
+  word: string;
+  reason?: string;
+  addedBy?: string; // User ID of who added it
+  isActive: boolean;
 }
 
 export const useBlockedWords = () => {
@@ -26,58 +28,34 @@ export const useBlockedWords = () => {
         [Query.orderAsc('word')]
       );
       setBlockedWords(response.documents as unknown as BlockedWord[]);
-    } catch (err: any) {
-      console.error("Error fetching blocked words:", err);
-      setError(err.message || "Failed to fetch blocked words.");
-      toast.error("Failed to load blocked words.");
+    } catch (e: any) {
+      console.error("Error fetching blocked words:", e);
+      setError(e.message || "Failed to load blocked words.");
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchBlockedWords();
-
-    const unsubscribe = databases.client.subscribe(
-      `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_BLOCKED_WORDS_COLLECTION_ID}.documents`,
-      (response) => {
-        if (response.events.includes("databases.*.collections.*.documents.*.create")) {
-          setBlockedWords((prev) => [...prev, response.payload as unknown as BlockedWord].sort((a, b) => a.word.localeCompare(b.word)));
-          toast.info(`New word "${(response.payload as any).word}" added to blocked list.`);
-        } else if (response.events.includes("databases.*.collections.*.documents.*.delete")) {
-          setBlockedWords((prev) => prev.filter((word) => word.$id !== (response.payload as any).$id));
-          toast.info(`Word "${(response.payload as any).word}" removed from blocked list.`);
-        }
-      }
-    );
-
-    return () => {
-      unsubscribe();
-    };
-  }, [fetchBlockedWords]);
-
-  const addBlockedWord = async (word: string) => {
-    const trimmedWord = word.trim().toLowerCase();
-    if (!trimmedWord) {
-      toast.error("Blocked word cannot be empty.");
-      return;
-    }
-    if (blockedWords.some(bw => bw.word === trimmedWord)) {
-      toast.warning(`Word "${trimmedWord}" is already blocked.`);
-      return;
-    }
-
+  const addBlockedWord = async (word: string, reason?: string, addedBy?: string) => {
     try {
+      const newBlockedWord: Omit<BlockedWord, '$id' | '$createdAt' | '$updatedAt' | '$permissions' | '$collectionId' | '$databaseId'> = {
+        word,
+        reason,
+        addedBy,
+        isActive: true,
+      };
       await databases.createDocument(
         APPWRITE_DATABASE_ID,
         APPWRITE_BLOCKED_WORDS_COLLECTION_ID,
         ID.unique(),
-        { word: trimmedWord }
+        newBlockedWord
       );
-      toast.success(`Word "${trimmedWord}" added to blocked list.`);
-    } catch (err: any) {
-      console.error("Error adding blocked word:", err);
-      toast.error(err.message || "Failed to add blocked word.");
+      fetchBlockedWords(); // Refresh the list
+      return true;
+    } catch (e: any) {
+      console.error("Error adding blocked word:", e);
+      setError(e.message || "Failed to add blocked word.");
+      return false;
     }
   };
 
@@ -88,19 +66,25 @@ export const useBlockedWords = () => {
         APPWRITE_BLOCKED_WORDS_COLLECTION_ID,
         wordId
       );
-      toast.info("Blocked word removed.");
-    } catch (err: any) {
-      console.error("Error removing blocked word:", err);
-      toast.error(err.message || "Failed to remove blocked word.");
+      fetchBlockedWords(); // Refresh the list
+      return true;
+    } catch (e: any) {
+      console.error("Error removing blocked word:", e);
+      setError(e.message || "Failed to remove blocked word.");
+      return false;
     }
   };
+
+  useEffect(() => {
+    fetchBlockedWords();
+  }, [fetchBlockedWords]);
 
   return {
     blockedWords,
     isLoading,
     error,
+    refetch: fetchBlockedWords,
     addBlockedWord,
     removeBlockedWord,
-    refetchBlockedWords: fetchBlockedWords,
   };
 };

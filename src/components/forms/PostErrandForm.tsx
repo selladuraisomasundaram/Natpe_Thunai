@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DialogClose } from "@/components/ui/dialog"; // Import DialogClose
 
 // Define the schema for the form
 const formSchema = z.object({
@@ -208,9 +209,11 @@ const PostErrandForm: React.FC<PostErrandFormProps> = ({ onSubmit, onCancel, typ
         />
 
         <div className="flex justify-end space-x-2 pt-4">
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
+          <DialogClose asChild> {/* Dismissible button */}
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+          </DialogClose>
           <Button type="submit">Post Errand</Button>
         </div>
       </form>

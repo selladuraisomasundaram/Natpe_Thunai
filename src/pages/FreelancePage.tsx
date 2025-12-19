@@ -1,53 +1,36 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Briefcase, PlusCircle, Loader2, MessageSquareText, DollarSign, Star } from "lucide-react";
+import { Briefcase, Code, Paintbrush, PlusCircle, Loader2, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import PostServiceForm from "@/components/forms/PostServiceForm";
-import { Link, useNavigate } from "react-router-dom";
 import { useServiceListings, ServicePost } from "@/hooks/useServiceListings"; // Import useServiceListings
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_SERVICES_COLLECTION_ID } from "@/lib/appwrite";
 import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
-import BargainServiceDialog from "@/components/forms/BargainServiceDialog";
-import SubmitServiceReviewForm from "@/components/forms/SubmitServiceReviewForm";
-import ServiceListingCard from "@/components/ServiceListingCard"; // Import ServiceListingCard
+import BargainServiceDialog from "@/components/forms/BargainServiceDialog"; // Import BargainServiceDialog
 
-// Define service categories for posting
-const FREELANCE_CATEGORIES = [
-  { value: "resume-building", label: "Resume Building" },
-  { value: "video-editing", label: "Video Editing" },
-  { value: "content-writing", label: "Content Writing" },
-  { value: "graphic-design", label: "Graphic Design" },
-  { value: "other", label: "Other Freelance Service" },
-];
+// Categories specific to this page
+const FREELANCE_CATEGORIES = ["tutoring", "freelance-design", "coding-help", "other-freelance"];
 
 const FreelancePage = () => {
-  const navigate = useNavigate();
   const { user, userProfile } = useAuth();
   const [isPostServiceDialogOpen, setIsPostServiceDialogOpen] = useState(false);
   const [isBargainServiceDialogOpen, setIsBargainServiceDialogOpen] = useState(false);
   const [selectedServiceForBargain, setSelectedServiceForBargain] = useState<ServicePost | null>(null);
-  const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
-  const [selectedServiceForReview, setSelectedServiceForReview] = useState<ServicePost | null>(null);
-
+  
   // Fetch all service listings (no category filter)
-  const { services: listings, isLoading, error } = useServiceListings(undefined); 
+  const { serviceListings: listings, isLoading, error, refetch } = useServiceListings(FREELANCE_CATEGORIES, userProfile?.collegeName); // Updated destructuring and added collegeName
 
-  const handlePostService = async (data: {
-    title: string;
-    description: string;
-    category: string;
-    price: string;
-    contact: string;
-    customOrderDescription?: string;
-    ambassadorDelivery: boolean;
-    ambassadorMessage: string;
-  }) => {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  const handlePostService = async (data: Omit<ServicePost, "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId" | "posterId" | "posterName" | "collegeName">) => {
     if (!user || !userProfile) {
       toast.error("You must be logged in to post a service.");
       return;
@@ -68,163 +51,218 @@ const FreelancePage = () => {
         newServiceData
       );
       
-      toast.success(`Your service "${data.title}" has been posted!`);
+      toast.success(`Your freelance service "${data.title}" has been posted!`);
       setIsPostServiceDialogOpen(false);
+      refetch(); // Refresh the list
     } catch (e: any) {
       console.error("Error posting service:", e);
       toast.error(e.message || "Failed to post service listing.");
     }
   };
-  
-  const handlePostJobRequest = () => {
-    navigate("/services/post-job");
-  };
 
-  const handleOpenBargainDialog = (service: ServicePost) => {
-    if (!user || !userProfile) {
-      toast.error("Please log in to bargain for a service.");
-      navigate("/auth");
-      return;
-    }
-    if (user.$id === service.posterId) {
-      toast.error("You cannot bargain on your own service.");
-      return;
-    }
-    if (!userProfile.collegeName) {
-      toast.error("Your profile is missing college information. Please update your profile first.");
-      return;
-    }
+  const handleInitiateBargain = (service: ServicePost) => {
     setSelectedServiceForBargain(service);
     setIsBargainServiceDialogOpen(true);
   };
 
   const handleBargainInitiated = () => {
     setIsBargainServiceDialogOpen(false);
-    // Further actions (e.g., navigate to tracking) are handled within BargainServiceDialog
+    setSelectedServiceForBargain(null);
+    toast.success("Bargain offer submitted!");
+    // Optionally refetch listings or update UI
   };
 
-  const handleOpenReviewDialog = (service: ServicePost) => {
-    if (!user || !userProfile) {
-      toast.error("Please log in to leave a review.");
-      navigate("/auth");
-      return;
-    }
-    setSelectedServiceForReview(service);
-    setIsReviewDialogOpen(true);
-  };
-
-  const handleReviewSubmitted = () => {
-    setIsReviewDialogOpen(false);
-    // Optionally refetch listings to update average ratings if they were displayed on the card
-  };
+  const tutoringServices = listings.filter(service => service.category === "tutoring");
+  const designServices = listings.filter(service => service.category === "freelance-design");
+  const codingServices = listings.filter(service => service.category === "coding-help");
+  const otherFreelance = listings.filter(service => service.category === "other-freelance");
 
   return (
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
-      <h1 className="text-4xl font-bold mb-6 text-center text-foreground">Freelance Section</h1>
+      <h1 className="text-4xl font-bold mb-6 text-center text-foreground">Freelance Services</h1>
       <div className="max-w-md mx-auto space-y-6">
         <Card className="bg-card text-card-foreground shadow-lg border-border">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
-              <Briefcase className="h-5 w-5 text-secondary-neon" /> Post a Service or Job
+              <Briefcase className="h-5 w-5 text-secondary-neon" /> Campus Freelancers
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-3">
             <p className="text-sm text-muted-foreground">
-              Offer your skills or post a job request for campus freelancers (Fungro/Upwork style).
+              Offer your skills or find talented peers for tutoring, design, coding, and more!
             </p>
-            
-            {/* Button for Posting a Job Request (Seeking Help) */}
-            <Button 
-              className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90"
-              onClick={handlePostJobRequest}
-            >
-              <PlusCircle className="mr-2 h-4 w-4" /> Post a Job Request (Seeking Help)
-            </Button>
-
-            {/* Button for Posting a Service Offering */}
             <Dialog open={isPostServiceDialogOpen} onOpenChange={setIsPostServiceDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="w-full border-secondary-neon text-secondary-neon hover:bg-secondary-neon/10">
-                  <PlusCircle className="mr-2 h-4 w-4" /> Post a Service Offering
+                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 mt-4">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Post Your Service
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
                 <DialogHeader>
-                  <DialogTitle className="text-foreground">Post New Service Offering</DialogTitle>
+                  <DialogTitle className="text-foreground">Post New Freelance Service</DialogTitle>
                 </DialogHeader>
                 <PostServiceForm 
                   onSubmit={handlePostService} 
                   onCancel={() => setIsPostServiceDialogOpen(false)} 
-                  categoryOptions={FREELANCE_CATEGORIES} // Pass freelance categories
+                  categories={FREELANCE_CATEGORIES}
                 />
               </DialogContent>
             </Dialog>
           </CardContent>
         </Card>
 
-        {/* All Freelance Listings Section */}
         <Card className="bg-card text-card-foreground shadow-lg border-border">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xl font-semibold text-card-foreground">All Freelance Listings</CardTitle>
+            <CardTitle className="text-xl font-semibold text-card-foreground">Tutoring</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
-                <p className="ml-3 text-muted-foreground">Loading services...</p>
+                <p className="ml-3 text-muted-foreground">Loading tutoring services...</p>
               </div>
             ) : error ? (
-              <p className="text-center text-destructive py-4">Error loading listings: {error}</p>
-            ) : listings.length > 0 ? (
-              listings.map((service) => (
-                <ServiceListingCard
-                  key={service.$id}
-                  service={service}
-                  onOpenBargainDialog={handleOpenBargainDialog}
-                  onOpenReviewDialog={handleOpenReviewDialog}
-                  isFoodOrWellnessCategory={false} // These are freelance, not food/wellness
-                />
+              <p className="text-center text-destructive py-4">Error loading services: {error}</p>
+            ) : tutoringServices.length > 0 ? (
+              tutoringServices.map((service) => (
+                <div key={service.$id} className="p-3 border border-border rounded-md bg-background">
+                  <h3 className="font-semibold text-foreground">{service.title}</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
+                  <p className="text-xs text-muted-foreground">Price: ${service.price.toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground">Provider: {service.posterName}</p>
+                  <Button
+                    className="mt-2 w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={() => handleInitiateBargain(service)}
+                    disabled={service.posterId === user?.$id}
+                  >
+                    <DollarSign className="mr-2 h-4 w-4" /> Make an Offer
+                  </Button>
+                </div>
               ))
             ) : (
-              <p className="text-center text-muted-foreground py-4">No freelance services posted yet for your college. Be the first!</p>
+              <p className="text-center text-muted-foreground py-4">No tutoring services posted yet for your college.</p>
             )}
           </CardContent>
         </Card>
+
+        <Card className="bg-card text-card-foreground shadow-lg border-border">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-xl font-semibold text-card-foreground">Freelance Design</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 space-y-4">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
+                <p className="ml-3 text-muted-foreground">Loading design services...</p>
+              </div>
+            ) : error ? (
+              <p className="text-center text-destructive py-4">Error loading services: {error}</p>
+            ) : designServices.length > 0 ? (
+              designServices.map((service) => (
+                <div key={service.$id} className="p-3 border border-border rounded-md bg-background">
+                  <h3 className="font-semibold text-foreground">{service.title}</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
+                  <p className="text-xs text-muted-foreground">Price: ${service.price.toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground">Provider: {service.posterName}</p>
+                  <Button
+                    className="mt-2 w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={() => handleInitiateBargain(service)}
+                    disabled={service.posterId === user?.$id}
+                  >
+                    <DollarSign className="mr-2 h-4 w-4" /> Make an Offer
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <p className="text-center text-muted-foreground py-4">No freelance design services posted yet for your college.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card text-card-foreground shadow-lg border-border">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-xl font-semibold text-card-foreground">Coding Help</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 space-y-4">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
+                <p className="ml-3 text-muted-foreground">Loading coding help services...</p>
+              </div>
+            ) : error ? (
+              <p className="text-center text-destructive py-4">Error loading services: {error}</p>
+            ) : codingServices.length > 0 ? (
+              codingServices.map((service) => (
+                <div key={service.$id} className="p-3 border border-border rounded-md bg-background">
+                  <h3 className="font-semibold text-foreground">{service.title}</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
+                  <p className="text-xs text-muted-foreground">Price: ${service.price.toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground">Provider: {service.posterName}</p>
+                  <Button
+                    className="mt-2 w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={() => handleInitiateBargain(service)}
+                    disabled={service.posterId === user?.$id}
+                  >
+                    <DollarSign className="mr-2 h-4 w-4" /> Make an Offer
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <p className="text-center text-muted-foreground py-4">No coding help services posted yet for your college.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card text-card-foreground shadow-lg border-border">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-xl font-semibold text-card-foreground">Other Freelance</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 space-y-4">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
+                <p className="ml-3 text-muted-foreground">Loading other freelance services...</p>
+              </div>
+            ) : error ? (
+              <p className="text-center text-destructive py-4">Error loading services: {error}</p>
+            ) : otherFreelance.length > 0 ? (
+              otherFreelance.map((service) => (
+                <div key={service.$id} className="p-3 border border-border rounded-md bg-background">
+                  <h3 className="font-semibold text-foreground">{service.title}</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
+                  <p className="text-xs text-muted-foreground">Price: ${service.price.toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground">Provider: {service.posterName}</p>
+                  <Button
+                    className="mt-2 w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={() => handleInitiateBargain(service)}
+                    disabled={service.posterId === user?.$id}
+                  >
+                    <DollarSign className="mr-2 h-4 w-4" /> Make an Offer
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <p className="text-center text-muted-foreground py-4">No other freelance services posted yet for your college.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {selectedServiceForBargain && (
+          <Dialog open={isBargainServiceDialogOpen} onOpenChange={setIsBargainServiceDialogOpen}>
+            <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
+              <DialogHeader>
+                <DialogTitle className="text-foreground">Make an Offer for: {selectedServiceForBargain.title}</DialogTitle>
+              </DialogHeader>
+              <BargainServiceDialog
+                service={selectedServiceForBargain}
+                onBargainSubmitted={handleBargainInitiated}
+                onCancel={() => setIsBargainServiceDialogOpen(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
       <MadeWithDyad />
-
-      {/* Bargain Service Dialog */}
-      <Dialog open={isBargainServiceDialogOpen} onOpenChange={setIsBargainServiceDialogOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
-          <DialogHeader>
-            <DialogTitle className="text-foreground">Bargain for {selectedServiceForBargain?.title}</DialogTitle>
-          </DialogHeader>
-          {selectedServiceForBargain && (
-            <BargainServiceDialog
-              service={selectedServiceForBargain}
-              onBargainInitiated={handleBargainInitiated}
-              onCancel={() => setIsBargainServiceDialogOpen(false)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Review Service Dialog */}
-      <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
-          <DialogHeader>
-            <DialogTitle className="text-foreground">Leave a Review for {selectedServiceForReview?.title}</DialogTitle>
-          </DialogHeader>
-          {selectedServiceForReview && (
-            <SubmitServiceReviewForm
-              serviceId={selectedServiceForReview.$id}
-              serviceTitle={selectedServiceForReview.title}
-              onReviewSubmitted={handleReviewSubmitted}
-              onCancel={() => setIsReviewDialogOpen(false)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
