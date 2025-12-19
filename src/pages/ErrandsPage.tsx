@@ -26,6 +26,7 @@ const STANDARD_ERRAND_OPTIONS = [
 const ErrandsPage = () => {
   const { user, userProfile } = useAuth();
   const [isPostErrandDialogOpen, setIsPostErrandDialogOpen] = useState(false);
+  const [preselectedErrandType, setPreselectedErrandType] = useState<string | undefined>(undefined);
   
   // Fetch only standard errands for the user's college
   const { errands: postedErrands, isLoading, error } = useErrandListings(ERRAND_TYPES);
@@ -39,10 +40,11 @@ const ErrandsPage = () => {
   }, []);
 
   const handleErrandClick = (errandType: string) => {
-    toast.info(`You selected "${errandType}". Post your errand using the button below.`);
+    setPreselectedErrandType(errandType);
+    setIsPostErrandDialogOpen(true); // Open the dialog
   };
 
-  const handlePostErrand = async (data: Omit<ErrandPost, "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId" | "posterId" | "posterName" | "collegeName">) => { // NEW: Remove collegeName from Omit
+  const handlePostErrand = async (data: Omit<ErrandPost, "$id" | "$createdAt" | "$updatedAt" | "$permissions" | "$collectionId" | "$databaseId" | "posterId" | "posterName" | "collegeName">) => {
     if (!user || !userProfile) {
       toast.error("You must be logged in to post an errand.");
       return;
@@ -69,6 +71,7 @@ const ErrandsPage = () => {
       
       toast.success(`Your errand "${data.title}" has been posted!`);
       setIsPostErrandDialogOpen(false);
+      setPreselectedErrandType(undefined); // Clear preselected type after posting
     } catch (e: any) {
       console.error("Error posting errand:", e);
       toast.error(e.message || "Failed to post errand listing.");
@@ -91,19 +94,19 @@ const ErrandsPage = () => {
             </p>
             <Button
               className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleErrandClick("Note-writing/Transcription")}
+              onClick={() => handleErrandClick("note-writing")}
             >
               <NotebookPen className="mr-2 h-4 w-4" /> Note-writing/Transcription
             </Button>
             <Button
               className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleErrandClick("Small Jobs (e.g., moving books)")}
+              onClick={() => handleErrandClick("small-job")}
             >
               <Bike className="mr-2 h-4 w-4" /> Small Jobs (e.g., moving books)
             </Button>
             <Button
               className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => handleErrandClick("Delivery Services (within campus)")}
+              onClick={() => handleErrandClick("delivery")}
             >
               <Bike className="mr-2 h-4 w-4" /> Delivery Services (within campus)
             </Button>
@@ -119,14 +122,20 @@ const ErrandsPage = () => {
                 </DialogHeader>
                 <PostErrandForm 
                   onSubmit={handlePostErrand} 
-                  onCancel={() => setIsPostErrandDialogOpen(false)} 
-                  typeOptions={STANDARD_ERRAND_OPTIONS} // Changed to typeOptions
+                  onCancel={() => {
+                    setIsPostErrandDialogOpen(false);
+                    setPreselectedErrandType(undefined); // Clear preselected type on cancel
+                  }} 
+                  typeOptions={STANDARD_ERRAND_OPTIONS}
+                  initialType={preselectedErrandType} // Pass the preselected type
                 />
               </DialogContent>
             </Dialog>
-            <p className="text-xs text-destructive-foreground mt-4">
-              Note: This section is age-gated for users under 25.
-            </p>
+            {isAgeGated && (
+              <p className="text-xs text-destructive-foreground mt-4">
+                Note: Posting errands is disabled for users 25 or older.
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -149,7 +158,7 @@ const ErrandsPage = () => {
                   <p className="text-sm text-muted-foreground mt-1">{errand.description}</p>
                   <p className="text-xs text-muted-foreground mt-1">Type: <span className="font-medium text-foreground">{errand.type}</span></p>
                   <p className="text-xs text-muted-foreground">Compensation: <span className="font-medium text-foreground">{errand.compensation}</span></p>
-                  {errand.deadline && <p className="text-xs text-muted-foreground">Deadline: <span className="font-medium text-foreground">{errand.deadline}</span></p>}
+                  {errand.deadline && <p className="text-xs text-muted-foreground">Deadline: <span className="font-medium text-foreground">{new Date(errand.deadline).toLocaleDateString()}</span></p>}
                   <p className="text-xs text-muted-foreground">Contact: <span className="font-medium text-foreground">{errand.contact}</span></p>
                   <p className="text-xs text-muted-foreground">Posted: {new Date(errand.$createdAt).toLocaleDateString()}</p>
                 </div>

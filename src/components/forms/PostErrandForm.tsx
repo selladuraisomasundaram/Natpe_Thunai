@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -9,123 +9,113 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DialogFooter } from "@/components/ui/dialog";
-import { Loader2, PlusCircle } from "lucide-react";
-import { toast } from "sonner";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // Define the schema for the form
 const formSchema = z.object({
   title: z.string().min(2, { message: "Title must be at least 2 characters." }),
   description: z.string().min(10, { message: "Description must be at least 10 characters." }),
-  type: z.string().min(1, { message: "Please select a type." }), // Changed from category to type
-  otherTypeDescription: z.string().optional(), // New field for 'other' type
+  type: z.string().min(1, { message: "Please select an errand type." }),
+  otherTypeDescription: z.string().optional(), // For 'other' type
   compensation: z.string().min(2, { message: "Compensation details are required." }),
-  deadline: z.string().optional(),
+  deadline: z.date().optional(),
   contact: z.string().min(5, { message: "Contact information is required." }),
 });
 
-// Define the props for the component
 interface PostErrandFormProps {
   onSubmit: (data: z.infer<typeof formSchema>) => void;
   onCancel: () => void;
-  typeOptions: { value: string; label: string }[]; // Changed from categoryOptions to typeOptions
-  initialType?: string; // Changed from initialCategory to initialType
+  typeOptions: { value: string; label: string }[];
+  initialType?: string; // New prop
 }
 
-const PostErrandForm: React.FC<PostErrandFormProps> = ({
-  onSubmit,
-  onCancel,
-  typeOptions, // Changed from categoryOptions
-  initialType, // Changed from initialCategory
-}) => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
+const PostErrandForm: React.FC<PostErrandFormProps> = ({ onSubmit, onCancel, typeOptions, initialType }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: "",
       description: "",
-      type: initialType || "", // Use initialType if provided
+      type: "",
       otherTypeDescription: "",
       compensation: "",
-      deadline: "",
+      deadline: undefined,
       contact: "",
     },
   });
 
-  // Update form's type if initialType changes
+  // Effect to set initial type when component mounts or initialType changes
   useEffect(() => {
-    if (initialType && initialType !== form.getValues("type")) {
-      form.setValue("type", initialType);
-    }
-  }, [initialType, form]);
-
-  const handleFormSubmit = async (data: z.infer<typeof formSchema>) => {
-    setIsSubmitting(true);
-    try {
-      // If type is 'other' and otherTypeDescription is empty, show error
-      if (data.type === 'other' && !data.otherTypeDescription?.trim()) {
-        form.setError("otherTypeDescription", {
-          type: "manual",
-          message: "Please specify the 'Other' type.",
-        });
-        toast.error("Please specify the 'Other' type.");
-        return;
+    if (initialType) {
+      const isStandardType = typeOptions.some(option => option.value === initialType);
+      if (isStandardType) {
+        form.setValue("type", initialType);
+        form.setValue("otherTypeDescription", ""); // Clear if it was previously 'other'
+      } else {
+        form.setValue("type", "other");
+        form.setValue("otherTypeDescription", initialType);
       }
-      await onSubmit(data);
-      form.reset();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to post errand.");
-    } finally {
-      setIsSubmitting(false);
+    } else {
+      // Reset type if initialType is cleared (e.g., after form submission/cancel)
+      form.setValue("type", "");
+      form.setValue("otherTypeDescription", "");
     }
+  }, [initialType, typeOptions, form]);
+
+  const handleSubmit = (data: z.infer<typeof formSchema>) => {
+    onSubmit(data);
   };
 
-  const selectedType = form.watch("type"); // Changed from selectedCategory
+  const selectedType = form.watch("type");
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
         <FormField
           control={form.control}
           name="title"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-foreground">Title</FormLabel>
+              <FormLabel>Errand Title</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., Need help moving books" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                <Input placeholder="e.g., Pick up groceries" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-foreground">Description</FormLabel>
+              <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea placeholder="Provide details about the errand..." {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                <Textarea placeholder="Provide details about the errand..." {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
-          name="type" // Changed from category
+          name="type"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-foreground">Type</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
+              <FormLabel>Errand Type</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
-                  <SelectTrigger className="bg-input text-foreground border-border focus:ring-ring focus:border-ring">
-                    <SelectValue placeholder="Select a type" />
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an errand type" />
                   </SelectTrigger>
                 </FormControl>
-                <SelectContent className="bg-popover text-popover-foreground border-border">
-                  {typeOptions.map((option) => ( // Changed from categoryOptions
+                <SelectContent>
+                  {typeOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
@@ -136,68 +126,93 @@ const PostErrandForm: React.FC<PostErrandFormProps> = ({
             </FormItem>
           )}
         />
-        {selectedType === 'other' && ( // Changed from selectedCategory
+
+        {selectedType === "other" && (
           <FormField
             control={form.control}
-            name="otherTypeDescription" // Changed from otherCategoryDescription
+            name="otherTypeDescription"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-foreground">Specify Other Type</FormLabel>
+                <FormLabel>Specify Other Type</FormLabel>
                 <FormControl>
-                  <Input placeholder="e.g., Academic Tutoring, Pet Sitting" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                  <Input placeholder="e.g., Help with coding assignment" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
         )}
+
         <FormField
           control={form.control}
           name="compensation"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-foreground">Compensation</FormLabel>
+              <FormLabel>Compensation</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., ₹200, Coffee, Help with a task" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                <Input placeholder="e.g., $10, coffee, help with homework" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="deadline"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel className="text-foreground">Deadline (Optional)</FormLabel>
-              <FormControl>
-                <Input type="text" placeholder="e.g., Tomorrow 5 PM, End of week" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
-              </FormControl>
+            <FormItem className="flex flex-col">
+              <FormLabel>Deadline (Optional)</FormLabel>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full pl-3 text-left font-normal",
+                        !field.value && "text-muted-foreground"
+                      )}
+                    >
+                      {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={field.value}
+                    onSelect={field.onChange}
+                    disabled={(date) => date < new Date()}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
               <FormMessage />
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="contact"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-foreground">Contact Information</FormLabel>
+              <FormLabel>Contact Information</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., WhatsApp number, Email" {...field} disabled={isSubmitting} className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+                <Input placeholder="e.g., @your_username, 123-456-7890" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting} className="w-full sm:w-auto border-border text-primary-foreground hover:bg-muted">
+
+        <div className="flex justify-end space-x-2 pt-4">
+          <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><PlusCircle className="mr-2 h-4 w-4" /> Post Request</>}
-          </Button>
-        </DialogFooter>
+          <Button type="submit">Post Errand</Button>
+        </div>
       </form>
     </Form>
   );
