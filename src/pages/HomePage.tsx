@@ -9,6 +9,10 @@ import DiscoveryFeed from "@/components/DiscoveryFeed";
 import DailyQuestCard from "@/components/DailyQuestCard";
 import LoginStreakCard from "@/components/LoginStreakCard";
 import AnalyticsCard from "@/components/AnalyticsCard"; // NEW IMPORT
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_SERVices_COLLECTION_ID,APPWRITE_SERVICE_REVIEWS_COLLECTION_ID 
+APPWRITE_PRODUCTS_COLLECTION_ID,APPWRITE_CANTEEN
+} from "@/lib/appwrite";
+import { ID } from 'appwrite';
 
 const HomePage = () => {
   return (
