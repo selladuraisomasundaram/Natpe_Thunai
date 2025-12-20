@@ -161,7 +161,7 @@ export const useBargainRequests = (): UseBargainRequestsState => {
           requestedPrice: requestedPrice.toFixed(2),
           buyerId: user.$id,
           buyerName: user.name,
-          sellerId: product.sellerId,
+          sellerId: product.userId, // Changed to product.userId
           sellerName: product.sellerName,
           status: "pending",
           collegeName: userProfile.collegeName,

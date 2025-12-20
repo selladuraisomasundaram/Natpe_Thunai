@@ -42,7 +42,7 @@
           type: productType,
           
           // Seller Info (from Auth Context)
-          sellerId: user.$id, // Reverted to sellerId
+          userId: user.$id, // Changed to userId
           sellerName: user.name,
           sellerUpiId: userProfile.upiId,
           collegeName: userProfile.collegeName,

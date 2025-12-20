@@ -53,7 +53,7 @@ export const useMarketListings = (): MarketListingsState => {
             const sellerProfileResponse = await databases.listDocuments(
               APPWRITE_DATABASE_ID,
               APPWRITE_USER_PROFILES_COLLECTION_ID,
-              [Query.equal('userId', product.sellerId), Query.limit(1)]
+              [Query.equal('userId', product.userId), Query.limit(1)] // Changed to product.userId
             );
             const sellerProfile = sellerProfileResponse.documents[0] as any;
             return {
@@ -61,7 +61,7 @@ export const useMarketListings = (): MarketListingsState => {
               sellerLevel: sellerProfile?.level ?? 1,
             };
           } catch (sellerError) {
-            console.warn(`Could not fetch profile for seller ${product.sellerId}:`, sellerError);
+            console.warn(`Could not fetch profile for seller ${product.userId}:`, sellerError); // Changed to product.userId
             return { ...product, sellerLevel: 1 };
           }
         })
@@ -125,7 +125,7 @@ export const useMarketListings = (): MarketListingsState => {
         if (response.events.includes("databases.*.collections.*.documents.*.update")) {
           // If a user profile is updated, and that user is a seller of an existing product, refetch products.
           // This ensures sellerLevel badges are up-to-date.
-          const isSellerOfExistingProduct = products.some(p => p.sellerId === payload.userId);
+          const isSellerOfExistingProduct = products.some(p => p.userId === payload.userId); // Changed to userId
           if (isSellerOfExistingProduct) {
             fetchProducts();
           }

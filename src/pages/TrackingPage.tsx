@@ -33,7 +33,7 @@ export interface MarketTransactionItem extends BaseTrackingItem {
   sellerName: string;
   buyerName: string;
   buyerId: string;
-  sellerId: string; // Consistently use sellerId for the seller's ID
+  sellerId: string; // Changed to sellerId
   commissionAmount?: number;
   netSellerAmount?: number;
   collegeName: string;
@@ -91,7 +91,7 @@ const convertAppwriteTransactionToTrackingItem = (doc: Models.Document, currentU
   let description = `Payment for ${transactionDoc.productTitle}`;
   if (isBuyer) {
     description = `Purchase of ${transactionDoc.productTitle}`;
-  } else if (transactionDoc.sellerId === currentUserId) {
+  } else if (transactionDoc.sellerId === currentUserId) { // Changed to sellerId
     description = `Sale of ${transactionDoc.productTitle}`;
   }
 
@@ -106,10 +106,10 @@ const convertAppwriteTransactionToTrackingItem = (doc: Models.Document, currentU
     sellerName: transactionDoc.sellerName,
     buyerName: transactionDoc.buyerName,
     buyerId: transactionDoc.buyerId,
-    sellerId: transactionDoc.sellerId,
+    sellerId: transactionDoc.sellerId, // Changed to sellerId
     commissionAmount: transactionDoc.commissionAmount,
     netSellerAmount: transactionDoc.netSellerAmount,
-    isUserProvider: transactionDoc.sellerId === currentUserId,
+    isUserProvider: transactionDoc.sellerId === currentUserId, // Changed to sellerId
     collegeName: transactionDoc.collegeName,
     ambassadorDelivery: transactionDoc.ambassadorDelivery,
     ambassadorMessage: transactionDoc.ambassadorMessage,
@@ -170,7 +170,7 @@ const TrackingPage = () => {
         [
           Query.or([
             Query.equal('buyerId', user.$id),
-            Query.equal('sellerId', user.$id)
+            Query.equal('sellerId', user.$id) // Changed to sellerId
           ]),
           Query.equal('collegeName', userProfile.collegeName),
           Query.orderDesc('$createdAt')

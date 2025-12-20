@@ -27,7 +27,7 @@ interface Transaction {
   productId: string;
   buyerId: string;
   buyerName: string;
-  sellerId: string;
+  sellerId: string; // Changed to sellerId
   sellerName: string;
   sellerUpiId: string;
   amount: number;

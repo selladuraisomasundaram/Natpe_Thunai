@@ -18,7 +18,7 @@ import { DEVELOPER_UPI_ID } from '@/lib/config'; // Import DEVELOPER_UPI_ID
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog"; // Import Dialog components and DialogTrigger
 import AmbassadorDeliveryOption from "@/components/AmbassadorDeliveryOption"; // NEW: Import AmbassadorDeliveryOption
 import ReportListingForm from "@/components/forms/ReportListingForm"; // NEW: Import ReportListingForm
-import { useBargainRequests } from '@/hooks/useBargainRequests'; // NEW: Import useBargainRequests
+import { useBargainRequests } from '@/hooks/useBargainRequests'; // NEW: Use bargain requests hook
 import { getLevelBadge } from "@/utils/badges"; // NEW: Import getLevelBadge
 
 export default function ProductDetailsPage() {
@@ -81,7 +81,7 @@ export default function ProductDetailsPage() {
     }
     if (!product) return;
 
-    if (user.$id === product.sellerId) { // Consistently use product.sellerId
+    if (user.$id === product.userId) { // Changed to product.userId
       toast.error("You cannot buy/rent your own listing.");
       return;
     }
@@ -132,7 +132,7 @@ export default function ProductDetailsPage() {
           productTitle: product.title,
           buyerId: user.$id,
           buyerName: user.name,
-          sellerId: product.sellerId, // Consistently use product.sellerId
+          sellerId: product.userId, // Changed to product.userId
           sellerName: product.sellerName,
           sellerUpiId: product.sellerUpiId,
           amount: transactionAmount,
@@ -178,7 +178,7 @@ export default function ProductDetailsPage() {
       navigate("/auth");
       return;
     }
-    if (user.$id === product.sellerId) { // Consistently use product.sellerId
+    if (user.$id === product.userId) { // Changed to product.userId
       toast.error("You cannot bargain on your own listing.");
       return;
     }
@@ -237,7 +237,7 @@ export default function ProductDetailsPage() {
 
   // Determine if bargain button should be disabled
   const isBargainDisabled = 
-    user?.$id === product.sellerId || // Consistently use product.sellerId
+    user?.$id === product.userId || // Changed to product.userId
     currentBargainStatus === 'pending' || // Already has a pending request
     currentBargainStatus === 'denied'; // Previous request was denied
 
@@ -374,7 +374,7 @@ export default function ProductDetailsPage() {
               <ReportListingForm
                 productId={product.$id}
                 productTitle={product.title}
-                sellerId={product.sellerId} // Consistently use product.sellerId
+                sellerId={product.userId} // Changed to product.userId
                 onReportSubmitted={() => setIsReportDialogOpen(false)}
                 onCancel={() => setIsReportDialogOpen(false)}
               />
@@ -396,7 +396,7 @@ export default function ProductDetailsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <p className="text-sm text-foreground">Item: <span className="font-semibold">{product.title}</span></p>
+            <p className="text-sm text-foreground">Item: <span className="font-semibold">{product.title} x{1}</span></p>
             <p className="text-xl font-bold text-secondary-neon">
               Price: ₹{currentPurchasePrice.toFixed(2)} {product.type === 'rent' ? '/day' : ''}
             </p>
