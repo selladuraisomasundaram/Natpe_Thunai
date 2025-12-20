@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Briefcase, DollarSign, Loader2 } from "lucide-react"; // NEW: Import Loader2
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext"; // NEW: Import useAuth
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_SERVICES_COLLECTION_ID } from "@/lib/appwrite"; // NEW: Import Appwrite services
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_SERVICES_COLLECTION_ID,APPWRITE_SERVICE_REVIEWS_COLLECTION_ID } from "@/lib/appwrite"; // NEW: Import Appwrite services
 import { ID } from 'appwrite'; // NEW: Import ID
 
 const PostJobPage = () => {
