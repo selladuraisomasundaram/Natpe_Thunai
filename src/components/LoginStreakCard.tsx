@@ -5,50 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Flame } from "lucide-react";
 import { toast } from "sonner";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext"; // Import useAuth
 
 const LoginStreakCard = () => {
-  const { user, addXp, updateStreakInfo } = useAuth();
-
-  // Display a loading state or null if user data isn't loaded yet
-  if (!user) {
-    return null;
-  }
-
-  const { currentStreak, lastClaimedTimestamp } = user;
-  const twentyFourHours = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+  const currentStreak = 3; // Placeholder for user's login streak
+  const { addXp } = useAuth(); // Use addXp
 
   const handleClaimReward = () => {
-    const now = Date.now();
-
-    // Check if the user has already claimed within the last 24 hours
-    if (lastClaimedTimestamp && (now - lastClaimedTimestamp < twentyFourHours)) {
-      toast.info("You've already claimed your reward for today. Come back tomorrow!");
-      return;
-    }
-
-    let newStreak = currentStreak;
-
-    if (lastClaimedTimestamp) {
-      // If it's been more than 48 hours since the last claim, reset the streak
-      // This accounts for missing a day (24 hours for current day + 24 hours for missed day)
-      if (now - lastClaimedTimestamp > (twentyFourHours * 2)) {
-        newStreak = 1; // Reset streak to 1
-        toast.info("Your streak was reset as you missed a day. Starting a new streak!");
-      } else {
-        // Continue the streak
-        newStreak = currentStreak + 1;
-      }
-    } else {
-      // First time claiming for a new user or after a long break
-      newStreak = 1;
-    }
-
-    const xpReward = 10 * newStreak; // Reward XP based on the new streak length
-    addXp(xpReward); // Add XP to the user's total
-    updateStreakInfo(newStreak, now); // Update the streak and last claimed timestamp in the context
-
-    toast.success(`You claimed your ${newStreak}-day streak reward! +${xpReward} XP earned.`);
+    addXp(10 * currentStreak); // Reward XP based on streak length
+    toast.success(`You claimed your ${currentStreak}-day streak reward! +${10 * currentStreak} XP earned.`);
+    // In a real app, trigger a reward claim process and update streak/rewards
   };
 
   const handleCardClick = () => {
