@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import DeletionInfoMessage from "@/components/DeletionInfoMessage"; // NEW: Import DeletionInfoMessage
 
 // Define the schema for the form
 const formSchema = z.object({
@@ -74,6 +75,7 @@ const PostErrandForm: React.FC<PostErrandFormProps> = ({ onSubmit, onCancel, typ
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+        <DeletionInfoMessage /> {/* NEW: Deletion Info Message */}
         <FormField
           control={form.control}
           name="title"

@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import DeletionInfoMessage from "@/components/DeletionInfoMessage"; // NEW: Import DeletionInfoMessage
 
 // Define the Zod schema for the form
 const ServiceFormSchema = z.object({
@@ -92,6 +93,7 @@ const PostServiceForm: React.FC<PostServiceFormProps> = ({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4 p-4">
+        <DeletionInfoMessage /> {/* NEW: Deletion Info Message */}
         <FormField
           control={form.control}
           name="title"

@@ -16,6 +16,7 @@ import { databases, APPWRITE_DATABASE_ID, APPWRITE_SERVICES_COLLECTION_ID } from
 import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
 import * as z from "zod";
+import DeletionInfoMessage from "@/components/DeletionInfoMessage"; // NEW: Import DeletionInfoMessage
 
 // Define the Zod schema for the PostServiceForm data (copied from PostServiceForm.tsx)
 const ServiceFormSchema = z.object({

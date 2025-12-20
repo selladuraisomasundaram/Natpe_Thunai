@@ -11,6 +11,7 @@ import AmbassadorDeliveryOption from "@/components/AmbassadorDeliveryOption";
 import { Brain, CheckCircle, XCircle, HelpCircle } from "lucide-react"; // Import HelpCircle
 import { usePriceAnalysis } from "@/hooks/usePriceAnalysis";
 import { Link } from "react-router-dom"; // Import Link
+import DeletionInfoMessage from "@/components/DeletionInfoMessage"; // NEW: Import DeletionInfoMessage
 
 interface SellListingFormProps {
   onSubmit: (product: {
@@ -80,6 +81,7 @@ const SellListingForm: React.FC<SellListingFormProps> = ({ onSubmit, onCancel })
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <DeletionInfoMessage /> {/* NEW: Deletion Info Message */}
       <div>
         <Label htmlFor="title" className="text-foreground">Title</Label>
         <Input

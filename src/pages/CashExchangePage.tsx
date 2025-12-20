@@ -18,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { calculateCommissionRate, formatCommissionRate } from "@/utils/commission"; // Import dynamic commission
 import CashExchangeListings from "@/components/CashExchangeListings"; // NEW IMPORT
+import DeletionInfoMessage from "@/components/DeletionInfoMessage"; // NEW: Import DeletionInfoMessage
 
 interface Contribution {
   userId: string;
@@ -280,6 +281,7 @@ const CashExchangePage = () => {
           <DialogHeader>
             <DialogTitle className="text-foreground">Post New Cash Exchange</DialogTitle>
           </DialogHeader>
+          <DeletionInfoMessage /> {/* NEW: Deletion Info Message */}
           <form onSubmit={handlePostSubmit} className="grid gap-4 py-4">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
               <Label htmlFor="postType" className="text-left sm:text-right text-foreground">

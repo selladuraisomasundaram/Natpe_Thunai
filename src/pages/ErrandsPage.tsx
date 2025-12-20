@@ -13,6 +13,7 @@ import { databases, APPWRITE_DATABASE_ID, APPWRITE_ERRANDS_COLLECTION_ID,APPWRIT
 import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
 import * as z from "zod"; // Import z for zod schema inference
+import DeletionInfoMessage from "@/components/DeletionInfoMessage"; // NEW: Import DeletionInfoMessage
 
 // Errand types specific to this page
 const ERRAND_TYPES = ["note-writing", "small-job", "delivery"];
@@ -143,6 +144,7 @@ const ErrandsPage = () => {
                     <span className="sr-only">Close</span>
                   </Button>
                 </DialogHeader>
+                <DeletionInfoMessage /> {/* NEW: Deletion Info Message */}
                 <PostErrandForm 
                   onSubmit={handlePostErrand} 
                   onCancel={() => {

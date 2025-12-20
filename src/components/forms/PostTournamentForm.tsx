@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from "@hookhookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"; // Added Calendar
 import { format } from "date-fns"; // Added format from date-fns
 import { cn } from "@/lib/utils"; // Added cn
+import DeletionInfoMessage from "@/components/DeletionInfoMessage"; // NEW: Import DeletionInfoMessage
 
 // Define common game options
 const GAME_OPTIONS = [
@@ -134,6 +135,7 @@ const PostTournamentForm: React.FC<PostTournamentFormProps> = ({ onTournamentPos
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
+        <DeletionInfoMessage /> {/* NEW: Deletion Info Message */}
         <FormField
           control={form.control}
           name="name"

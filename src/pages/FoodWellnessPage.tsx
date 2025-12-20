@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Soup, HeartPulse, ShieldCheck, PlusCircle, Utensils, Loader2, MessageSquareText } from "lucide-react";
+import { Soup, HeartPulse, ShieldCheck, PlusCircle, Utensils, Loader2, MessageSquareText, X } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import PostServiceForm from "@/components/forms/PostServiceForm";
@@ -14,6 +14,7 @@ import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
 import FoodOfferingCard from "@/components/FoodOfferingCard";
 import FoodCustomRequestsList from "@/components/FoodCustomRequestsList";
+import DeletionInfoMessage from "@/components/DeletionInfoMessage"; // NEW: Import DeletionInfoMessage
 
 // Service categories specific to this page
 const OFFERING_CATEGORIES = ["homemade-meals", "wellness-remedies"];
@@ -143,9 +144,19 @@ const FoodWellnessPage = () => {
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
-                <DialogHeader>
+                <DialogHeader className="relative">
                   <DialogTitle className="text-foreground">Post New Food/Wellness Offering</DialogTitle>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:bg-muted"
+                    onClick={() => setIsPostServiceDialogOpen(false)} // Dismiss the dialog
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="sr-only">Close</span>
+                  </Button>
                 </DialogHeader>
+                <DeletionInfoMessage /> {/* NEW: Deletion Info Message */}
                 <PostServiceForm 
                   onSubmit={handlePostService} 
                   onCancel={() => setIsPostServiceDialogOpen(false)} 
@@ -166,9 +177,19 @@ const FoodWellnessPage = () => {
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
-                <DialogHeader>
+                <DialogHeader className="relative">
                   <DialogTitle className="text-foreground">Request Custom Food/Remedy</DialogTitle>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:bg-muted"
+                    onClick={() => setIsPostCustomOrderDialogOpen(false)} // Dismiss the dialog
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="sr-only">Close</span>
+                  </Button>
                 </DialogHeader>
+                <DeletionInfoMessage /> {/* NEW: Deletion Info Message */}
                 <PostServiceForm 
                   onSubmit={handlePostCustomOrder} 
                   onCancel={() => setIsPostCustomOrderDialogOpen(false)} 
@@ -187,30 +208,6 @@ const FoodWellnessPage = () => {
             <p className="text-xs text-destructive-foreground mt-4 flex items-center gap-1">
               <ShieldCheck className="h-3 w-3" /> Quality assurance and cancellation warnings apply.
             </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card text-card-foreground shadow-lg border-border">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xl font-semibold text-card-foreground">Available Offerings</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 space-y-4">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
-                <p className="ml-3 text-muted-foreground">Loading offerings...</p>
-              </div>
-            ) : error ? (
-              <p className="text-center text-destructive py-4">Error loading offerings: {error}</p>
-            ) : postedOfferings.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4"> {/* Added grid layout */}
-                {postedOfferings.map((offering) => (
-                  <FoodOfferingCard key={offering.$id} offering={offering} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-center text-muted-foreground py-4">No food or wellness offerings posted yet for your college.</p>
-            )}
           </CardContent>
         </Card>
 
