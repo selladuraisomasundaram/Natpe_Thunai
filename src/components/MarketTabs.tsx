@@ -30,8 +30,8 @@ const MarketTabs: React.FC<MarketTabsProps> = ({ initialTab = 'all' }) => {
   const renderContent = () => {
     if (isLoading) {
       return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
-          {[...Array(3)].map((_, i) => (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-4">
+          {[...Array(4)].map((_, i) => (
             <Skeleton key={i} className="h-64 w-full" />
           ))}
         </div>
@@ -47,7 +47,7 @@ const MarketTabs: React.FC<MarketTabsProps> = ({ initialTab = 'all' }) => {
     }
 
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-4">
         {items.map((product) => (
           <ProductListingCard key={product.$id} product={product} />
         ))}
