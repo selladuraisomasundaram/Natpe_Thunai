@@ -41,9 +41,9 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-primary to-background-dark text-primary-foreground">
-      <img src="/app-logo.png" alt="Natpe🤝Thunai Logo" className="h-24 w-24 rounded-full object-cover mb-4 animate-fade-in" />
+      <img src="/app-logo.png" alt="Natpe🤝Thunai Logo" className="h-24 w-24 rounded-full object-cover mb-4 animate-fade-in logo-animated" />
       <p className="text-4xl font-extrabold tracking-tight text-secondary-neon flex items-center gap-2">
-        Natpe <Handshake className="h-8 w-8" /> Thunai
+        Natpe <Handshake className="h-8 w-8 text-[#00f3ff]" /> Thunai
       </p>
       <p className="text-lg text-foreground mt-2">Creating communities and fostering friendships</p>
       {localLoading && <Loader2 className="h-8 w-8 animate-spin text-secondary-neon mt-6" />}

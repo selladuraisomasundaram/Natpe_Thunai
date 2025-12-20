@@ -92,3 +92,24 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Add this to your globals.css */
+@keyframes cyber-pulse {
+  0% {
+    filter: drop-shadow(0 0 2px #00f3ff) brightness(1);
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 15px #00f3ff) brightness(1.2);
+    transform: scale(1.05);
+  }
+  100% {
+    filter: drop-shadow(0 0 2px #00f3ff) brightness(1);
+    transform: scale(1);
+  }
+}
+
+.logo-animated {
+  animation: cyber-pulse 3s infinite ease-in-out;
+  color: #00f3ff;
+}
