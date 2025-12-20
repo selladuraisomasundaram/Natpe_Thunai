@@ -2,59 +2,26 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, DollarSign, Handshake, PlusCircle, Users } from "lucide-react";
+import { Loader2, DollarSign, Handshake, PlusCircle, Users, Trash2 } from "lucide-react"; // NEW: Import Trash2
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_CASH_EXCHANGE_COLLECTION_ID } from "@/lib/appwrite";
 import { Models } from "appwrite";
+import { CashExchangeRequest } from "@/hooks/useCashExchangeListings"; // NEW: Import from new hook
 
-interface Contribution {
-  userId: string;
-  amount: number;
-}
-
-interface CashExchangeRequest extends Models.Document {
-  type: "request" | "offer" | "group-contribution";
-  amount: number;
-  commission: number;
-  notes: string;
-  status: "Open" | "Accepted" | "Completed" | "Group Contribution";
-  meetingLocation: string;
-  meetingTime: string;
-  contributions?: Contribution[];
-  posterId: string;
-  posterName: string;
-  collegeName: string;
-}
+// Removed Contribution interface as it's now in the hook
+// Removed serializeContributions and deserializeContributions as they are now in the hook
 
 interface CashExchangeListingsProps {
   listings: CashExchangeRequest[];
   isLoading: boolean;
   type: "request" | "offer" | "group-contribution";
-  // Add refetch if needed for parent to trigger a refresh after actions
+  onDelete: (requestId: string) => Promise<void>; // NEW: Add onDelete prop
 }
 
-// Helper functions for serialization/deserialization (copied from CashExchangePage)
-const serializeContributions = (contributions: Contribution[]): string[] => {
-  return contributions.map(c => JSON.stringify(c));
-};
-
-const deserializeContributions = (contributions: string[] | undefined): Contribution[] => {
-  if (!contributions || !Array.isArray(contributions)) return [];
-  return contributions.map(c => {
-    try {
-      return JSON.parse(c);
-    } catch (e) {
-      console.error("Failed to parse contribution item:", c, e);
-      return { userId: "unknown", amount: 0 };
-    }
-  });
-};
-
-
-const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, isLoading, type }) => {
+const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, isLoading, type, onDelete }) => {
   const { user } = useAuth();
   const [isUpdating, setIsUpdating] = React.useState(false);
 
@@ -125,7 +92,7 @@ const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, i
         APPWRITE_DATABASE_ID,
         APPWRITE_CASH_EXCHANGE_COLLECTION_ID,
         request.$id,
-        { contributions: serializeContributions(newContributions) } // Serialize back before updating
+        { contributions: newContributions.map(c => JSON.stringify(c)) } // Serialize back before updating
       );
       toast.success(`You contributed ₹${actualContribution} to this request!`);
     } catch (error: any) {
@@ -158,7 +125,19 @@ const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, i
         const remainingAmount = req.amount - currentContributionTotal;
 
         return (
-          <div key={req.$id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border border-border rounded-md bg-background">
+          <div key={req.$id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border border-border rounded-md bg-background relative"> {/* Added relative */}
+            {isPoster && (
+              <Button
+                variant="destructive"
+                size="icon"
+                className="absolute top-2 right-2 z-10 h-7 w-7 opacity-70 hover:opacity-100"
+                onClick={() => onDelete(req.$id)}
+                disabled={isUpdating}
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="sr-only">Delete Post</span>
+              </Button>
+            )}
             <div>
               <p className="font-semibold text-foreground">
                 ₹{req.amount} 

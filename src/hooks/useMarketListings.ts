@@ -12,6 +12,7 @@ interface MarketListingsState {
   isLoading: boolean;
   error: string | null;
   refetch: () => void;
+  deleteProduct: (productId: string) => Promise<void>; // NEW: Add deleteProduct
 }
 
 export const useMarketListings = (): MarketListingsState => {
@@ -53,7 +54,7 @@ export const useMarketListings = (): MarketListingsState => {
             const sellerProfileResponse = await databases.listDocuments(
               APPWRITE_DATABASE_ID,
               APPWRITE_USER_PROFILES_COLLECTION_ID,
-              [Query.equal('userId', product.userId), Query.limit(1)] // Changed to product.userId
+              [Query.equal('userId', product.userId), Query.limit(1)]
             );
             const sellerProfile = sellerProfileResponse.documents[0] as any;
             return {
@@ -61,7 +62,7 @@ export const useMarketListings = (): MarketListingsState => {
               sellerLevel: sellerProfile?.level ?? 1,
             };
           } catch (sellerError) {
-            console.warn(`Could not fetch profile for seller ${product.userId}:`, sellerError); // Changed to product.userId
+            console.warn(`Could not fetch profile for seller ${product.userId}:`, sellerError);
             return { ...product, sellerLevel: 1 };
           }
         })
@@ -75,12 +76,31 @@ export const useMarketListings = (): MarketListingsState => {
     } finally {
       setIsLoading(false);
     }
-  }, [userProfile]); // Dependencies for useCallback are correct
+  }, [userProfile]);
+
+  const deleteProduct = useCallback(async (productId: string) => {
+    if (!window.confirm("Are you sure you want to delete this product listing?")) {
+      return;
+    }
+    try {
+      await databases.deleteDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_PRODUCTS_COLLECTION_ID,
+        productId
+      );
+      toast.success("Product listing deleted successfully!");
+      // The real-time subscription will handle updating the state
+    } catch (err: any) {
+      console.error("Error deleting product listing:", err);
+      toast.error(err.message || "Failed to delete product listing.");
+      throw err;
+    }
+  }, []);
 
   useEffect(() => {
     if (isAuthLoading) {
       setIsLoading(true);
-      setProducts([]); // Clear products while auth is loading
+      setProducts([]);
       setError(null);
       return;
     }
@@ -92,14 +112,11 @@ export const useMarketListings = (): MarketListingsState => {
       return;
     }
 
-    // If auth is done and userProfile is available, fetch products
     fetchProducts();
 
-    // Setup real-time subscriptions
     const isDeveloper = userProfile.role === 'developer';
     const collegeToFilterBy = userProfile.collegeName;
 
-    // Only subscribe if there's a valid college to filter by, or if it's a developer viewing all
     if (!isDeveloper && !collegeToFilterBy) return;
 
     const unsubscribeProducts = databases.client.subscribe(
@@ -107,14 +124,11 @@ export const useMarketListings = (): MarketListingsState => {
       (response) => {
         const payload = response.payload as unknown as Product;
 
-        // Filter real-time updates by collegeName if not a developer
         if (!isDeveloper && payload.collegeName !== collegeToFilterBy) {
             return;
         }
 
-        // For any product update (create, update, delete), refetch to ensure sellerLevel and sorting are correct.
-        // This is simpler than trying to merge/update locally with seller profile data.
-        fetchProducts();
+        fetchProducts(); // Refetch to ensure sellerLevel and sorting are correct.
       }
     );
 
@@ -123,9 +137,7 @@ export const useMarketListings = (): MarketListingsState => {
       (response) => {
         const payload = response.payload as any;
         if (response.events.includes("databases.*.collections.*.documents.*.update")) {
-          // If a user profile is updated, and that user is a seller of an existing product, refetch products.
-          // This ensures sellerLevel badges are up-to-date.
-          const isSellerOfExistingProduct = products.some(p => p.userId === payload.userId); // Changed to userId
+          const isSellerOfExistingProduct = products.some(p => p.userId === payload.userId);
           if (isSellerOfExistingProduct) {
             fetchProducts();
           }
@@ -137,7 +149,7 @@ export const useMarketListings = (): MarketListingsState => {
       unsubscribeProducts();
       unsubscribeUserProfiles();
     };
-  }, [fetchProducts, isAuthLoading, userProfile]);
+  }, [fetchProducts, isAuthLoading, userProfile, products]); // Added products to dependency array for unsubscribeUserProfiles
 
-  return { products, isLoading, error, refetch: fetchProducts };
+  return { products, isLoading, error, refetch: fetchProducts, deleteProduct };
 };
