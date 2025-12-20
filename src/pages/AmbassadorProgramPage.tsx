@@ -44,12 +44,15 @@ const AmbassadorProgramPage = () => {
             <p className="text-sm text-muted-foreground font-semibold">
               Ambassador Coordinator:
             </p>
-            <div className="flex items-center gap-2 text-sm text-foreground">
-                <Mail className="h-4 w-4 text-secondary-neon" />
-                <span>
-                  selladuraisomasundaram@gmail.com<br/>
-                  friendzforum69@gmail.com
-                </span>
+            <div className="space-y-1"> {/* Use space-y for vertical spacing */}
+              <div className="flex items-center gap-2 text-sm text-foreground">
+                  <Mail className="h-4 w-4 text-secondary-neon" />
+                  <span>selladuraisomasundaram@gmail.com</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-foreground">
+                  <Mail className="h-4 w-4 text-secondary-neon" />
+                  <span>friendzforum69@gmail.com</span>
+              </div>
             </div>
             
             <Dialog open={isAmbassadorFormOpen} onOpenChange={setIsAmbassadorFormOpen}>
