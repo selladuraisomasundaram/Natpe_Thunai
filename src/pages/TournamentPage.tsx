@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import DetailedTournamentRegistrationForm from "@/components/forms/DetailedTournamentRegistrationForm";
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_SERVICES_COLLECTION_ID } from "@/lib/appwrite";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_TOURNAMENTS_COLLECTION_ID } from "@/lib/appwrite";
 import TournamentManagementForm from "@/components/forms/TournamentManagementForm"; // Assuming this exists and is functional
 import PostTournamentForm from "@/components/forms/PostTournamentForm";
 import { useTournamentData, Tournament, TeamStanding, Winner } from "@/hooks/useTournamentData";
