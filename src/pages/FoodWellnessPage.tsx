@@ -70,7 +70,7 @@ const FoodWellnessPage = () => {
 
       await databases.createDocument(
         APPWRITE_DATABASE_ID,
-        APPWRITE_SERVICES_COLLECTION_ID,
+        APPWRITE_FOOD_ORDERS_COLLECTION_ID,
         ID.unique(),
         newPostData
       );
@@ -109,7 +109,7 @@ const FoodWellnessPage = () => {
 
       await databases.createDocument(
         APPWRITE_DATABASE_ID,
-        APPWRITE_SERVICES_COLLECTION_ID,
+        APPWRITE_FOOD_ORDERS_COLLECTION_ID,
         ID.unique(),
         newRequest
       );
