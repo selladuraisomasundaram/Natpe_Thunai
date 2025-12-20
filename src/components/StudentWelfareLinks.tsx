@@ -3,7 +3,7 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, GraduationCap, BookOpen, Gem } from "lucide-react"; // Added Gem icon, removed Laptop
+import { ExternalLink, GraduationCap, BookOpen, Gem } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -43,17 +43,17 @@ const welfareDialogLinks: DialogLink[] = [
 ];
 
 const hiddenGemsDialogLinks: DialogLink[] = [
-  { name: "Remove.bg", description: "Instant background remover", url: "https://www.remove.bg/" },
+  { name: "Alternativeto.net", description: "Find software alternatives", url: "https://alternativeto.net/" },
+  { name: "QuillBot", description: "AI paraphrasing tool", url: "https://quillbot.com/" },
+  { name: "Desmos Graphing Calculator", description: "Advanced online graphing", url: "https://www.desmos.com/calculator" },
   { name: "Wolfram Alpha", description: "Computational knowledge engine", url: "https://www.wolframalpha.com/" },
-  { name: "Canva", description: "Easy graphic design", url: "https://www.canva.com/" },
-  { name: "Notion", description: "All-in-one workspace", url: "https://www.notion.so/" },
   { name: "Grammarly", description: "Writing assistant tool", url: "https://www.grammarly.com/" },
 ];
 
 const welfareLinks: WelfareLinkItem[] = [
   { name: "Educational Resources", icon: BookOpen, type: "dialog", dialogLinks: educationalDialogLinks },
   { name: "General Student Welfare", icon: GraduationCap, type: "dialog", dialogLinks: welfareDialogLinks },
-  { name: "Hidden Gems & Tools", icon: Gem, type: "dialog", dialogLinks: hiddenGemsDialogLinks }, // Using Gem icon for hidden gems
+  { name: "Hidden Gems & Tools", icon: Gem, type: "dialog", dialogLinks: hiddenGemsDialogLinks },
 ];
 
 const StudentWelfareLinks = () => {
