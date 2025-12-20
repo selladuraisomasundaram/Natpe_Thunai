@@ -46,7 +46,10 @@ const AmbassadorProgramPage = () => {
             </p>
             <div className="flex items-center gap-2 text-sm text-foreground">
                 <Mail className="h-4 w-4 text-secondary-neon" />
-                <span>ambassador.lead@example.com</span>
+                <span>
+                  selladuraisomasundaram@gmail.com<br/>
+                  friendzforum69@gmail.com
+                </span>
             </div>
             
             <Dialog open={isAmbassadorFormOpen} onOpenChange={setIsAmbassadorFormOpen}>
