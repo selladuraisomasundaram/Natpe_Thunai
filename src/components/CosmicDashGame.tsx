@@ -145,7 +145,7 @@ const CosmicDashGame: React.FC = () => {
       // Spawn Jump Particles
       const pX = dimensions.width * 0.15 + CONSTANTS.PLAYER_SIZE / 2;
       const pY = game.current.playerY + CONSTANTS.PLAYER_SIZE;
-      spawnParticles(pX, pY, 8, CONSTANTS.NEON_BLUE);
+      spawnParticles(pX, pY, 8, CONSTANTS.COLORS.NEON_BLUE);
     }
   };
 
