@@ -16,6 +16,7 @@ export interface ServicePost extends Models.Document {
   posterName: string;
   collegeName: string;
   isCustomOrder: boolean;
+  customOrderDescription?: string; // NEW: Added customOrderDescription
 }
 
 interface UseServiceListingsState {

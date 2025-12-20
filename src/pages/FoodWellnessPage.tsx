@@ -172,7 +172,7 @@ const FoodWellnessPage = () => {
                 <PostServiceForm 
                   onSubmit={handlePostCustomOrder} 
                   onCancel={() => setIsPostCustomOrderDialogOpen(false)} 
-                  isCustomOrder={true} 
+                  isCustomOrder={true}
                   categoryOptions={CUSTOM_REQUEST_OPTIONS}
                   titlePlaceholder="e.g., Request for Vegan Pasta"
                   descriptionPlaceholder="Describe the custom food or remedy you need, specific requirements, etc."

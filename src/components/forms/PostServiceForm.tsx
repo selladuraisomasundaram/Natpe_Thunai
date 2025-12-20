@@ -22,42 +22,68 @@ const ServiceFormSchema = z.object({
   price: z.string().min(1, { message: "Price is required." }),
   contact: z.string().min(5, { message: "Contact information is required." }),
   isCustomOrder: z.boolean().default(false),
+  customOrderDescription: z.string().optional(), // NEW: Added customOrderDescription to schema
+  ambassadorDelivery: z.boolean().default(false), // NEW: Added ambassadorDelivery to schema
+  ambassadorMessage: z.string().optional(), // NEW: Added ambassadorMessage to schema
 });
 
 interface PostServiceFormProps {
   onSubmit: (data: z.infer<typeof ServiceFormSchema>) => Promise<void>;
   onCancel: () => void;
   categoryOptions: { value: string; label: string }[];
-  initialCategory?: string; // NEW: Add initialCategory prop
+  initialCategory?: string;
+  isCustomOrder?: boolean; // NEW: Add isCustomOrder prop
+  titlePlaceholder?: string; // NEW: Add titlePlaceholder prop
+  descriptionPlaceholder?: string; // NEW: Add descriptionPlaceholder prop
+  customOrderDescriptionPlaceholder?: string; // NEW: Add customOrderDescriptionPlaceholder prop
+  pricePlaceholder?: string; // NEW: Add pricePlaceholder prop
+  contactPlaceholder?: string; // NEW: Add contactPlaceholder prop
+  ambassadorMessagePlaceholder?: string; // NEW: Add ambassadorMessagePlaceholder prop
 }
 
-const PostServiceForm: React.FC<PostServiceFormProps> = ({ onSubmit, onCancel, categoryOptions, initialCategory }) => {
+const PostServiceForm: React.FC<PostServiceFormProps> = ({
+  onSubmit,
+  onCancel,
+  categoryOptions,
+  initialCategory,
+  isCustomOrder = false, // NEW: Default to false
+  titlePlaceholder = "e.g., Math Tutoring, Graphic Design", // NEW: Default placeholder
+  descriptionPlaceholder = "Describe your service in detail...", // NEW: Default placeholder
+  customOrderDescriptionPlaceholder = "Specify details like ingredients, dietary restrictions, quantity, preferred time.", // NEW: Default placeholder
+  pricePlaceholder = "e.g., ₹500/hour, Negotiable", // NEW: Default placeholder
+  contactPlaceholder = "e.g., WhatsApp number, Email", // NEW: Default placeholder
+  ambassadorMessagePlaceholder = "e.g., Deliver to Block A, Room 101 by 7 PM", // NEW: Default placeholder
+}) => {
   const form = useForm<z.infer<typeof ServiceFormSchema>>({
     resolver: zodResolver(ServiceFormSchema),
     defaultValues: {
       title: "",
       description: "",
-      category: initialCategory || "", // NEW: Use initialCategory for default value
+      category: initialCategory || "",
       otherCategoryDescription: "",
       price: "",
       contact: "",
-      isCustomOrder: false,
+      isCustomOrder: isCustomOrder, // NEW: Use prop for default value
+      customOrderDescription: "", // Initialize
+      ambassadorDelivery: false, // Initialize
+      ambassadorMessage: "", // Initialize
     },
   });
 
-  // NEW: Reset form with initialCategory if it changes
   useEffect(() => {
     if (initialCategory) {
       form.reset({ ...form.getValues(), category: initialCategory });
     }
-  }, [initialCategory, form]);
+    // Also update isCustomOrder if the prop changes
+    form.setValue("isCustomOrder", isCustomOrder);
+  }, [initialCategory, isCustomOrder, form]);
 
   const { isSubmitting } = form.formState;
 
   const handleFormSubmit = async (data: z.infer<typeof ServiceFormSchema>) => {
     try {
       await onSubmit(data);
-      form.reset(); // Reset form after successful submission
+      form.reset();
     } catch (error) {
       // Error handling is done in the parent component's onSubmit
     }
@@ -73,7 +99,7 @@ const PostServiceForm: React.FC<PostServiceFormProps> = ({ onSubmit, onCancel, c
             <FormItem>
               <FormLabel className="text-foreground">Service Title</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., Math Tutoring, Graphic Design" {...field} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
+                <Input placeholder={titlePlaceholder} {...field} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -86,7 +112,7 @@ const PostServiceForm: React.FC<PostServiceFormProps> = ({ onSubmit, onCancel, c
             <FormItem>
               <FormLabel className="text-foreground">Description</FormLabel>
               <FormControl>
-                <Textarea placeholder="Describe your service in detail..." {...field} rows={4} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
+                <Textarea placeholder={descriptionPlaceholder} {...field} rows={4} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -131,6 +157,21 @@ const PostServiceForm: React.FC<PostServiceFormProps> = ({ onSubmit, onCancel, c
             )}
           />
         )}
+        {isCustomOrder && ( // Only show custom order description if it's a custom order form
+          <FormField
+            control={form.control}
+            name="customOrderDescription"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-foreground">Custom Order Details</FormLabel>
+                <FormControl>
+                  <Textarea placeholder={customOrderDescriptionPlaceholder} {...field} rows={3} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <FormField
           control={form.control}
           name="price"
@@ -138,7 +179,7 @@ const PostServiceForm: React.FC<PostServiceFormProps> = ({ onSubmit, onCancel, c
             <FormItem>
               <FormLabel className="text-foreground">Price/Compensation</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., ₹500/hour, Negotiable" {...field} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
+                <Input placeholder={pricePlaceholder} {...field} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -151,35 +192,37 @@ const PostServiceForm: React.FC<PostServiceFormProps> = ({ onSubmit, onCancel, c
             <FormItem>
               <FormLabel className="text-foreground">Contact Information</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., WhatsApp number, Email" {...field} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
+                <Input placeholder={contactPlaceholder} {...field} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="isCustomOrder"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 bg-card text-card-foreground border-border">
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                  className="border-secondary-neon data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground"
-                />
-              </FormControl>
-              <div className="space-y-1 leading-none">
-                <FormLabel className="text-foreground">
-                  Offer Custom Orders
-                </FormLabel>
-                <p className="text-sm text-muted-foreground">
-                  Allow users to request custom services based on your skills.
-                </p>
-              </div>
-            </FormItem>
-          )}
-        />
+        {!isCustomOrder && ( // Only show this checkbox if it's not a custom order form
+          <FormField
+            control={form.control}
+            name="isCustomOrder"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 bg-card text-card-foreground border-border">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    className="border-secondary-neon data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground"
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="text-foreground">
+                    Offer Custom Orders
+                  </FormLabel>
+                  <p className="text-sm text-muted-foreground">
+                    Allow users to request custom services based on your skills.
+                  </p>
+                </div>
+              </FormItem>
+            )}
+          />
+        )}
         <div className="flex justify-end space-x-2 pt-4">
           <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting} className="border-border text-primary-foreground hover:bg-muted">
             Cancel
