@@ -42,7 +42,7 @@
           type: productType,
           
           // Seller Info (from Auth Context)
-          userId: user.$id, // Changed from sellerId to userId to match Appwrite error
+          sellerId: user.$id, // Reverted to sellerId
           sellerName: user.name,
           sellerUpiId: userProfile.upiId,
           collegeName: userProfile.collegeName,
