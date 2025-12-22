@@ -1,20 +1,22 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, MessageSquareText, DollarSign, Star, X } from "lucide-react"; // Added X icon
+import { Loader2, MessageSquareText, DollarSign, Star, X } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useServiceReviews } from "@/hooks/useServiceReviews";
 import { ServicePost } from "@/hooks/useServiceListings";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"; // NEW
+import ServicePaymentDialog from "./forms/ServicePaymentDialog"; // NEW
 
 interface ServiceListingCardProps {
   service: ServicePost;
   onOpenBargainDialog: (service: ServicePost) => void;
-  onOpenReviewDialog: (serviceId: string, sellerId: string, serviceTitle: string) => void; // NEW: Updated signature
+  onOpenReviewDialog: (serviceId: string, sellerId: string, serviceTitle: string) => void;
   isFoodOrWellnessCategory: boolean;
 }
 
@@ -27,11 +29,12 @@ const formatCategoryTitle = (categorySlug: string | undefined) => {
 const ServiceListingCard: React.FC<ServiceListingCardProps> = ({
   service,
   onOpenBargainDialog,
-  onOpenReviewDialog, // NEW: Updated prop
+  onOpenReviewDialog,
   isFoodOrWellnessCategory,
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false); // NEW
   
   // Only call useServiceReviews if service.$id is valid
   const { averageRating, isLoading: isReviewsLoading, error: reviewsError, reviews: serviceReviews } = 
@@ -39,9 +42,17 @@ const ServiceListingCard: React.FC<ServiceListingCardProps> = ({
   
   const hasReviewed = false; // Simulate: In a real app, check if user has already reviewed this service
 
-  const handleContactProvider = (contact: string, title: string) => {
-    toast.info(`Contacting provider for "${title}" at ${contact}.`);
-    // In a real app, this would open a chat or email client.
+  const handleContactProvider = () => { // Modified to open payment dialog
+    if (!user) {
+      toast.error("Please log in to contact the provider.");
+      navigate("/auth");
+      return;
+    }
+    if (user.$id === service.posterId) {
+      toast.info("You are the provider of this service.");
+      return;
+    }
+    setIsPaymentDialogOpen(true); // Open the new payment dialog
   };
 
   return (
@@ -81,19 +92,36 @@ const ServiceListingCard: React.FC<ServiceListingCardProps> = ({
         </div>
       </div>
       <div className="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0">
-        <Button 
-          size="sm" 
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-          onClick={() => handleContactProvider(service.contact, service.title)}
-        >
-          Contact Provider
-        </Button>
+        <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+          <DialogTrigger asChild>
+            <Button 
+              size="sm" 
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleContactProvider}
+              disabled={user?.$id === service.posterId} // Disable if it's their own service
+            >
+              Contact Provider
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
+            <DialogHeader>
+              <DialogTitle className="text-foreground">Pay for Service: {service.title}</DialogTitle>
+            </DialogHeader>
+            <ServicePaymentDialog
+              service={service}
+              onPaymentInitiated={() => setIsPaymentDialogOpen(false)}
+              onCancel={() => setIsPaymentDialogOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
+
         {!isFoodOrWellnessCategory && (
           <Button
             size="sm"
             variant="outline"
             className="border-secondary-neon text-secondary-neon hover:bg-secondary-neon/10"
             onClick={() => onOpenBargainDialog(service)}
+            disabled={user?.$id === service.posterId} // Disable bargain on own service
           >
             <DollarSign className="mr-2 h-4 w-4" /> Bargain (15% off)
           </Button>
@@ -104,6 +132,7 @@ const ServiceListingCard: React.FC<ServiceListingCardProps> = ({
             variant="outline"
             className="border-blue-500 text-blue-500 hover:bg-blue-500/10"
             onClick={() => onOpenReviewDialog(service.$id, service.posterId, service.title)}
+            disabled={user?.$id === service.posterId} // Disable review on own service
           >
             <Star className="mr-2 h-4 w-4" /> Leave a Review
           </Button>

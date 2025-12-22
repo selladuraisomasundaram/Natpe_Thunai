@@ -59,6 +59,10 @@ import OfflinePage from "./pages/OfflinePage";
 // NEW: Import ImageToUrlHelpPage
 import ImageToUrlHelpPage from "./pages/ImageToUrlHelpPage";
 
+// NEW: Import ServicePaymentConfirmationPage and ChatPage
+import ServicePaymentConfirmationPage from "./pages/ServicePaymentConfirmationPage";
+import ChatPage from "./pages/ChatPage";
+
 
 const queryClient = new QueryClient();
 
@@ -149,6 +153,8 @@ const OnlineRoutes = () => {
         <Route path="/services/collaborators" element={<CollaboratorsPage />} />
         <Route path="/services/post-job" element={<PostJobPage />} />
         <Route path="/services/ambassador-program" element={<AmbassadorProgramPage />} />
+        <Route path="/services/confirm-payment/:transactionId" element={<ServicePaymentConfirmationPage />} /> {/* NEW */}
+        <Route path="/chat/:chatRoomId" element={<ChatPage />} /> {/* NEW */}
       </Route>
 
       {/* Protected Routes for Developers Only */}
