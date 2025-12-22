@@ -210,7 +210,7 @@ const [ablyRoom, setAblyRoom] = useState<Ably.RealtimeChannel | null>(null);
       const senderUsername = user.name; // Use Appwrite user.name as the anonymous username
 
       // 1. Publish message to Ably
-      await ablyRoom.messages.publish('message', {
+      await ablyRoom.publish('message', {
         text: trimmedMessage,
         senderUsername: senderUsername,
       });
