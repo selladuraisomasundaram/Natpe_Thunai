@@ -12,7 +12,7 @@ import { databases, APPWRITE_DATABASE_ID, APPWRITE_CHAT_ROOMS_COLLECTION_ID, APP
 import { Models, ID, Query } from "appwrite";
 import { useAuth } from "@/context/AuthContext";
 import * as Ably from "ably";
-import { ChatClient, ConnectionStatusChange, ChatMessageEvent, RoomStatusChange } from "@ably/chat";
+import { ChatClient, ConnectionStatusChange, ChatMessageEvent, RoomStatusChange,Room } from "@ably/chat";
 import { cn } from "@/lib/utils";
 
 interface ChatRoom extends Models.Document {
