@@ -14,6 +14,8 @@ APPWRITE_SERVICE_REVIEWS_COLLECTION_ID } from "@/lib/appwrite";
 import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
 import * as z from "zod";
+import { Alert, AlertDescription } from "@/components/ui/alert"; // NEW: Import Alert components
+import DeletionInfoMessage from "@/components/DeletionInfoMessage"; // NEW: Import DeletionInfoMessage
 
 // Errand types specific to this page (Urgent/Short-Term)
 const URGENT_TYPES = ["instant-help", "emergency-delivery", "other"]; // Include 'other' for filtering
@@ -39,6 +41,7 @@ const ShortTermNeedsPage = () => {
   const { user, userProfile } = useAuth();
   const [isPostErrandDialogOpen, setIsPostErrandDialogOpen] = useState(false);
   const [initialTypeForForm, setInitialTypeForForm] = useState<string | undefined>(undefined); // Changed from initialCategoryForForm
+  const [showUrgentFormInfoAlert, setShowUrgentFormInfoAlert] = useState(true); // NEW: State for dismissible alert
   
   // Fetch only urgent requests for the user's college
   const { errands: postedUrgentRequests, isLoading, error } = useErrandListings(URGENT_TYPES);
@@ -54,6 +57,7 @@ const ShortTermNeedsPage = () => {
   const handleNeedClick = (needType: string) => {
     setInitialTypeForForm(needType); // Changed from setInitialCategoryForForm
     setIsPostErrandDialogOpen(true);
+    setShowUrgentFormInfoAlert(true); // Reset alert visibility when dialog opens
   };
 
   const handlePostErrand = async (data: z.infer<typeof ErrandFormSchema>) => { // Correctly type data
@@ -136,12 +140,26 @@ const ShortTermNeedsPage = () => {
                     <span className="sr-only">Close</span>
                   </Button>
                 </DialogHeader>
-                <PostErrandForm 
-                  onSubmit={handlePostErrand} 
-                  onCancel={() => { setIsPostErrandDialogOpen(false); setInitialTypeForForm(undefined); }} // Changed to setInitialTypeForForm
-                  typeOptions={URGENT_ERRAND_OPTIONS} // Changed to typeOptions
-                  initialType={initialTypeForForm} // Changed to initialType
-                />
+                {/* NEW: Scroll pane for dialog content */}
+                <div className="max-h-[calc(100vh-200px)] overflow-y-auto pr-2"> {/* Adjust height as needed */}
+                  {showUrgentFormInfoAlert && ( // NEW: Conditionally render dismissible alert
+                    <Alert className="bg-blue-50 border-blue-200 text-blue-800 flex items-center justify-between mb-4">
+                      <AlertDescription>
+                        Fill out the details to post your urgent request for college peers.
+                      </AlertDescription>
+                      <Button variant="ghost" size="icon" onClick={() => setShowUrgentFormInfoAlert(false)} className="text-blue-800 hover:bg-blue-100">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </Alert>
+                  )}
+                  <DeletionInfoMessage /> {/* NEW: Deletion Info Message */}
+                  <PostErrandForm 
+                    onSubmit={handlePostErrand} 
+                    onCancel={() => { setIsPostErrandDialogOpen(false); setInitialTypeForForm(undefined); }} // Changed to setInitialTypeForForm
+                    typeOptions={URGENT_ERRAND_OPTIONS} // Changed to typeOptions
+                    initialType={initialTypeForForm} // Changed to initialType
+                  />
+                </div> {/* END: Scroll pane */}
               </DialogContent>
             </Dialog>
             <p className="text-xs text-destructive-foreground mt-4">
