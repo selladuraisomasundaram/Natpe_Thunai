@@ -43,37 +43,13 @@ const ChatPage = () => {
   const [newMessage, setNewMessage] = useState("");
   const [isLoadingChat, setIsLoadingChat] = useState(true);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [ablyClient, setAblyClient] = useState<Ably.Realtime | null>(null);
-  const [chatClient, setChatClient] = useState<ChatClient | null>(null);
- // Use 'Ably.RealtimeChannel' directly
-const [ablyRoom, setAblyRoom] = useState<Room | null>(null);
+  
+  // Use useRef for Ably instances and useState for readiness
+  const ablyRealtimeRef = useRef<Ably.Realtime | null>(null);
+  const ablyRoomRef = useRef<Room | null>(null);
+  const [isAblyReady, setIsAblyReady] = useState(false);
+
   const chatContainerRef = useRef<HTMLDivElement>(null);
-
-  const fetchAblyToken = useCallback(async (userId: string, channelName: string) => {
-    try {
-      // Call your Appwrite Function to get an Ably token
-      const response = await fetch(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/functions/generateAblyToken/executions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Appwrite-Project': import.meta.env.VITE_APPWRITE_PROJECT_ID,
-          // No API key here, as the function is public or uses internal permissions
-        },
-        body: JSON.stringify({ userId, channelName }),
-      });
-
-      const data = await response.json();
-      if (data.success && data.tokenRequest) {
-        return data.tokenRequest;
-      } else {
-        throw new Error(data.error || "Failed to get Ably token from function.");
-      }
-    } catch (error) {
-      console.error("Error fetching Ably token:", error);
-      toast.error("Failed to establish chat connection. Please try again.");
-      return null;
-    }
-  }, []);
 
   // Fetch chat room and messages, and set up Ably connection
   useEffect(() => {
@@ -107,31 +83,21 @@ const [ablyRoom, setAblyRoom] = useState<Room | null>(null);
         );
         setMessages(messagesResponse.documents as unknown as ChatMessage[]);
 
-        // 3. Get Ably Token
-        const ablyTokenRequest = await fetchAblyToken(user.$id, `chat-${chatRoomId}`);
-        if (!ablyTokenRequest) {
-          setIsLoadingChat(false);
-          return;
-        }
-
-        // 4. Initialize Ably Realtime and ChatClient
-        const ablyRealtime = new Ably.Realtime({
+        // 3. Initialize Ably Realtime and ChatClient
+        ablyRealtimeRef.current = new Ably.Realtime({
           authUrl: `${import.meta.env.VITE_APPWRITE_ENDPOINT}/functions/generateAblyToken/executions`,
           authMethod: 'POST',
           authParams: { userId: user.$id, channelName: `chat-${chatRoomId}` },
           clientId: user.$id,
           echoMessages: false, // Prevent receiving own messages twice
         });
-        setAblyClient(ablyRealtime);
 
-        const chat = new ChatClient(ablyRealtime);
-        setChatClient(chat);
+        const chat = new ChatClient(ablyRealtimeRef.current);
 
-        // 5. Get and attach to Ably Room
-        const room = await chat.rooms.get(`chat-${chatRoomId}`);
-        setAblyRoom(room);
+        // 4. Get and attach to Ably Room
+        ablyRoomRef.current = await chat.rooms.get(`chat-${chatRoomId}`);
 
-        room.messages.subscribe((message: ChatMessageEvent) => {
+        ablyRoomRef.current.messages.subscribe((message: ChatMessageEvent) => {
           // Only process messages from other users, as our own messages are added directly
           if (message.message.clientId !== user.$id) {
             setMessages(prev => [...prev, {
@@ -149,9 +115,10 @@ const [ablyRoom, setAblyRoom] = useState<Room | null>(null);
             }]);
           }
         });
-        await room.attach();
+        await ablyRoomRef.current.attach();
+        setIsAblyReady(true); // Mark Ably as ready after attachment
 
-        // 6. Set up Appwrite real-time subscription for chat messages (for persistence)
+        // 5. Set up Appwrite real-time subscription for chat messages (for persistence)
         const unsubscribeAppwrite = databases.client.subscribe(
           `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_CHAT_MESSAGES_COLLECTION_ID}.documents`,
           (response) => {
@@ -160,7 +127,6 @@ const [ablyRoom, setAblyRoom] = useState<Room | null>(null);
               // If a message is created by another user and stored in Appwrite,
               // we might receive it here. We already handle Ably messages,
               // so this is primarily for ensuring our local state is consistent with persisted data.
-              // For simplicity, we'll let Ably drive the real-time display and Appwrite for history.
               // If Ably messages are not persisted, this would be the primary real-time update.
             }
           }
@@ -169,8 +135,9 @@ const [ablyRoom, setAblyRoom] = useState<Room | null>(null);
         setIsLoadingChat(false);
         return () => {
           unsubscribeAppwrite();
-          ablyRoom?.detach();
-          ablyClient?.close();
+          ablyRoomRef.current?.detach();
+          ablyRealtimeRef.current?.close();
+          setIsAblyReady(false); // Reset readiness on cleanup
         };
 
       } catch (error: any) {
@@ -184,10 +151,11 @@ const [ablyRoom, setAblyRoom] = useState<Room | null>(null);
     setupChat();
 
     return () => {
-      ablyRoom?.detach();
-      ablyClient?.close();
+      ablyRoomRef.current?.detach();
+      ablyRealtimeRef.current?.close();
+      setIsAblyReady(false);
     };
-  }, [isAuthLoading, user, chatRoomId, navigate, fetchAblyToken]);
+  }, [isAuthLoading, user, chatRoomId, navigate]); // Removed fetchAblyToken as it's no longer directly called
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -200,7 +168,7 @@ const [ablyRoom, setAblyRoom] = useState<Room | null>(null);
     e.preventDefault();
     const trimmedMessage = newMessage.trim();
 
-    if (!trimmedMessage || !user || !chatRoom || !ablyRoom) {
+    if (!trimmedMessage || !user || !chatRoom || !isAblyReady || !ablyRoomRef.current) {
       toast.error("Cannot send empty message or chat not ready.");
       return;
     }
@@ -210,7 +178,7 @@ const [ablyRoom, setAblyRoom] = useState<Room | null>(null);
       const senderUsername = user.name; // Use Appwrite user.name as the anonymous username
 
       // 1. Publish message to Ably
-      await ablyRoom.messages.send({
+      await ablyRoomRef.current.messages.send({
         text: trimmedMessage,
         metadata: {senderUsername},
       });
@@ -252,7 +220,7 @@ const [ablyRoom, setAblyRoom] = useState<Room | null>(null);
     }
   };
 
-  if (isLoadingChat || isAuthLoading) {
+  if (isLoadingChat || isAuthLoading || !isAblyReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
         <Loader2 className="h-10 w-10 animate-spin text-secondary-neon" />
