@@ -138,7 +138,7 @@ const [ablyRoom, setAblyRoom] = useState<Room | null>(null);
               $id: ID.unique(), // Ably message doesn't have Appwrite ID
               chatRoomId: chatRoomId,
               senderId: message.message.clientId || 'unknown',
-              senderUsername: message.message.metadata as any.senderUsername || 'Anonymous',
+              senderUsername: (message.message.metadata as any).senderUsername || 'Anonymous',
               content: message.message.text,
               $createdAt: new Date().toISOString(),
               $updatedAt: new Date().toISOString(),
