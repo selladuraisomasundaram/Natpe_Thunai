@@ -57,16 +57,16 @@ const ServicesPage = () => {
           </CardContent>
         </Card>
 
-        {/* Short-Term Needs Card (Age Gated) */}
+        {/* Post a Need Card (Age Gated) */}
         <Card 
           className={`bg-card p-4 rounded-lg shadow-md border border-border transition-shadow ${isAgeGated ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:shadow-xl'}`} 
-          onClick={() => handleServiceClick("/services/short-term", "Short-Term Needs")}
+          onClick={() => handleServiceClick("/services/short-term", "Post a Need")}
         >
           <CardHeader className="p-0 pb-2">
-            <CardTitle className="text-xl font-semibold text-card-foreground">Short-Term Needs</CardTitle>
+            <CardTitle className="text-xl font-semibold text-card-foreground">Post a Need</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <p className="text-muted-foreground">Instant requests with extra charges for urgent tasks {isAgeGated ? "(Access Denied)" : "(Age-Gated)"}.</p>
+            <p className="text-muted-foreground">Post requests for products, services, errands, and more {isAgeGated ? "(Access Denied)" : "(Age-Gated)"}.</p>
           </CardContent>
         </Card>
 
