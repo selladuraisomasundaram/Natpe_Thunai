@@ -137,15 +137,7 @@ const ErrandsPage = () => {
               <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
                 <DialogHeader className="relative">
                   <DialogTitle className="text-foreground">Post New Campus Errand</DialogTitle>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:bg-muted"
-                    onClick={() => setIsPostErrandDialogOpen(false)}
-                  >
-                    <X className="h-4 w-4" />
-                    <span className="sr-only">Close</span>
-                  </Button>
+                  {/* Removed the explicit close button here as requested */}
                 </DialogHeader>
                 {/* NEW: Scroll pane for dialog content */}
                 <div className="max-h-[calc(100vh-200px)] overflow-y-auto pr-2"> {/* Adjust height as needed */}
