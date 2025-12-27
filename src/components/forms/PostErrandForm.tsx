@@ -14,13 +14,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import DeletionInfoMessage from "@/components/DeletionInfoMessage"; // NEW: Import DeletionInfoMessage
+import DeletionInfoMessage from "@/components/DeletionInfoMessage";
 
 // Define the schema for the form
 const formSchema = z.object({
   title: z.string().min(2, { message: "Title must be at least 2 characters." }),
   description: z.string().min(10, { message: "Description must be at least 10 characters." }),
-  type: z.string().min(1, { message: "Please select an errand type." }),
+  type: z.string().min(1, { message: "Please select a need type." }),
   otherTypeDescription: z.string().optional(), // For 'other' type
   compensation: z.string().min(2, { message: "Compensation details are required." }),
   deadline: z.date().optional(),
@@ -28,10 +28,10 @@ const formSchema = z.object({
 });
 
 interface PostErrandFormProps {
-  onSubmit: (data: z.infer<typeof formSchema>) => Promise<void>; // Changed to Promise<void>
+  onSubmit: (data: z.infer<typeof formSchema>) => Promise<void>;
   onCancel: () => void;
   typeOptions: { value: string; label: string }[];
-  initialType?: string; // New prop
+  initialType?: string;
 }
 
 const PostErrandForm: React.FC<PostErrandFormProps> = ({ onSubmit, onCancel, typeOptions, initialType }) => {
@@ -75,15 +75,15 @@ const PostErrandForm: React.FC<PostErrandFormProps> = ({ onSubmit, onCancel, typ
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-        <DeletionInfoMessage /> {/* NEW: Deletion Info Message */}
+        <DeletionInfoMessage />
         <FormField
           control={form.control}
           name="title"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Errand Title</FormLabel>
+              <FormLabel>Need Title</FormLabel> {/* Changed label */}
               <FormControl>
-                <Input placeholder="e.g., Pick up groceries" {...field} />
+                <Input placeholder="e.g., Help with math homework" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -97,7 +97,7 @@ const PostErrandForm: React.FC<PostErrandFormProps> = ({ onSubmit, onCancel, typ
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea placeholder="Provide details about the errand..." {...field} />
+                <Textarea placeholder="Provide details about your need..." {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -109,11 +109,11 @@ const PostErrandForm: React.FC<PostErrandFormProps> = ({ onSubmit, onCancel, typ
           name="type"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Errand Type</FormLabel>
+              <FormLabel>Need Type</FormLabel> {/* Changed label */}
               <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select an errand type" />
+                    <SelectValue placeholder="Select a need type" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -213,7 +213,7 @@ const PostErrandForm: React.FC<PostErrandFormProps> = ({ onSubmit, onCancel, typ
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button type="submit">Post Errand</Button>
+          <Button type="submit">Post Need</Button> {/* Changed button text */}
         </div>
       </form>
     </Form>

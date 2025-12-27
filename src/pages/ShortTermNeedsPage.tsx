@@ -15,7 +15,7 @@ import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
 import * as z from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import DeletionInfoMessage from "@/components/DeletionInfoMessage";
+// import DeletionInfoMessage from "@/components/DeletionInfoMessage"; // REMOVED: Duplicate instance
 
 // Need types specific to this page (Products, Services, Errands, Other)
 const NEED_TYPES = ["product-need", "service-need", "errand-need", "other"];
@@ -158,7 +158,7 @@ const ShortTermNeedsPage = () => { // Renamed to PostANeedPage in summary, but k
                       </Button>
                     </Alert>
                   )}
-                  <DeletionInfoMessage />
+                  {/* <DeletionInfoMessage /> REMOVED: Duplicate instance */}
                   <PostErrandForm 
                     onSubmit={handlePostErrand} 
                     onCancel={() => { setIsPostErrandDialogOpen(false); setInitialTypeForForm(undefined); }}
