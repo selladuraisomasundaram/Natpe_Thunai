@@ -2,18 +2,29 @@
 
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { DialogFooter } from "@/components/ui/dialog";
+import { Loader2, DollarSign } from "lucide-react";
 import { toast } from "sonner";
-import { ServicePost } from "@/hooks/useServiceListings";
 import { useAuth } from "@/context/AuthContext";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID } from "@/lib/appwrite";
-import { ID, Query } from 'appwrite';
-import { Loader2, DollarSign, Truck } from "lucide-react";
+import { ID } from 'appwrite';
 import { DEVELOPER_UPI_ID } from "@/lib/config";
-import AmbassadorDeliveryOption from "@/components/AmbassadorDeliveryOption";
 import { useNavigate } from "react-router-dom";
+import AmbassadorDeliveryOption from "@/components/AmbassadorDeliveryOption";
+
+// Infer ServicePost structure based on usage in other files
+interface ServicePost {
+  $id: string;
+  title: string;
+  description: string;
+  category: string;
+  price: string; // e.g., "₹500/hour", "Negotiable", "Free"
+  contact: string; // Assuming this can be the UPI ID for services
+  posterId: string;
+  posterName: string;
+  collegeName: string;
+  isCustomOrder: boolean;
+}
 
 interface ServicePaymentDialogProps {
   service: ServicePost;
@@ -21,73 +32,85 @@ interface ServicePaymentDialogProps {
   onCancel: () => void;
 }
 
+// Helper function to parse the service price string into a number
+const parseServicePrice = (priceString: string): number => {
+  if (!priceString) return 0;
+  const lowerCasePrice = priceString.toLowerCase();
+
+  if (lowerCasePrice.includes("free") || lowerCasePrice.includes("negotiable")) {
+    return 0;
+  }
+
+  // Extract numbers, handling various currency symbols and units
+  const match = lowerCasePrice.match(/(\d+(\.\d+)?)/);
+  if (match && match[1]) {
+    return parseFloat(match[1]);
+  }
+  return 0; // Default to 0 if no valid number found
+};
+
 const ServicePaymentDialog: React.FC<ServicePaymentDialogProps> = ({ service, onPaymentInitiated, onCancel }) => {
   const { user, userProfile, incrementAmbassadorDeliveriesCount } = useAuth();
   const navigate = useNavigate();
+  const [isProcessing, setIsProcessing] = useState(false);
   const [ambassadorDelivery, setAmbassadorDelivery] = useState(false);
   const [ambassadorMessage, setAmbassadorMessage] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleInitiateServicePayment = async () => {
-    if (!user || !userProfile || !service) return;
+  const handleInitiatePayment = async () => {
+    if (!user || !userProfile) {
+      toast.error("Please log in to proceed with a transaction.");
+      navigate("/auth");
+      return;
+    }
+    if (!service) return;
 
     if (!service.posterId || service.posterId.trim() === "") {
-      toast.error("Service provider information is missing or invalid. Cannot proceed with payment.");
-      console.error("Service poster ID is missing or empty for service:", service);
+      toast.error("Service provider information is missing or invalid. Cannot proceed with transaction.");
+      console.error("Service provider ID is missing or empty for service:", service);
+      return;
+    }
+
+    if (user.$id === service.posterId) {
+      toast.error("You cannot pay for your own service listing.");
+      return;
+    }
+    if (!userProfile.collegeName) {
+      toast.error("Your profile is missing college information. Please update your profile first.");
       return;
     }
 
     setIsProcessing(true);
 
-    const priceMatch = service.price.match(/₹(\d+(\.\d+)?)/);
-    const transactionAmount = priceMatch ? parseFloat(priceMatch[1]) : 0;
+    // 1. Calculate Price using the robust parser
+    const amount = parseServicePrice(service.price);
 
-    if (isNaN(transactionAmount) || transactionAmount <= 0) {
+    if (isNaN(amount) || amount < 0) { // Amount can be 0 for free/negotiable
       toast.error("Invalid service price.");
       setIsProcessing(false);
       return;
     }
 
-    const transactionNote = `Payment for Service: ${service.title}`;
+    const transactionAmount = parseFloat(amount.toFixed(2));
+    const transactionNote = `Service payment for ${service.title}`;
 
     try {
-      // Check for existing initiated transaction for this service by this user
-      const existingTransactions = await databases.listDocuments(
-        APPWRITE_DATABASE_ID,
-        APPWRITE_TRANSACTIONS_COLLECTION_ID,
-        [
-          Query.equal('productId', service.$id), // Using service ID as product ID for transaction
-          Query.equal('buyerId', user.$id),
-          Query.equal('status', 'initiated'), // Check for transactions that are still pending payment
-          Query.limit(1)
-        ]
-      );
-
-      if (existingTransactions.documents.length > 0) {
-        toast.info("You already have an initiated payment for this service. Please complete it or wait for it to expire.");
-        setIsProcessing(false);
-        onPaymentInitiated(); // Close dialog
-        navigate(`/services/confirm-payment/${existingTransactions.documents[0].$id}`);
-        return;
-      }
-
-      // Create Appwrite Transaction Document (Status: initiated)
+      // 2. Create Appwrite Transaction Document (Status: initiated)
       const newTransaction = await databases.createDocument(
         APPWRITE_DATABASE_ID,
         APPWRITE_TRANSACTIONS_COLLECTION_ID,
         ID.unique(),
         {
-          productId: service.$id, // Using service ID as product ID
-          productTitle: service.title,
+          productId: service.$id, // Service ID
+          productTitle: service.title, // Service Title
           buyerId: user.$id,
           buyerName: user.name,
-          sellerId: service.posterId, // Service provider is the 'seller'
-          sellerName: service.posterName,
-          sellerUpiId: userProfile.upiId, // This will be replaced by actual provider UPI later
+          sellerId: service.posterId, // Service Provider ID
+          sellerName: service.posterName, // Service Provider Name
+          sellerUpiId: service.contact, // Assuming contact is UPI ID for services
           amount: transactionAmount,
           status: "initiated",
-          type: "service", // Mark as service transaction
-          isBargain: false, // This dialog is for direct payment, not bargain
+          type: "service", // Transaction type is 'service'
+          isBargain: false, // Bargain handled separately for services
           collegeName: userProfile.collegeName,
           ambassadorDelivery: ambassadorDelivery,
           ambassadorMessage: ambassadorMessage || null,
@@ -101,42 +124,39 @@ const ServicePaymentDialog: React.FC<ServicePaymentDialogProps> = ({ service, on
         await incrementAmbassadorDeliveriesCount();
       }
 
-      // Generate UPI Deep Link (Payment goes to Developer UPI ID)
+      // 3. Generate UPI Deep Link (Payment goes to Developer UPI ID)
       const upiDeepLink = `upi://pay?pa=${DEVELOPER_UPI_ID}&pn=NatpeThunaiDevelopers&am=${transactionAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(transactionNote + ` (TX ID: ${transactionId})`)}`;
 
-      // Redirect to UPI App
+      // 4. Redirect to UPI App
       window.open(upiDeepLink, "_blank");
-
+      
       toast.info(`Redirecting to UPI app to pay ₹${transactionAmount.toFixed(2)} to the developer. Please complete the payment and note the UTR ID.`);
 
-      // Redirect to Confirmation Page
-      onPaymentInitiated(); // Close dialog and trigger parent callback
-      navigate(`/services/confirm-payment/${transactionId}`); // Navigate to a generic confirmation/tracking page
+      // 5. Redirect to Service Confirmation Page
+      navigate(`/services/confirm-payment/${transactionId}`);
+      onPaymentInitiated(); // Close the dialog
 
     } catch (error: any) {
-      console.error("Error initiating service payment transaction:", error);
-      toast.error(error.message || "Failed to initiate service payment transaction.");
+      console.error("Error initiating service transaction:", error);
+      toast.error(error.message || "Failed to initiate service transaction.");
     } finally {
       setIsProcessing(false);
     }
   };
 
   return (
-    <div className="space-y-4 py-4">
-      <div className="space-y-3 py-2">
-        <p className="font-bold text-red-500">Important: This is a non-Escrow payment system.</p>
-        <p className="text-sm text-muted-foreground">You are about to place this order and will be redirected to your UPI app to complete the secure payment of the **full amount** to the developer's provided UPI ID. Natpe🤝Thunai developers will then transfer the net amount to the service provider.</p>
-      </div>
-      <div className="space-y-3 py-2">
-        <p className="text-sm text-foreground">Service: <span className="font-semibold">{service.title}</span></p>
-        <p className="text-xl font-bold text-secondary-neon">
-          Price: {service.price}
-        </p>
-        <p className="text-xs text-muted-foreground">Provider: {service.posterName}</p>
-        <p className="text-xs text-destructive-foreground">
-          Payment will be made to Natpe Thunai Developers, who will then transfer the net amount to the service provider.
-        </p>
-      </div>
+    <div className="space-y-4 py-2">
+      <p className="text-sm text-foreground">Service: <span className="font-semibold">{service.title}</span></p>
+      <p className="text-xl font-bold text-secondary-neon">
+        Price: ₹{parseServicePrice(service.price).toFixed(2)}
+      </p>
+      <p className="text-xs text-muted-foreground">Provider: {service.posterName}</p>
+      <p className="text-xs text-destructive-foreground">
+          Recipient: Natpe Thunai Developers (UPI ID: {DEVELOPER_UPI_ID})
+      </p>
+      <p className="text-xs text-muted-foreground">
+          You will be redirected to your UPI app. If redirection fails, please use the developer UPI ID/QR code found in the 'Chat with Developers' section of your profile.
+      </p>
 
       <AmbassadorDeliveryOption
         ambassadorDelivery={ambassadorDelivery}
@@ -145,11 +165,11 @@ const ServicePaymentDialog: React.FC<ServicePaymentDialogProps> = ({ service, on
         setAmbassadorMessage={setAmbassadorMessage}
       />
 
-      <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isProcessing} className="w-full sm:w-auto border-border text-primary-foreground hover:bg-muted">
+      <DialogFooter>
+        <Button variant="outline" onClick={onCancel} disabled={isProcessing} className="border-border text-primary-foreground hover:bg-muted">
           Cancel
         </Button>
-        <Button onClick={handleInitiateServicePayment} disabled={isProcessing} className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
+        <Button onClick={handleInitiatePayment} disabled={isProcessing} className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
           {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Proceed to Payment"}
         </Button>
       </DialogFooter>
