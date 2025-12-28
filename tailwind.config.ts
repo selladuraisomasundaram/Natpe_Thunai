@@ -13,6 +13,16 @@ export default {
         matteBlack: "#121212",
         brightYellow: "#ffff00",
       },
+      borderWidth: {
+        1: '1px',
+      },
+      borderColor: {
+        creamWhite: "#f5f5f5",
+        electricPurple: "#8a2be2",
+        limeGreen: "#32cd32",
+        matteBlack: "#121212",
+        brightYellow: "#ffff00",
+      },
     },
   },
 } satisfies Config;
