@@ -105,10 +105,18 @@ const AuthPage = () => {
     setLoading(true);
     try {
       if (isLogin) {
-        await account.createEmailPasswordSession(email, password);
-        await login(); // Call login from AuthContext to update global state
-        toast.success("Logged in successfully!");
-        // Navigation is now handled by the useEffect above
+       // Inside handleLogin and handleRegister functions:
+
+// 1. Create the session
+await account.createEmailPasswordSession(email, password);
+
+// 2. Fetch the user details immediately
+const accountUser = await account.get(); 
+
+// 3. Pass the user to login()
+await login(accountUser); // Fixed: Passed the required argument
+
+toast.success("Logged in successfully!");
       } else {
         if (!termsAccepted) {
           toast.error("You must accept the terms and conditions.");
