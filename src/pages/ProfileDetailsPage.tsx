@@ -63,8 +63,11 @@ const ProfileDetailsPage = () => {
     avatarStyle: string; // NEW: Add avatarStyle
   }) => {
     if (userProfile) {
-      await updateUserProfile(userProfile.$id, data);
-    }
+  // Fixed: Passed only the data object. 
+  // If the function needs the ID explicitly,
+  use: { ...data, $id: userProfile.$id }
+  await updateUserProfile(data); 
+}
   };
 
   const renderMotivationalMessage = () => {
