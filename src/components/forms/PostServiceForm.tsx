@@ -10,6 +10,9 @@ interface PostServiceFormProps {
   ambassadorMessagePlaceholder: string;
   titlePlaceholder: string;
   descriptionPlaceholder: string;
+  pricePlaceholder?: string;
+  contactPlaceholder?: string;
+  customOrderDescriptionPlaceholder?: string;
   isCustomOrder?: boolean;
 }
 
@@ -21,11 +24,10 @@ export default function PostServiceForm({
   ambassadorMessagePlaceholder,
   titlePlaceholder,
   descriptionPlaceholder,
+  pricePlaceholder,
+  contactPlaceholder,
+  customOrderDescriptionPlaceholder,
   isCustomOrder,
 }: PostServiceFormProps) {
-  return ( 
-    <div>
-      {/* component code */}
-    </div>
-  );
+  // component code
 }
