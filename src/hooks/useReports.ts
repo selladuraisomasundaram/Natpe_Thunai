@@ -1,82 +1,68 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Client, Databases, Query, Models, ID } from 'appwrite';
+"use client";
+
+import { useState, useEffect } from 'react';
+import { Databases, Query, Models, ID } from 'appwrite';
+import { client } from '@/lib/appwrite';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
-
-// Initialize Appwrite client
-const client = new Client();
-client
-  .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)
-  .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID);
+import { AppwriteDocument } from '@/types/appwrite';
 
 const databases = new Databases(client);
 
-// Collection IDs
 const DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID;
 const REPORTS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_REPORTS_COLLECTION_ID;
 
-export type ReportStatus = "Pending" | "Reviewed" | "Dismissed";
-export type ListingType = 'product' | 'service' | 'errand' | 'canteen' | 'tournament' | 'collaboratorPost' | 'lostFoundItem';
+export type ReportType = 'marketplace' | 'service' | 'errand' | 'tournament' | 'other';
+export type ReportStatus = 'pending' | 'reviewed' | 'resolved';
 
-export interface Report extends Models.Document {
+export interface Report extends AppwriteDocument {
   reporterId: string;
   reporterName: string;
   collegeName: string;
-  listingId: string;
-  listingType: ListingType;
+  listingId: string; // ID of the item/service/errand being reported
+  listingType: ReportType;
   reason: string;
   description?: string;
   status: ReportStatus;
-  reviewedBy?: string; // Developer ID
-  reviewedAt?: string; // ISO date string
 }
 
-interface ReportsState {
-  reports: Report[];
-  isLoading: boolean;
-  error: string | null;
-  refetch: () => Promise<void>;
-  submitReport: (reportData: Omit<Report, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions" | "reporterId" | "reporterName" | "collegeName" | "status" | "reviewedBy" | "reviewedAt">) => Promise<void>;
-  updateReportStatus: (reportId: string, newStatus: ReportStatus, reviewedBy?: string) => Promise<void>;
-}
-
-export const useReports = (collegeNameFilter?: string): ReportsState => {
-  const { userProfile } = useAuth();
+const useReports = () => {
+  const { user, userPreferences } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchReports = useCallback(async () => {
+  const fetchReports = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const queries = [
-        Query.orderDesc('$createdAt'),
-        collegeNameFilter ? Query.equal('collegeName', collegeNameFilter) : Query.limit(100) // Filter by college if provided
-      ];
+      const queries = [Query.orderDesc('$createdAt')];
+      if (userPreferences?.collegeName && userPreferences.collegeName !== 'N/A') {
+        queries.push(Query.equal('collegeName', userPreferences.collegeName));
+      }
 
       const response = await databases.listDocuments(
         DATABASE_ID,
         REPORTS_COLLECTION_ID,
         queries
       );
-      setReports(response.documents as Report[]);
+      setReports(response.documents as Report[]); // Type assertion is now safer
     } catch (err: any) {
-      console.error("Error fetching reports:", err);
-      setError("Failed to fetch reports.");
-      toast.error("Failed to load reports.");
+      setError('Failed to fetch reports.');
+      console.error('Error fetching reports:', err);
+      toast.error('Failed to load reports.');
     } finally {
       setIsLoading(false);
     }
-  }, [collegeNameFilter]);
+  };
 
   useEffect(() => {
     fetchReports();
-  }, [fetchReports]);
+  }, [userPreferences?.collegeName]);
 
-  const submitReport = async (reportData: Omit<Report, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions" | "reporterId" | "reporterName" | "collegeName" | "status" | "reviewedBy" | "reviewedAt">) => {
-    if (!userProfile?.collegeName) {
-      toast.error("You must be logged in and have a college name set to submit a report.");
+  const submitReport = async (reportData: Omit<Report, '$id' | '$createdAt' | '$updatedAt' | '$permissions' | '$collectionId' | '$databaseId' | '$sequence' | 'reporterId' | 'reporterName' | 'collegeName' | 'status'>) => {
+    if (!user || !userPreferences) {
+      toast.error("You must be logged in to submit a report.");
       return;
     }
 
@@ -87,55 +73,51 @@ export const useReports = (collegeNameFilter?: string): ReportsState => {
         ID.unique(),
         {
           ...reportData,
-          reporterId: userProfile.$id!,
-          reporterName: userProfile.name,
-          collegeName: userProfile.collegeName,
-          status: "Pending", // Default status
-        }
+          reporterId: user.$id,
+          reporterName: user.name,
+          collegeName: userPreferences.collegeName,
+          status: 'pending',
+        },
+        [
+          Models.Permission.read(Models.Role.user(user.$id)),
+          Models.Permission.write(Models.Role.user(user.$id)),
+          // Potentially add read/write for admin/moderator roles
+        ]
       );
-      setReports(prev => [newReport as Report, ...prev]);
+      setReports(prev => [newReport as Report, ...prev]); // Type assertion is now safer
       toast.success("Report submitted successfully!");
     } catch (err: any) {
+      toast.error("Failed to submit report: " + err.message);
       console.error("Error submitting report:", err);
-      toast.error(err.message || "Failed to submit report.");
-      throw err;
     }
   };
 
-  const updateReportStatus = async (reportId: string, newStatus: ReportStatus, reviewedBy?: string) => {
-    if (!userProfile) {
-      toast.error("You must be logged in to update a report.");
+  const updateReportStatus = async (reportId: string, newStatus: ReportStatus) => {
+    if (!user) {
+      toast.error("You must be logged in to update report status.");
       return;
     }
-
     try {
-      const dataToUpdate: Partial<Report> = { status: newStatus };
-      if (reviewedBy) {
-        dataToUpdate.reviewedBy = reviewedBy;
-        dataToUpdate.reviewedAt = new Date().toISOString();
-      }
-
-      const updatedReport = await databases.updateDocument(
+      await databases.updateDocument(
         DATABASE_ID,
         REPORTS_COLLECTION_ID,
         reportId,
-        dataToUpdate
+        { status: newStatus },
+        [Models.Permission.write(Models.Role.user(user.$id))] // Only reporter or admin can update
       );
-      setReports(prev => prev.map(report => report.$id === reportId ? { ...report, ...dataToUpdate } : report));
-      toast.success(`Report status updated to ${newStatus}!`);
+      setReports(prev =>
+        prev.map(report =>
+          report.$id === reportId ? { ...report, status: newStatus } : report
+        )
+      );
+      toast.success("Report status updated.");
     } catch (err: any) {
+      toast.error("Failed to update report status: " + err.message);
       console.error("Error updating report status:", err);
-      toast.error(err.message || "Failed to update report status.");
-      throw err;
     }
   };
 
-  return {
-    reports,
-    isLoading,
-    error,
-    refetch: fetchReports,
-    submitReport,
-    updateReportStatus,
-  };
+  return { reports, isLoading, error, refetch: fetchReports, submitReport, updateReportStatus };
 };
+
+export default useReports;

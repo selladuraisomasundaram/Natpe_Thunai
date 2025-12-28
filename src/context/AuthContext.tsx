@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Account, Client, Models, Databases, ID } from 'appwrite';
-import { toast } from 'sonner';
+"use client";
 
-// Initialize Appwrite client
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Account, Client, Databases, Models, ID, Query } from 'appwrite';
+import { toast } from 'sonner';
+import { AppwriteDocument } from '@/types/appwrite'; // Import the base AppwriteDocument
+
 const client = new Client();
 client
   .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)
@@ -11,226 +13,249 @@ client
 const account = new Account(client);
 const databases = new Databases(client);
 
-// Collection IDs (replace with your actual IDs)
-const USER_PREFERENCES_COLLECTION_ID = import.meta.env.VITE_APPWRITE_USER_PREFERENCES_COLLECTION_ID;
 const DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID;
+const USER_PREFERENCES_COLLECTION_ID = import.meta.env.VITE_APPWRITE_USER_PREFERENCES_COLLECTION_ID;
+const MARKET_LISTINGS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_MARKET_LISTINGS_COLLECTION_ID; // Added for recordMarketListing
 
-export interface UserPreferences extends Models.Document { // Extend Models.Document
+// Define UserPreferences interface extending AppwriteDocument
+export interface UserPreferences extends AppwriteDocument {
+  userId: string;
   name: string;
-  yearOfStudy: 'I' | 'II' | 'III' | 'IV' | 'V';
-  collegeName?: string;
-  level: number;
+  yearOfStudy: string;
+  level: 'Undergraduate' | 'Postgraduate';
   isDeveloper: boolean;
-  isAmbassador: boolean;
-  dailyQuestCompleted?: string; // Date string (ISO format)
-  lastLoginStreakClaim?: string; // Date string (ISO format)
-  ambassadorDeliveriesCount: number;
-  profilePictureUrl?: string; // Added for consistency with Header.tsx
-  $sequence?: number; // Added missing $sequence property
+  collegeName: string;
+  profilePictureUrl?: string;
+  isVerified: boolean; // Added isVerified
 }
 
-export interface AuthContextType {
+// Define Product interface for recordMarketListing
+export interface Product extends AppwriteDocument {
+  title: string;
+  description: string;
+  price: number;
+  category: string;
+  condition: string;
+  imageUrl?: string;
+  sellerId: string;
+  sellerName: string;
+  collegeName: string;
+  contactInfo: string;
+  type: 'sell' | 'rent' | 'gift' | 'sports';
+  status: 'available' | 'sold' | 'rented';
+}
+
+interface AuthContextType {
   user: Models.User<Models.Preferences> | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  userProfile: UserPreferences | null;
+  userPreferences: UserPreferences | null; // Added userPreferences
+  loading: boolean; // Added loading
+  isVerified: boolean; // Added isVerified
   login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, name: string, collegeName: string) => Promise<void>; // Added signup
   logout: () => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
-  updateUserProfile: (preferences: Partial<UserPreferences>) => Promise<void>;
-  incrementAmbassadorDeliveriesCount: () => Promise<void>;
+  recordMarketListing: (productData: Omit<Product, '$id' | '$createdAt' | '$updatedAt' | '$permissions' | '$collectionId' | '$databaseId' | '$sequence' | 'sellerId' | 'sellerName' | 'collegeName' | 'status'>) => Promise<void>; // Added recordMarketListing
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState<UserPreferences | null>(null);
-
-  const fetchUser = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const loggedInUser = await account.get();
-      setUser(loggedInUser);
-      setIsAuthenticated(true);
-
-      // Fetch user preferences from the database
-      let prefs: Partial<UserPreferences> = {};
-      try {
-        const prefsDoc = await databases.getDocument(
-          DATABASE_ID,
-          USER_PREFERENCES_COLLECTION_ID,
-          loggedInUser.$id
-        );
-        prefs = prefsDoc as UserPreferences;
-      } catch (docError: any) {
-        console.warn("User preferences document not found, using defaults.", docError);
-      }
-
-      // Construct userProfile with defaults, ensuring all Models.Document properties are present
-      const profile: UserPreferences = {
-        $id: loggedInUser.$id,
-        $createdAt: prefs.$createdAt || loggedInUser.$createdAt,
-        $updatedAt: prefs.$updatedAt || loggedInUser.$updatedAt,
-        $collectionId: prefs.$collectionId || USER_PREFERENCES_COLLECTION_ID,
-        $databaseId: prefs.$databaseId || DATABASE_ID,
-        $permissions: prefs.$permissions || [],
-        $collection: prefs.$collection || undefined,
-        $read: prefs.$read || [],
-        $write: prefs.$write || [],
-        $sequence: prefs.$sequence || 0, // Added $sequence with a default
-        name: loggedInUser.name,
-        yearOfStudy: prefs.yearOfStudy || 'I',
-        collegeName: prefs.collegeName || undefined,
-        level: prefs.level || 1,
-        isDeveloper: prefs.isDeveloper || false,
-        isAmbassador: prefs.isAmbassador || false,
-        dailyQuestCompleted: prefs.dailyQuestCompleted || undefined,
-        lastLoginStreakClaim: prefs.lastLoginStreakClaim || undefined,
-        ambassadorDeliveriesCount: prefs.ambassadorDeliveriesCount || 0,
-        profilePictureUrl: prefs.profilePictureUrl || undefined,
-      };
-      setUserProfile(profile);
-
-    } catch (error) {
-      console.error("Failed to fetch user or preferences:", error);
-      setUser(null);
-      setIsAuthenticated(false);
-      setUserProfile(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isVerified, setIsVerified] = useState(false);
 
   useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const currentUser = await account.get();
+        setUser(currentUser);
+        setIsVerified(currentUser.emailVerification);
+
+        // Fetch user preferences
+        const prefsResponse = await databases.listDocuments(
+          DATABASE_ID,
+          USER_PREFERENCES_COLLECTION_ID,
+          [Query.equal('userId', currentUser.$id)]
+        );
+
+        let prefs: UserPreferences | null = null;
+        if (prefsResponse.documents.length > 0) {
+          const prefsDoc = prefsResponse.documents[0];
+          // Safely cast to UserPreferences after ensuring it extends AppwriteDocument
+          prefs = prefsDoc as UserPreferences;
+        } else {
+          // If no preferences, create a default one
+          const newPrefs = await databases.createDocument(
+            DATABASE_ID,
+            USER_PREFERENCES_COLLECTION_ID,
+            ID.unique(),
+            {
+              userId: currentUser.$id,
+              name: currentUser.name,
+              yearOfStudy: 'N/A', // Default
+              level: 'Undergraduate', // Default
+              isDeveloper: false, // Default
+              collegeName: 'N/A', // Default
+              isVerified: currentUser.emailVerification,
+            },
+            [
+              Models.Permission.read(Models.Role.user(currentUser.$id)),
+              Models.Permission.write(Models.Role.user(currentUser.$id)),
+            ]
+          );
+          prefs = newPrefs as UserPreferences;
+        }
+        setUserPreferences(prefs);
+      } catch (err) {
+        setUser(null);
+        setUserPreferences(null);
+        setIsVerified(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchUser();
-  }, [fetchUser]);
+  }, []);
 
   const login = async (email: string, password: string) => {
-    setIsLoading(true);
+    setLoading(true);
     try {
       await account.createEmailPasswordSession(email, password);
-      await fetchUser();
+      const currentUser = await account.get();
+      setUser(currentUser);
+      setIsVerified(currentUser.emailVerification);
+
+      const prefsResponse = await databases.listDocuments(
+        DATABASE_ID,
+        USER_PREFERENCES_COLLECTION_ID,
+        [Query.equal('userId', currentUser.$id)]
+      );
+
+      let prefs: UserPreferences | null = null;
+      if (prefsResponse.documents.length > 0) {
+        prefs = prefsResponse.documents[0] as UserPreferences;
+      } else {
+        // Create default preferences if none exist
+        const newPrefs = await databases.createDocument(
+          DATABASE_ID,
+          USER_PREFERENCES_COLLECTION_ID,
+          ID.unique(),
+          {
+            userId: currentUser.$id,
+            name: currentUser.name,
+            yearOfStudy: 'N/A',
+            level: 'Undergraduate',
+            isDeveloper: false,
+            collegeName: 'N/A',
+            isVerified: currentUser.emailVerification,
+          },
+          [
+            Models.Permission.read(Models.Role.user(currentUser.$id)),
+            Models.Permission.write(Models.Role.user(currentUser.$id)),
+          ]
+        );
+        prefs = newPrefs as UserPreferences;
+      }
+      setUserPreferences(prefs);
       toast.success("Logged in successfully!");
     } catch (error: any) {
-      toast.error(error.message || "Login failed.");
+      toast.error(error.message);
       throw error;
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const logout = async () => {
-    setIsLoading(true);
-    try {
-      await account.deleteSession('current');
-      setUser(null);
-      setIsAuthenticated(false);
-      setUserProfile(null);
-      toast.success("Logged out successfully!");
-    } catch (error: any) {
-      toast.error(error.message || "Logout failed.");
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const register = async (email: string, password: string, name: string) => {
-    setIsLoading(true);
+  const signup = async (email: string, password: string, name: string, collegeName: string) => {
+    setLoading(true);
     try {
       const newUser = await account.create(ID.unique(), email, password, name);
       await account.createEmailPasswordSession(email, password);
 
-      // Create initial user preferences document
-      await databases.createDocument(
+      // Create user preferences immediately after signup
+      const newPrefs = await databases.createDocument(
         DATABASE_ID,
         USER_PREFERENCES_COLLECTION_ID,
-        newUser.$id,
+        ID.unique(),
         {
-          name: name,
-          yearOfStudy: 'I',
-          level: 1,
-          isDeveloper: false,
-          isAmbassador: false,
-          ambassadorDeliveriesCount: 0,
-        }
+          userId: newUser.$id,
+          name: newUser.name,
+          yearOfStudy: 'N/A', // Default
+          level: 'Undergraduate', // Default
+          isDeveloper: false, // Default
+          collegeName: collegeName, // Use provided collegeName
+          isVerified: newUser.emailVerification,
+        },
+        [
+          Models.Permission.read(Models.Role.user(newUser.$id)),
+          Models.Permission.write(Models.Role.user(newUser.$id)),
+        ]
       );
 
-      await fetchUser();
+      setUser(newUser);
+      setUserPreferences(newPrefs as UserPreferences);
+      setIsVerified(newUser.emailVerification);
       toast.success("Account created and logged in!");
     } catch (error: any) {
-      toast.error(error.message || "Registration failed.");
+      toast.error(error.message);
       throw error;
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const updateUserProfile = async (preferences: Partial<UserPreferences>) => {
-    if (!userProfile?.$id) {
-      toast.error("User profile not found for update.");
+  const logout = async () => {
+    setLoading(true);
+    try {
+      await account.deleteSession('current');
+      setUser(null);
+      setUserPreferences(null);
+      setIsVerified(false);
+      toast.info("Logged out successfully.");
+    } catch (error: any) {
+      toast.error(error.message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const recordMarketListing = async (productData: Omit<Product, '$id' | '$createdAt' | '$updatedAt' | '$permissions' | '$collectionId' | '$databaseId' | '$sequence' | 'sellerId' | 'sellerName' | 'collegeName' | 'status'>) => {
+    if (!user || !userPreferences) {
+      toast.error("You must be logged in to post a listing.");
       return;
     }
-    setIsLoading(true);
+
     try {
-      await databases.updateDocument(
+      const newProduct = await databases.createDocument(
         DATABASE_ID,
-        USER_PREFERENCES_COLLECTION_ID,
-        userProfile.$id,
-        preferences
+        MARKET_LISTINGS_COLLECTION_ID,
+        ID.unique(),
+        {
+          ...productData,
+          sellerId: user.$id,
+          sellerName: user.name,
+          collegeName: userPreferences.collegeName,
+          status: 'available',
+        },
+        [
+          Models.Permission.read(Models.Role.any()),
+          Models.Permission.write(Models.Role.user(user.$id)),
+        ]
       );
-      // Optimistically update local state
-      setUserProfile(prev => prev ? { ...prev, ...preferences } : null);
-      toast.success("Profile updated successfully!");
+      toast.success("Market listing recorded successfully!");
     } catch (error: any) {
-      toast.error(error.message || "Failed to update profile.");
+      toast.error("Failed to record market listing: " + error.message);
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const incrementAmbassadorDeliveriesCount = async () => {
-    if (!userProfile?.$id || !userProfile.isAmbassador) {
-      toast.error("Not an ambassador or profile not found.");
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const newCount = (userProfile.ambassadorDeliveriesCount || 0) + 1;
-      await databases.updateDocument(
-        DATABASE_ID,
-        USER_PREFERENCES_COLLECTION_ID,
-        userProfile.$id,
-        { ambassadorDeliveriesCount: newCount }
-      );
-      setUserProfile(prev => prev ? { ...prev, ambassadorDeliveriesCount: newCount } : null);
-      toast.success("Ambassador delivery count updated!");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to update ambassador count.");
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-
-  const value = {
-    user,
-    isAuthenticated,
-    isLoading,
-    userProfile,
-    login,
-    logout,
-    register,
-    updateUserProfile,
-    incrementAmbassadorDeliveriesCount,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, userPreferences, loading, isVerified, login, signup, logout, recordMarketListing }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {

@@ -1,23 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Client, Databases, Query, Models, ID } from 'appwrite';
+"use client";
+
+import { useState, useEffect } from 'react';
+import { Databases, Query, Models, ID } from 'appwrite';
+import { client } from '@/lib/appwrite';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
-
-// Initialize Appwrite client
-const client = new Client();
-client
-  .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)
-  .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID);
+import { AppwriteDocument } from '@/types/appwrite';
 
 const databases = new Databases(client);
 
-// Collection IDs
 const DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID;
 const FOOD_ORDERS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_FOOD_ORDERS_COLLECTION_ID;
 
-export type OrderStatus = "Pending" | "Preparing" | "Ready for Pickup" | "Delivered" | "Cancelled";
+export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'picked_up' | 'cancelled';
 
-export interface FoodOrder extends Models.Document { // Extend Models.Document
+export interface FoodOrder extends AppwriteDocument {
   offeringId: string;
   offeringName: string;
   canteenName: string;
@@ -27,30 +24,17 @@ export interface FoodOrder extends Models.Document { // Extend Models.Document
   quantity: number;
   totalPrice: number;
   status: OrderStatus;
-  deliveryLocation: string;
-  contactNumber: string;
+  pickupTime: string; // e.g., "12:30 PM"
   notes?: string;
-  ambassadorId?: string; // ID of the ambassador delivering
-  ambassadorName?: string; // Name of the ambassador
-  $sequence: number; // Made $sequence required
 }
 
-interface FoodOrdersState {
-  orders: FoodOrder[];
-  isLoading: boolean;
-  error: string | null;
-  refetch: () => Promise<void>;
-  placeOrder: (orderData: Omit<FoodOrder, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions" | "buyerId" | "buyerName" | "collegeName" | "status" | "ambassadorId" | "ambassadorName" | "$sequence">) => Promise<void>; // Omit $sequence
-  updateOrderStatus: (orderId: string, newStatus: OrderStatus, ambassadorId?: string, ambassadorName?: string) => Promise<void>;
-}
-
-export const useFoodOrders = (): FoodOrdersState => {
-  const { user, userProfile } = useAuth();
+const useFoodOrders = () => {
+  const { user, userPreferences } = useAuth();
   const [orders, setOrders] = useState<FoodOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = async () => {
     setIsLoading(true);
     setError(null);
     if (!user) {
@@ -59,35 +43,42 @@ export const useFoodOrders = (): FoodOrdersState => {
     }
 
     try {
+      const queries = [Query.orderDesc('$createdAt')];
+      if (userPreferences?.collegeName && userPreferences.collegeName !== 'N/A') {
+        queries.push(Query.equal('collegeName', userPreferences.collegeName));
+      }
+      queries.push(Query.equal('buyerId', user.$id));
+
       const response = await databases.listDocuments(
         DATABASE_ID,
         FOOD_ORDERS_COLLECTION_ID,
-        [
-          Query.or([
-            Query.equal('buyerId', user.$id),
-            Query.equal('ambassadorId', user.$id),
-            userProfile?.collegeName ? Query.equal('collegeName', userProfile.collegeName) : Query.limit(100) // For canteen owners/ambassadors to see all orders in their college
-          ]),
-          Query.orderDesc('$createdAt')
-        ]
+        queries
       );
       setOrders(response.documents as FoodOrder[]); // Type assertion is now safer
     } catch (err: any) {
-      console.error("Error fetching food orders:", err);
-      setError("Failed to fetch food orders.");
-      toast.error("Failed to load food orders.");
+      setError('Failed to fetch food orders.');
+      console.error('Error fetching food orders:', err);
+      toast.error('Failed to load food orders.');
     } finally {
       setIsLoading(false);
     }
-  }, [user, userProfile?.collegeName]);
+  };
 
   useEffect(() => {
     fetchOrders();
-  }, [fetchOrders]);
+  }, [user, userPreferences?.collegeName]);
 
-  const placeOrder = async (orderData: Omit<FoodOrder, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions" | "buyerId" | "buyerName" | "collegeName" | "status" | "ambassadorId" | "ambassadorName" | "$sequence">) => {
-    if (!user || !userProfile?.collegeName) {
-      toast.error("You must be logged in and have a college name set to place an order.");
+  const placeOrder = async (
+    offeringId: string,
+    offeringName: string,
+    canteenName: string,
+    quantity: number,
+    totalPrice: number,
+    pickupTime: string,
+    notes?: string
+  ) => {
+    if (!user || !userPreferences) {
+      toast.error("You must be logged in to place an order.");
       return;
     }
 
@@ -97,57 +88,58 @@ export const useFoodOrders = (): FoodOrdersState => {
         FOOD_ORDERS_COLLECTION_ID,
         ID.unique(),
         {
-          ...orderData,
+          offeringId,
+          offeringName,
+          canteenName,
+          collegeName: userPreferences.collegeName,
           buyerId: user.$id,
           buyerName: user.name,
-          collegeName: userProfile.collegeName,
-          status: "Pending",
-          $sequence: 0, // Provide a default for $sequence
-        }
+          quantity,
+          totalPrice,
+          status: 'pending',
+          pickupTime,
+          notes,
+        },
+        [
+          Models.Permission.read(Models.Role.user(user.$id)),
+          Models.Permission.write(Models.Role.user(user.$id)),
+          // Potentially add read/write for canteen manager role
+        ]
       );
       setOrders(prev => [newOrder as FoodOrder, ...prev]); // Type assertion is now safer
       toast.success("Order placed successfully!");
     } catch (err: any) {
+      toast.error("Failed to place order: " + err.message);
       console.error("Error placing order:", err);
-      toast.error(err.message || "Failed to place order.");
-      throw err;
     }
   };
 
-  const updateOrderStatus = async (orderId: string, newStatus: OrderStatus, ambassadorId?: string, ambassadorName?: string) => {
+  const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
     if (!user) {
-      toast.error("You must be logged in to update an order.");
+      toast.error("You must be logged in to update order status.");
       return;
     }
-
     try {
-      const dataToUpdate: Partial<FoodOrder> = { status: newStatus };
-      if (ambassadorId && ambassadorName) {
-        dataToUpdate.ambassadorId = ambassadorId;
-        dataToUpdate.ambassadorName = ambassadorName;
-      }
-
-      const updatedOrder = await databases.updateDocument(
+      await databases.updateDocument(
         DATABASE_ID,
         FOOD_ORDERS_COLLECTION_ID,
         orderId,
-        dataToUpdate
+        { status: newStatus },
+        [Models.Permission.write(Models.Role.user(user.$id))] // Only buyer or canteen manager can update
       );
-      setOrders(prev => prev.map(order => order.$id === orderId ? { ...order, ...dataToUpdate } : order));
-      toast.success(`Order ${orderId} status updated to ${newStatus}!`);
+      setOrders(prev =>
+        prev.map(order =>
+          order.$id === orderId ? { ...order, status: newStatus } : order
+        )
+      );
+      toast.success("Order status updated.");
     } catch (err: any) {
+      toast.error("Failed to update order status: " + err.message);
       console.error("Error updating order status:", err);
-      toast.error(err.message || "Failed to update order status.");
-      throw err;
     }
   };
 
-  return {
-    orders,
-    isLoading,
-    error,
-    refetch: fetchOrders,
-    placeOrder,
-    updateOrderStatus,
-  };
+  return { orders, isLoading, error, refetch: fetchOrders, placeOrder, updateOrderStatus };
 };
+
+export default useFoodOrders;

@@ -1,78 +1,90 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Client, Databases, Query, Models, ID } from 'appwrite';
+"use client";
+
+import { useState, useEffect } from 'react';
+import { Databases, Query, Models, ID } from 'appwrite';
+import { client } from '@/lib/appwrite';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
-
-// Initialize Appwrite client
-const client = new Client();
-client
-  .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)
-  .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID);
+import { AppwriteDocument } from '@/types/appwrite';
 
 const databases = new Databases(client);
 
-// Collection IDs
 const DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID;
 const SERVICE_REVIEWS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_SERVICE_REVIEWS_COLLECTION_ID;
 
-export interface ServiceReview extends Models.Document { // Extend Models.Document
+export interface ServiceReview extends AppwriteDocument {
   serviceId: string;
+  providerId: string; // Added providerId
   reviewerId: string;
   reviewerName: string;
-  rating: number; // 1-5 stars
+  rating: number; // 1-5
   comment: string;
   collegeName: string;
-  $sequence: number; // Made $sequence required
 }
 
 interface ServiceReviewsState {
   reviews: ServiceReview[];
+  averageRating: number;
   isLoading: boolean;
   error: string | null;
-  refetch: () => Promise<void>;
-  postReview: (reviewData: Omit<ServiceReview, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions" | "reviewerId" | "reviewerName" | "collegeName" | "$sequence">) => Promise<void>; // Omit $sequence
+  submitReview: (serviceId: string, providerId: string, rating: number, comment: string) => Promise<void>;
+  refetch: () => void;
 }
 
-export const useServiceReviews = (serviceId?: string): ServiceReviewsState => {
-  const { user, userProfile, isLoading: isAuthLoading } = useAuth();
+const useServiceReviews = (serviceId?: string): ServiceReviewsState => {
+  const { user, userPreferences } = useAuth();
   const [reviews, setReviews] = useState<ServiceReview[]>([]);
+  const [averageRating, setAverageRating] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchReviews = useCallback(async () => {
+  const fetchReviews = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const queries = [
-        Query.orderDesc('$createdAt'),
-        serviceId ? Query.equal('serviceId', serviceId) : Query.limit(100), // Filter by serviceId if provided
-        userProfile?.collegeName ? Query.equal('collegeName', userProfile.collegeName) : Query.limit(100) // Filter by college if available
-      ];
+      const queries = [Query.orderDesc('$createdAt')];
+      if (serviceId) {
+        queries.push(Query.equal('serviceId', serviceId));
+      }
+      if (userPreferences?.collegeName && userPreferences.collegeName !== 'N/A') {
+        queries.push(Query.equal('collegeName', userPreferences.collegeName));
+      }
 
       const response = await databases.listDocuments(
         DATABASE_ID,
         SERVICE_REVIEWS_COLLECTION_ID,
         queries
       );
-      setReviews(response.documents as ServiceReview[]);
+      const fetchedReviews = response.documents as ServiceReview[]; // Type assertion is now safer
+      setReviews(fetchedReviews);
+
+      if (fetchedReviews.length > 0) {
+        const totalRating = fetchedReviews.reduce((sum, review) => sum + review.rating, 0);
+        setAverageRating(totalRating / fetchedReviews.length);
+      } else {
+        setAverageRating(0);
+      }
     } catch (err: any) {
-      console.error("Error fetching service reviews:", err);
-      setError("Failed to fetch service reviews.");
-      toast.error("Failed to load service reviews.");
+      setError('Failed to fetch service reviews.');
+      console.error('Error fetching service reviews:', err);
+      toast.error('Failed to load service reviews.');
     } finally {
       setIsLoading(false);
     }
-  }, [serviceId, userProfile?.collegeName]);
+  };
 
   useEffect(() => {
-    if (!isAuthLoading) {
-      fetchReviews();
-    }
-  }, [fetchReviews, isAuthLoading]);
+    fetchReviews();
+  }, [serviceId, userPreferences?.collegeName]);
 
-  const postReview = async (reviewData: Omit<ServiceReview, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions" | "reviewerId" | "reviewerName" | "collegeName" | "$sequence">) => {
-    if (!user || !userProfile?.collegeName) {
-      toast.error("You must be logged in and have a college name set to post a review.");
+  const submitReview = async (
+    targetServiceId: string,
+    providerId: string,
+    rating: number,
+    comment: string
+  ) => {
+    if (!user || !userPreferences) {
+      toast.error("You must be logged in to submit a review.");
       return;
     }
 
@@ -82,27 +94,33 @@ export const useServiceReviews = (serviceId?: string): ServiceReviewsState => {
         SERVICE_REVIEWS_COLLECTION_ID,
         ID.unique(),
         {
-          ...reviewData,
+          serviceId: targetServiceId,
+          providerId: providerId,
           reviewerId: user.$id,
           reviewerName: user.name,
-          collegeName: userProfile.collegeName,
-          $sequence: 0, // Provide a default for $sequence
-        }
+          rating,
+          comment,
+          collegeName: userPreferences.collegeName,
+        },
+        [
+          Models.Permission.read(Models.Role.any()),
+          Models.Permission.write(Models.Role.user(user.$id)),
+        ]
       );
-      setReviews(prev => [newReview as ServiceReview, ...prev]);
+      setReviews(prev => {
+        const updatedReviews = [newReview as ServiceReview, ...prev];
+        const totalRating = updatedReviews.reduce((sum, review) => sum + review.rating, 0);
+        setAverageRating(totalRating / updatedReviews.length);
+        return updatedReviews;
+      });
       toast.success("Review posted successfully!");
     } catch (err: any) {
+      toast.error("Failed to post review: " + err.message);
       console.error("Error posting review:", err);
-      toast.error(err.message || "Failed to post review.");
-      throw err;
     }
   };
 
-  return {
-    reviews,
-    isLoading,
-    error,
-    refetch: fetchReviews,
-    postReview,
-  };
+  return { reviews, averageRating, isLoading, error, submitReview, refetch: fetchReviews };
 };
+
+export default useServiceReviews;

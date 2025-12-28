@@ -1,58 +1,39 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Client, Databases, Query, Models, ID } from 'appwrite';
+"use client";
+
+import { useState, useEffect } from 'react';
+import { Databases, Query, Models, ID } from 'appwrite';
+import { client } from '@/lib/appwrite';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
-
-// Initialize Appwrite client
-const client = new Client();
-client
-  .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)
-  .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID);
+import { AppwriteDocument } from '@/types/appwrite';
 
 const databases = new Databases(client);
 
-// Collection IDs
 const DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID;
 const DEVELOPER_MESSAGES_COLLECTION_ID = import.meta.env.VITE_APPWRITE_DEVELOPER_MESSAGES_COLLECTION_ID;
 
-export type MessageStatus = "Pending" | "Resolved" | "Archived";
-
-export interface DeveloperMessage extends Models.Document { // Extend Models.Document
+export interface DeveloperMessage extends AppwriteDocument {
   senderId: string;
   senderName: string;
   collegeName: string;
   message: string;
-  status: MessageStatus;
-  response?: string; // Developer's response
-  respondedBy?: string; // Developer's ID
-  respondedAt?: string; // ISO date string
-  $sequence: number; // Made $sequence required
+  status: 'pending' | 'resolved';
 }
 
-export interface DeveloperMessagesState {
-  messages: DeveloperMessage[];
-  isLoading: boolean;
-  error: string | null;
-  refetch: () => Promise<void>;
-  postMessage: (messageData: Omit<DeveloperMessage, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions" | "senderId" | "senderName" | "collegeName" | "status" | "response" | "respondedBy" | "respondedAt" | "$sequence">) => Promise<void>; // Omit $sequence
-  updateMessageStatus: (messageId: string, newStatus: MessageStatus, response?: string) => Promise<void>;
-}
-
-export const useDeveloperMessages = (): DeveloperMessagesState => {
-  const { user, userProfile } = useAuth();
+const useDeveloperMessages = () => {
+  const { user, userPreferences } = useAuth();
   const [messages, setMessages] = useState<DeveloperMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const queries = [
-        Query.orderDesc('$createdAt'),
-        // Only developers can see all messages, others only their own
-        userProfile?.isDeveloper ? Query.limit(100) : Query.equal('senderId', user?.$id || 'invalid')
-      ];
+      const queries = [Query.orderDesc('$createdAt')];
+      if (userPreferences?.collegeName && userPreferences.collegeName !== 'N/A') {
+        queries.push(Query.equal('collegeName', userPreferences.collegeName));
+      }
 
       const response = await databases.listDocuments(
         DATABASE_ID,
@@ -61,21 +42,21 @@ export const useDeveloperMessages = (): DeveloperMessagesState => {
       );
       setMessages(response.documents as DeveloperMessage[]); // Type assertion is now safer
     } catch (err: any) {
-      console.error("Error fetching developer messages:", err);
-      setError("Failed to fetch developer messages.");
-      toast.error("Failed to load developer messages.");
+      setError('Failed to fetch developer messages.');
+      console.error('Error fetching developer messages:', err);
+      toast.error('Failed to load developer messages.');
     } finally {
       setIsLoading(false);
     }
-  }, [user, userProfile?.isDeveloper]);
+  };
 
   useEffect(() => {
     fetchMessages();
-  }, [fetchMessages]);
+  }, [userPreferences?.collegeName]);
 
-  const postMessage = async (messageData: Omit<DeveloperMessage, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions" | "senderId" | "senderName" | "collegeName" | "status" | "response" | "respondedBy" | "respondedAt" | "$sequence">) => {
-    if (!user || !userProfile?.collegeName) {
-      toast.error("You must be logged in and have a college name set to send a message.");
+  const sendMessage = async (messageContent: string) => {
+    if (!user || !userPreferences) {
+      toast.error("You must be logged in to send a message.");
       return;
     }
 
@@ -85,58 +66,51 @@ export const useDeveloperMessages = (): DeveloperMessagesState => {
         DEVELOPER_MESSAGES_COLLECTION_ID,
         ID.unique(),
         {
-          ...messageData,
           senderId: user.$id,
           senderName: user.name,
-          collegeName: userProfile.collegeName,
-          status: "Pending", // Default status
-          $sequence: 0, // Provide a default for $sequence
-        }
+          collegeName: userPreferences.collegeName,
+          message: messageContent,
+          status: 'pending',
+        },
+        [
+          Models.Permission.read(Models.Role.any()), // Developers can read
+          Models.Permission.write(Models.Role.user(user.$id)),
+        ]
       );
       setMessages(prev => [newMessage as DeveloperMessage, ...prev]); // Type assertion is now safer
       toast.success("Message sent to developers!");
     } catch (err: any) {
-      console.error("Error posting message:", err);
-      toast.error(err.message || "Failed to send message.");
-      throw err;
+      toast.error("Failed to send message: " + err.message);
+      console.error("Error sending message:", err);
     }
   };
 
-  const updateMessageStatus = async (messageId: string, newStatus: MessageStatus, response?: string) => {
-    if (!user || !userProfile?.isDeveloper) {
-      toast.error("You are not authorized to update message status.");
+  const updateMessageStatus = async (messageId: string, newStatus: DeveloperMessage['status']) => {
+    if (!user) {
+      toast.error("You must be logged in to update message status.");
       return;
     }
-
     try {
-      const dataToUpdate: Partial<DeveloperMessage> = { status: newStatus };
-      if (response) {
-        dataToUpdate.response = response;
-        dataToUpdate.respondedBy = user.$id;
-        dataToUpdate.respondedAt = new Date().toISOString();
-      }
-
-      const updatedMessage = await databases.updateDocument(
+      await databases.updateDocument(
         DATABASE_ID,
         DEVELOPER_MESSAGES_COLLECTION_ID,
         messageId,
-        dataToUpdate
+        { status: newStatus },
+        [Models.Permission.write(Models.Role.user(user.$id))] // Only sender or specific role can update
       );
-      setMessages(prev => prev.map(msg => msg.$id === messageId ? { ...msg, ...dataToUpdate } : msg));
-      toast.success(`Message status updated to ${newStatus}!`);
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.$id === messageId ? { ...msg, status: newStatus } : msg
+        )
+      );
+      toast.success("Message status updated.");
     } catch (err: any) {
+      toast.error("Failed to update message status: " + err.message);
       console.error("Error updating message status:", err);
-      toast.error(err.message || "Failed to update message status.");
-      throw err;
     }
   };
 
-  return {
-    messages,
-    isLoading,
-    error,
-    refetch: fetchMessages,
-    postMessage,
-    updateMessageStatus,
-  };
+  return { messages, isLoading, error, refetch: fetchMessages, sendMessage, updateMessageStatus };
 };
+
+export default useDeveloperMessages;

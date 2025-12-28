@@ -1,22 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Client, Databases, Query, Models, ID } from 'appwrite';
+"use client";
+
+import { useState, useEffect } from 'react';
+import { Databases, Query, Models, ID } from 'appwrite';
+import { client } from '@/lib/appwrite';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
-
-// Initialize Appwrite client
-const client = new Client();
-client
-  .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)
-  .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID);
+import { AppwriteDocument } from '@/types/appwrite';
 
 const databases = new Databases(client);
 
-// Collection IDs
 const DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID;
 const TOURNAMENTS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_TOURNAMENTS_COLLECTION_ID;
+const TOURNAMENT_REGISTRATIONS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_TOURNAMENT_REGISTRATIONS_COLLECTION_ID;
 
-// Define Tournament related interfaces
-export type TournamentStatus = "Open" | "Ongoing" | "Completed" | "Closed";
+export type TournamentStatus = 'upcoming' | 'active' | 'completed' | 'cancelled';
 
 export interface TeamStanding {
   teamName: string;
@@ -25,168 +22,76 @@ export interface TeamStanding {
 }
 
 export interface Winner {
-  tournamentId: string; // Reference to the tournament
-  winnerTeamName: string;
-  prize: string; // e.g., "₹5000", "Trophy"
+  teamName: string;
+  prize: string;
 }
 
-export interface Tournament extends Models.Document {
-  title: string;
+export interface Tournament extends AppwriteDocument {
+  name: string;
   game: string;
-  platform: string;
+  description: string;
   date: string; // ISO date string
-  time: string; // e.g., "18:00"
-  prizePool: string; // e.g., "₹10,000"
-  fee: number; // Entry fee
-  minPlayers: number; // Min players per team
-  maxPlayers: number; // Max players per team
-  maxParticipants: number; // Max number of teams/individuals
-  currentParticipants: number; // Current number of registered participants
-  status: TournamentStatus; // "Open", "Ongoing", "Completed", "Closed"
-  posterId: string;
-  posterName: string;
+  time: string; // e.g., "14:00"
+  location: string;
+  maxPlayers: number; // Max players per team or total players
+  entryFee: number;
+  prizePool: string;
+  organizerId: string;
+  organizerName: string;
   collegeName: string;
-  participants: string[]; // Array of user IDs
-  description?: string; // Optional description
-  standings?: TeamStanding[]; // Optional standings
-  winners?: Winner[]; // Optional winners
+  status: TournamentStatus;
+  registeredTeams: { teamName: string; players: string[]; contactEmail: string }[];
+  teamStandings?: TeamStanding[];
+  winners?: Winner[];
 }
 
-interface TournamentDataState {
-  tournaments: Tournament[];
-  isLoading: boolean;
-  error: string | null;
-  fetchTournaments: () => Promise<void>;
-  joinTournament: (tournamentId: string, teamName: string, players: string[]) => Promise<void>;
-  leaveTournament: (tournamentId: string) => Promise<void>;
-  postTournament: (tournamentData: Omit<Tournament, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions" | "posterId" | "posterName" | "collegeName" | "currentParticipants" | "participants" | "status" | "standings" | "winners">) => Promise<void>;
-  updateTournament: (tournamentId: string, data: Partial<Tournament>) => Promise<void>;
+export interface TournamentRegistration extends AppwriteDocument {
+  tournamentId: string;
+  teamName: string;
+  players: string[]; // Array of player names/IDs
+  contactEmail: string;
+  registeredById: string;
+  registeredByName: string;
+  collegeName: string;
 }
 
-export const useTournamentData = (): TournamentDataState => {
-  const { user, userProfile, isLoading: isAuthLoading } = useAuth();
+const useTournamentData = () => {
+  const { user, userPreferences } = useAuth();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTournaments = useCallback(async () => {
+  const fetchTournaments = async () => {
     setIsLoading(true);
     setError(null);
     try {
+      const queries = [Query.orderDesc('date'), Query.orderDesc('$createdAt')];
+      if (userPreferences?.collegeName && userPreferences.collegeName !== 'N/A') {
+        queries.push(Query.equal('collegeName', userPreferences.collegeName));
+      }
+
       const response = await databases.listDocuments(
         DATABASE_ID,
         TOURNAMENTS_COLLECTION_ID,
-        [
-          Query.orderDesc('$createdAt'),
-          userProfile?.collegeName ? Query.equal('collegeName', userProfile.collegeName) : Query.limit(100) // Filter by college if available
-        ]
+        queries
       );
       setTournaments(response.documents as Tournament[]);
     } catch (err: any) {
-      console.error("Error fetching tournaments:", err);
-      setError("Failed to fetch tournaments.");
-      toast.error("Failed to load tournaments.");
+      setError('Failed to fetch tournaments.');
+      console.error('Error fetching tournaments:', err);
+      toast.error('Failed to load tournaments.');
     } finally {
       setIsLoading(false);
     }
-  }, [userProfile?.collegeName]);
+  };
 
   useEffect(() => {
-    if (!isAuthLoading) {
-      fetchTournaments();
-    }
-  }, [fetchTournaments, isAuthLoading]);
+    fetchTournaments();
+  }, [userPreferences?.collegeName]);
 
-  const joinTournament = async (tournamentId: string, teamName: string, players: string[]) => {
-    if (!user || !userProfile) {
-      toast.error("You must be logged in to join a tournament.");
-      return;
-    }
-
-    const tournament = tournaments.find(t => t.$id === tournamentId);
-    if (!tournament) {
-      toast.error("Tournament not found.");
-      return;
-    }
-
-    if (tournament.participants.includes(user.$id)) {
-      toast.message("You have already joined this tournament."); // Changed from toast.info
-      return;
-    }
-
-    if (tournament.currentParticipants >= tournament.maxParticipants) {
-      toast.error("This tournament is full.");
-      return;
-    }
-
-    if (players.length < tournament.minPlayers || players.length > tournament.maxPlayers) {
-      toast.error(`Team must have between ${tournament.minPlayers} and ${tournament.maxPlayers} players.`);
-      return;
-    }
-
-    try {
-      const updatedParticipants = [...tournament.participants, user.$id];
-      const updatedCurrentParticipants = tournament.currentParticipants + 1;
-
-      await databases.updateDocument(
-        DATABASE_ID,
-        TOURNAMENTS_COLLECTION_ID,
-        tournamentId,
-        {
-          participants: updatedParticipants,
-          currentParticipants: updatedCurrentParticipants,
-          // Optionally, store teamName and players somewhere if needed for display
-        }
-      );
-      setTournaments(prev => prev.map(t => t.$id === tournamentId ? { ...t, participants: updatedParticipants, currentParticipants: updatedCurrentParticipants } : t));
-      toast.success(`Successfully joined ${tournament.title}!`);
-    } catch (err: any) {
-      console.error("Error joining tournament:", err);
-      toast.error(err.message || "Failed to join tournament.");
-    }
-  };
-
-  const leaveTournament = async (tournamentId: string) => {
-    if (!user || !userProfile) {
-      toast.error("You must be logged in to leave a tournament.");
-      return;
-    }
-
-    const tournament = tournaments.find(t => t.$id === tournamentId);
-    if (!tournament) {
-      toast.error("Tournament not found.");
-      return;
-    }
-
-    if (!tournament.participants.includes(user.$id)) {
-      toast.message("You are not a participant in this tournament."); // Changed from toast.info
-      return;
-    }
-
-    try {
-      const updatedParticipants = tournament.participants.filter(id => id !== user.$id);
-      const updatedCurrentParticipants = tournament.currentParticipants - 1;
-
-      await databases.updateDocument(
-        DATABASE_ID,
-        TOURNAMENTS_COLLECTION_ID,
-        tournamentId,
-        {
-          participants: updatedParticipants,
-          currentParticipants: updatedCurrentParticipants,
-        }
-      );
-      setTournaments(prev => prev.map(t => t.$id === tournamentId ? { ...t, participants: updatedParticipants, currentParticipants: updatedCurrentParticipants } : t));
-      toast.success(`Successfully left ${tournament.title}.`);
-    } catch (err: any) {
-      console.error("Error leaving tournament:", err);
-      toast.error(err.message || "Failed to leave tournament.");
-    }
-  };
-
-  const postTournament = async (tournamentData: Omit<Tournament, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions" | "posterId" | "posterName" | "collegeName" | "currentParticipants" | "participants" | "status" | "standings" | "winners">) => {
-    if (!user || !userProfile || !userProfile.collegeName) {
-      toast.error("You must be logged in and have a college name set to post a tournament.");
+  const createTournament = async (tournamentData: Omit<Tournament, '$id' | '$createdAt' | '$updatedAt' | '$permissions' | '$collectionId' | '$databaseId' | '$sequence' | 'organizerId' | 'organizerName' | 'collegeName' | 'status' | 'registeredTeams' | 'teamStandings' | 'winners'>) => {
+    if (!user || !userPreferences) {
+      toast.error("You must be logged in to create a tournament.");
       return;
     }
 
@@ -194,47 +99,139 @@ export const useTournamentData = (): TournamentDataState => {
       const newTournament = await databases.createDocument(
         DATABASE_ID,
         TOURNAMENTS_COLLECTION_ID,
-        ID.unique(), // Changed from Models.ID.unique()
+        ID.unique(),
         {
           ...tournamentData,
-          posterId: user.$id,
-          posterName: user.name,
-          collegeName: userProfile.collegeName,
-          currentParticipants: 0,
-          participants: [],
-          status: "Open", // Default status
-          standings: [],
-          winners: [],
-        }
+          organizerId: user.$id,
+          organizerName: user.name,
+          collegeName: userPreferences.collegeName,
+          status: 'upcoming',
+          registeredTeams: [],
+        },
+        [
+          Models.Permission.read(Models.Role.any()),
+          Models.Permission.write(Models.Role.user(user.$id)),
+        ]
       );
       setTournaments(prev => [newTournament as Tournament, ...prev]);
-      toast.success("Tournament posted successfully!");
+      toast.success("Tournament created successfully!");
     } catch (err: any) {
-      console.error("Error posting tournament:", err);
-      toast.error(err.message || "Failed to post tournament.");
-      throw err;
+      toast.error("Failed to create tournament: " + err.message);
+      console.error("Error creating tournament:", err);
     }
   };
 
-  const updateTournament = async (tournamentId: string, data: Partial<Tournament>) => {
-    if (!user || !userProfile) {
-      toast.error("You must be logged in to update a tournament.");
+  const registerForTournament = async (
+    tournamentId: string,
+    teamName: string,
+    players: string[],
+    contactEmail: string
+  ) => {
+    if (!user || !userPreferences) {
+      toast.error("You must be logged in to register for a tournament.");
       return;
     }
 
     try {
-      const updatedDoc = await databases.updateDocument(
+      // Check if team already registered for this tournament
+      const existingRegistration = await databases.listDocuments(
+        DATABASE_ID,
+        TOURNAMENT_REGISTRATIONS_COLLECTION_ID,
+        [
+          Query.equal('tournamentId', tournamentId),
+          Query.equal('teamName', teamName),
+          Query.equal('registeredById', user.$id),
+        ]
+      );
+
+      if (existingRegistration.documents.length > 0) {
+        toast.info("Your team is already registered for this tournament.");
+        return;
+      }
+
+      const newRegistration = await databases.createDocument(
+        DATABASE_ID,
+        TOURNAMENT_REGISTRATIONS_COLLECTION_ID,
+        ID.unique(),
+        {
+          tournamentId,
+          teamName,
+          players,
+          contactEmail,
+          registeredById: user.$id,
+          registeredByName: user.name,
+          collegeName: userPreferences.collegeName,
+        },
+        [
+          Models.Permission.read(Models.Role.any()),
+          Models.Permission.write(Models.Role.user(user.$id)),
+        ]
+      );
+
+      // Update the tournament's registeredTeams array
+      setTournaments(prev =>
+        prev.map(tournament =>
+          tournament.$id === tournamentId
+            ? {
+                ...tournament,
+                registeredTeams: [
+                  ...(tournament.registeredTeams || []),
+                  { teamName, players, contactEmail },
+                ],
+              }
+            : tournament
+        )
+      );
+
+      toast.success("Successfully registered for the tournament!");
+    } catch (err: any) {
+      toast.error("Failed to register for tournament: " + err.message);
+      console.error("Error registering for tournament:", err);
+    }
+  };
+
+  const updateTournament = async (tournamentId: string, updatedData: Partial<Tournament>) => {
+    if (!user) {
+      toast.error("You must be logged in to update a tournament.");
+      return;
+    }
+    try {
+      await databases.updateDocument(
         DATABASE_ID,
         TOURNAMENTS_COLLECTION_ID,
         tournamentId,
-        data
+        updatedData,
+        [Models.Permission.write(Models.Role.user(user.$id))]
       );
-      setTournaments(prev => prev.map(t => t.$id === tournamentId ? { ...t, ...data } : t));
+      setTournaments(prev =>
+        prev.map(tournament =>
+          tournament.$id === tournamentId ? { ...tournament, ...updatedData } : tournament
+        )
+      );
       toast.success("Tournament updated successfully!");
     } catch (err: any) {
+      toast.error("Failed to update tournament: " + err.message);
       console.error("Error updating tournament:", err);
-      toast.error(err.message || "Failed to update tournament.");
-      throw err;
+    }
+  };
+
+  const deleteTournament = async (tournamentId: string) => {
+    if (!user) {
+      toast.error("You must be logged in to delete a tournament.");
+      return;
+    }
+    try {
+      await databases.deleteDocument(
+        DATABASE_ID,
+        TOURNAMENTS_COLLECTION_ID,
+        tournamentId,
+      );
+      setTournaments(prev => prev.filter(tournament => tournament.$id !== tournamentId));
+      // Optionally, delete associated registrations
+      toast.success("Tournament deleted successfully!");
+    } catch (err: any) {
+      toast.error("Failed to delete tournament: " + err.message);
+      console.error("Error deleting tournament:", err);
     }
   };
 
@@ -242,10 +239,12 @@ export const useTournamentData = (): TournamentDataState => {
     tournaments,
     isLoading,
     error,
-    fetchTournaments,
-    joinTournament,
-    leaveTournament,
-    postTournament,
+    refetch: fetchTournaments,
+    createTournament,
+    registerForTournament,
     updateTournament,
+    deleteTournament,
   };
 };
+
+export default useTournamentData;

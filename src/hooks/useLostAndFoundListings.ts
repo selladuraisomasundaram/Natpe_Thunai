@@ -1,84 +1,73 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Client, Databases, Query, Models, ID } from 'appwrite';
+"use client";
+
+import { useState, useEffect } from 'react';
+import { Databases, Query, Models, ID } from 'appwrite';
+import { client } from '@/lib/appwrite';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
-
-// Initialize Appwrite client
-const client = new Client();
-client
-  .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)
-  .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID);
+import { AppwriteDocument } from '@/types/appwrite';
 
 const databases = new Databases(client);
 
-// Collection IDs
 const DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID;
 const LOST_FOUND_COLLECTION_ID = import.meta.env.VITE_APPWRITE_LOST_FOUND_COLLECTION_ID;
 
-export type ItemStatus = "Lost" | "Found" | "Reclaimed";
-export type ItemType = "Electronics" | "Documents" | "Personal Item" | "Apparel" | "Other";
+export type ItemType = 'Lost' | 'Found'; // Capitalized for consistency
+export type ItemStatus = 'Active' | 'Resolved'; // Capitalized for consistency
 
-export interface LostFoundItem extends Models.Document {
+export interface LostFoundItem extends AppwriteDocument {
+  itemName: string; // Added itemName
   title: string;
   description: string;
   type: ItemType;
   status: ItemStatus;
-  location: string; // Where it was lost/found
-  contactInfo: string; // How to contact the poster
+  location: string;
+  date: string; // ISO date string, e.g., when lost/found - Added date
   imageUrl?: string;
   posterId: string;
   posterName: string;
   collegeName: string;
-  reclaimedBy?: string; // User ID of who reclaimed it
-  reclaimedDate?: string; // ISO date string
+  contact: string; // Added contact
+  reclaimedBy?: string; // Name of the person who reclaimed it
 }
 
-interface LostFoundListingsState {
-  items: LostFoundItem[];
-  isLoading: boolean;
-  error: string | null;
-  refetch: () => Promise<void>;
-  postItem: (itemData: Omit<LostFoundItem, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions" | "posterId" | "posterName" | "collegeName" | "status" | "reclaimedBy" | "reclaimedDate">) => Promise<void>;
-  updateItemStatus: (itemId: string, newStatus: ItemStatus, reclaimedBy?: string) => Promise<void>;
-}
-
-export const useLostAndFoundListings = (): LostFoundListingsState => {
-  const { user, userProfile } = useAuth();
+const useLostAndFoundListings = () => {
+  const { user, userPreferences } = useAuth();
   const [items, setItems] = useState<LostFoundItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchItems = useCallback(async () => {
+  const fetchItems = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const queries = [
-        Query.orderDesc('$createdAt'),
-        userProfile?.collegeName ? Query.equal('collegeName', userProfile.collegeName) : Query.limit(100) // Filter by college if available
-      ];
+      const queries = [Query.orderDesc('$createdAt')];
+      if (userPreferences?.collegeName && userPreferences.collegeName !== 'N/A') {
+        queries.push(Query.equal('collegeName', userPreferences.collegeName));
+      }
 
       const response = await databases.listDocuments(
         DATABASE_ID,
         LOST_FOUND_COLLECTION_ID,
         queries
       );
-      setItems(response.documents as LostFoundItem[]);
+      setItems(response.documents as LostFoundItem[]); // Type assertion is now safer
     } catch (err: any) {
-      console.error("Error fetching lost and found items:", err);
-      setError("Failed to fetch lost and found items.");
-      toast.error("Failed to load lost and found items.");
+      setError('Failed to fetch lost and found items.');
+      console.error('Error fetching lost and found items:', err);
+      toast.error('Failed to load lost and found items.');
     } finally {
       setIsLoading(false);
     }
-  }, [userProfile?.collegeName]);
+  };
 
   useEffect(() => {
     fetchItems();
-  }, [fetchItems]);
+  }, [userPreferences?.collegeName]);
 
-  const postItem = async (itemData: Omit<LostFoundItem, "$id" | "$createdAt" | "$updatedAt" | "$collectionId" | "$databaseId" | "$permissions" | "posterId" | "posterName" | "collegeName" | "status" | "reclaimedBy" | "reclaimedDate">) => {
-    if (!user || !userProfile?.collegeName) {
-      toast.error("You must be logged in and have a college name set to post an item.");
+  const postItem = async (itemData: Omit<LostFoundItem, '$id' | '$createdAt' | '$updatedAt' | '$permissions' | '$collectionId' | '$databaseId' | '$sequence' | 'posterId' | 'posterName' | 'collegeName' | 'status' | 'reclaimedBy'>) => {
+    if (!user || !userPreferences) {
+      toast.error("You must be logged in to post an item.");
       return;
     }
 
@@ -91,53 +80,51 @@ export const useLostAndFoundListings = (): LostFoundListingsState => {
           ...itemData,
           posterId: user.$id,
           posterName: user.name,
-          collegeName: userProfile.collegeName,
-          status: itemData.type === "Lost" ? "Lost" : "Found", // Default status based on type
-        }
+          collegeName: userPreferences.collegeName,
+          status: itemData.type === "Lost" ? "Active" : "Active", // Default status based on type
+        },
+        [
+          Models.Permission.read(Models.Role.any()),
+          Models.Permission.write(Models.Role.user(user.$id)),
+        ]
       );
-      setItems(prev => [newItem as LostFoundItem, ...prev]);
+      setItems(prev => [newItem as LostFoundItem, ...prev]); // Type assertion is now safer
       toast.success("Item posted successfully!");
     } catch (err: any) {
+      toast.error("Failed to post item: " + err.message);
       console.error("Error posting item:", err);
-      toast.error(err.message || "Failed to post item.");
-      throw err;
     }
   };
 
   const updateItemStatus = async (itemId: string, newStatus: ItemStatus, reclaimedBy?: string) => {
     if (!user) {
-      toast.error("You must be logged in to update an item.");
+      toast.error("You must be logged in to update item status.");
       return;
     }
-
     try {
-      const dataToUpdate: Partial<LostFoundItem> = { status: newStatus };
-      if (newStatus === "Reclaimed" && reclaimedBy) {
-        dataToUpdate.reclaimedBy = reclaimedBy;
-        dataToUpdate.reclaimedDate = new Date().toISOString();
-      }
+      const updateData: Partial<LostFoundItem> = { status: newStatus };
+      if (reclaimedBy) updateData.reclaimedBy = reclaimedBy;
 
-      const updatedItem = await databases.updateDocument(
+      await databases.updateDocument(
         DATABASE_ID,
         LOST_FOUND_COLLECTION_ID,
         itemId,
-        dataToUpdate
+        updateData,
+        [Models.Permission.write(Models.Role.user(user.$id))]
       );
-      setItems(prev => prev.map(item => item.$id === itemId ? { ...item, ...dataToUpdate } : item));
-      toast.success(`Item status updated to ${newStatus}!`);
+      setItems(prev =>
+        prev.map(item =>
+          item.$id === itemId ? { ...item, ...updateData } : item
+        )
+      );
+      toast.success("Item status updated.");
     } catch (err: any) {
+      toast.error("Failed to update item status: " + err.message);
       console.error("Error updating item status:", err);
-      toast.error(err.message || "Failed to update item status.");
-      throw err;
     }
   };
 
-  return {
-    items,
-    isLoading,
-    error,
-    refetch: fetchItems,
-    postItem,
-    updateItemStatus,
-  };
+  return { items, isLoading, error, refetch: fetchItems, postItem, updateItemStatus };
 };
+
+export default useLostAndFoundListings;
