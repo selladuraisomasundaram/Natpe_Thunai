@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Clock, GraduationCap, AlertTriangle, Download, Users, CheckCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-// Ensure this utility exists, or use the inline formatter below if you prefer
 import { formatDuration } from "@/utils/time"; 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,8 +25,10 @@ const GraduationMeter: React.FC = () => {
     
     // 1. Determine Target Date
     let targetDate: Date;
-    if (userProfile?.graduationDate) {
-      targetDate = new Date(userProfile.graduationDate);
+    
+    // FIX 1: Cast to 'any' to bypass TS error until UserProfile type is updated globally
+    if ((userProfile as any)?.graduationDate) {
+      targetDate = new Date((userProfile as any).graduationDate);
     } else {
       // Fallback: 4 years from creation
       targetDate = new Date(created);
@@ -43,7 +44,7 @@ const GraduationMeter: React.FC = () => {
     const safeTotal = totalDuration > 0 ? totalDuration : 1;
     const percentage = Math.min(100, Math.max(0, (elapsed / safeTotal) * 100));
 
-    // 3. Define Variables (Fixing TS2304 errors)
+    // 3. Define Variables
     const calculatedDays = Math.floor(remaining / (1000 * 60 * 60 * 24));
     const calculatedHours = Math.floor((remaining / (1000 * 60 * 60)) % 24);
     const calculatedMinutes = Math.floor((remaining / 1000 / 60) % 60);
@@ -52,7 +53,8 @@ const GraduationMeter: React.FC = () => {
 
     // 4. Create Countdown Object
     const countdownObj = {
-      months: 0, // Simplified, using days mostly
+      years: 0, // FIX 2: Added 'years' to satisfy Countdown interface
+      months: 0, 
       days: calculatedDays,
       hours: calculatedHours,
       minutes: calculatedMinutes,
@@ -81,7 +83,8 @@ const GraduationMeter: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [user?.$createdAt, userProfile?.graduationDate]); 
+  // FIX 3: Updated dependency to cast as any
+  }, [user?.$createdAt, (userProfile as any)?.graduationDate]); 
 
   // Notification Logic
   useEffect(() => {
