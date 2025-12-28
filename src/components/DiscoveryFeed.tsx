@@ -1,73 +1,73 @@
-import React, { useState, useEffect } from "react";
-import { useAuth } from "@/context/AuthContext"; // Import useAuth
-import { Product } from "@/lib/mockData"; // Import Product interface
-import ProductListingCard from "@/components/ProductListingCard";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle } from "lucide-react";
-import { useMarketListings } from '@/hooks/useMarketListings'; // Import the new hook
+"use client";
 
-// Mock function for developer deletion (kept for developer role functionality)
-const mockDeveloperDelete = (productId: string) => {
-  console.log(`Developer deleting product: ${productId}`);
-  // In a real app, this would call an API endpoint or Appwrite function
-};
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useMarketListings } from '@/hooks/useMarketListings';
+import { useAuth } from '@/context/AuthContext';
+import { Loader2, AlertTriangle } from 'lucide-react';
+import ProductCard from './ProductCard'; // Assuming ProductCard exists
 
 const DiscoveryFeed: React.FC = () => {
-  const { userProfile } = useAuth();
+  const { userPreferences } = useAuth();
   const { products: listings, isLoading, error } = useMarketListings(); // useMarketListings already filters by collegeName internally
 
-  // Determine developer status
-  const isDeveloper = userProfile?.role === "developer";
+  if (!userPreferences?.collegeName) {
+    return (
+      <Card className="w-full bg-card text-foreground shadow-lg rounded-lg border-border animate-fade-in">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">Marketplace</CardTitle>
+        </CardHeader>
+        <CardContent className="text-center text-muted-foreground p-4">
+          <AlertTriangle className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
+          <p>Please set your college name in your profile to view marketplace listings.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
-        {[...Array(6)].map((_, i) => (
-          <Skeleton key={i} className="h-64 w-full rounded-lg" />
-        ))}
-      </div>
-    );
-  }
-  
-  if (error) {
-    return (
-      <div className="p-4">
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Error Loading Feed</AlertTitle>
-          <AlertDescription>
-            Failed to load listings from the database: {error}
-          </AlertDescription>
-        </Alert>
-      </div>
+      <Card className="w-full bg-card text-foreground shadow-lg rounded-lg border-border animate-fade-in">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">Marketplace</CardTitle>
+        </CardHeader>
+        <CardContent className="flex justify-center items-center h-32">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-neon" />
+        </CardContent>
+      </Card>
     );
   }
 
-  if (listings.length === 0) {
+  if (error) {
     return (
-      <div className="p-4">
-        <Alert>
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>No Listings Found</AlertTitle>
-          <AlertDescription>
-            It looks like there are no products available right now for your college.
-          </AlertDescription>
-        </Alert>
-      </div>
+      <Card className="w-full bg-card text-foreground shadow-lg rounded-lg border-border animate-fade-in">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">Marketplace</CardTitle>
+        </CardHeader>
+        <CardContent className="text-destructive-foreground bg-destructive/10 p-4 rounded-lg">
+          <p>Error loading listings: {error}</p>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
-      {listings.map((listing) => (
-        <ProductListingCard
-          key={listing.$id}
-          product={{ ...listing, isDeveloper: isDeveloper }} // Inject developer status for card actions
-          onDeveloperDelete={isDeveloper ? mockDeveloperDelete : undefined}
-        />
-      ))}
-    </div>
+    <Card className="w-full bg-card text-foreground shadow-lg rounded-lg border-border animate-fade-in">
+      <CardHeader>
+        <CardTitle className="text-2xl font-bold">Marketplace</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {listings.length === 0 ? (
+          <p className="text-muted-foreground text-center">No marketplace listings found for your college.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {listings.map((product) => (
+              <ProductCard key={product.$id} product={product} />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

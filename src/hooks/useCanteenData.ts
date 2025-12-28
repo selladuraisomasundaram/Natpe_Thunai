@@ -1,21 +1,15 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_CANTEEN_COLLECTION_ID } from '@/lib/appwrite';
-import { Models, Query, ID } from 'appwrite';
-import { toast } from 'sonner';
-import { useAuth } from '@/context/AuthContext'; // NEW: Import useAuth
+import { Client, Databases, Query, ID, Models } from 'appwrite';
+import { useAuth } from '@/context/AuthContext'; // NEW: Use useAuth hook to get current user's college
+import toast from 'react-hot-toast'; // Ensure toast is imported
 
-interface CanteenItem {
+interface CanteenData extends Models.Document { // Extend Models.Document for Appwrite properties
   name: string;
-  available: boolean;
-}
-
-export interface CanteenData extends Models.Document {
-  name: string;
-  isOpen: boolean;
-  items: CanteenItem[];
-  collegeName: string; // NEW: Add collegeName
+  collegeName: string;
+  // createdAt: string; // Already in Models.Document
+  // updatedAt: string; // Already in Models.Document
 }
 
 interface CanteenDataState {
@@ -23,180 +17,93 @@ interface CanteenDataState {
   isLoading: boolean;
   error: string | null;
   refetch: () => void;
-  updateCanteen: (canteenId: string, updates: Partial<CanteenData>) => Promise<void>;
-  addCanteen: (canteenName: string, collegeName: string) => Promise<CanteenData | undefined>; // NEW: Add collegeName parameter
+  updateCanteen: (id: string, newName: string) => Promise<void>;
+  addCanteen: (name: string, collegeName: string) => Promise<void>;
 }
 
-// Helper functions for serialization/deserialization
-const serializeItems = (items: CanteenItem[]): string[] => {
-  return items.map(item => JSON.stringify(item));
-};
+const client = new Client();
+client
+  .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
+  .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!);
 
-const deserializeItems = (items: string[]): CanteenItem[] => {
-  if (!Array.isArray(items)) return [];
-  return items.map(item => {
-    try {
-      return JSON.parse(item);
-    } catch (e) {
-      console.error("Failed to parse canteen item:", item, e);
-      return { name: "Unknown Item", available: false };
-    }
-  });
-};
+const databases = new Databases(client);
+
+const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'default_database_id';
+const CANTEENS_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_CANTEENS_COLLECTION_ID || 'canteens';
 
 export const useCanteenData = (): CanteenDataState => {
-  const { userProfile } = useAuth(); // NEW: Use useAuth hook to get current user's college
+  const { userPreferences, loading: isAuthLoading } = useAuth(); // NEW: Use useAuth hook to get current user's college
   const [allCanteens, setAllCanteens] = useState<CanteenData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const collegeName = userPreferences?.collegeName;
+
   const fetchCanteens = useCallback(async () => {
-    if (!userProfile?.collegeName) { // NEW: Only fetch if collegeName is available
-      setIsLoading(false);
-      setAllCanteens([]); // Clear canteens if no college is set
-      return;
-    }
+    if (isAuthLoading) return; // Wait for auth to load
 
     setIsLoading(true);
     setError(null);
     try {
-      const response = await databases.listDocuments(
-        APPWRITE_DATABASE_ID,
-        APPWRITE_CANTEEN_COLLECTION_ID,
-        [
-          Query.equal('collegeName', userProfile.collegeName), // NEW: Filter by collegeName
-          Query.orderAsc('name')
-        ]
-      );
-      
-      // Deserialize fetched items
-      const deserializedCanteens = (response.documents as any[]).map(doc => ({
-          ...doc,
-          items: deserializeItems(doc.items || []),
-      })) as CanteenData[];
+      let queries = [];
+      if (collegeName) {
+        queries.push(Query.equal('collegeName', collegeName));
+      } else {
+        // If no collegeName, fetch all canteens (e.g., for developer or initial setup)
+        // Or, if collegeName is required, you might want to return early or show an error.
+        // For now, we'll allow fetching all if no collegeName is set.
+      }
 
-      setAllCanteens(deserializedCanteens);
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        CANTEENS_COLLECTION_ID,
+        queries
+      );
+      setAllCanteens(response.documents as CanteenData[]); // Corrected type assertion
     } catch (err: any) {
-      console.error("Error fetching canteen data:", err);
-      setError(err.message || "Failed to load canteen status.");
-      toast.error("Failed to load canteen status.");
+      console.error("Failed to fetch canteens:", err);
+      setError(err.message || "Failed to fetch canteens.");
+      toast.error(err.message || "Failed to fetch canteens.");
     } finally {
       setIsLoading(false);
     }
-  }, [userProfile?.collegeName]); // NEW: Depend on userProfile.collegeName
-
-  const updateCanteen = useCallback(async (canteenId: string, updates: Partial<CanteenData>) => {
-    try {
-      // Separate items from other updates
-      const { items: updatedItems, ...otherUpdates } = updates;
-
-      // Initialize payload with non-item updates, ensuring 'items' is typed as string[] for Appwrite
-      const updatePayload: Partial<Omit<CanteenData, 'items'>> & { items?: string[] } = otherUpdates;
-      
-      // Serialize items if they are being updated
-      if (updatedItems) {
-          updatePayload.items = serializeItems(updatedItems);
-      }
-      
-      await databases.updateDocument(
-        APPWRITE_DATABASE_ID,
-        APPWRITE_CANTEEN_COLLECTION_ID,
-        canteenId,
-        updatePayload
-      );
-      
-      return;
-    } catch (error: any) {
-      console.error("Error updating canteen data:", error);
-      toast.error(error.message || "Failed to update canteen status.");
-      throw error;
-    }
-  }, []);
-
-  const addCanteen = useCallback(async (canteenName: string, collegeName: string): Promise<CanteenData | undefined> => { // NEW: Accept collegeName
-    const initialItems: CanteenItem[] = [
-        { name: "Coffee", available: true },
-        { name: "Tea", available: true },
-    ];
-    
-    const initialData = {
-      name: canteenName,
-      isOpen: true,
-      collegeName: collegeName, // NEW: Add collegeName
-      // Serialize initial items before sending
-      items: serializeItems(initialItems),
-    };
-    
-    try {
-      const newDoc = await databases.createDocument(
-        APPWRITE_DATABASE_ID,
-        APPWRITE_CANTEEN_COLLECTION_ID,
-        ID.unique(),
-        initialData
-      ) as unknown as Models.Document;
-      
-      // Deserialize the returned document for local state consistency
-      const deserializedDoc: CanteenData = {
-          ...(newDoc as any),
-          items: deserializeItems((newDoc as any).items || []),
-      };
-
-      return deserializedDoc;
-    } catch (e: any) {
-      console.error("Error adding canteen:", e);
-      toast.error(e.message || "Failed to add new canteen.");
-    }
-  }, []);
+  }, [collegeName, isAuthLoading]);
 
   useEffect(() => {
     fetchCanteens();
+  }, [fetchCanteens]);
 
-    if (!userProfile?.collegeName) return; // NEW: Only subscribe if collegeName is available
+  const updateCanteen = async (id: string, newName: string) => {
+    try {
+      await databases.updateDocument(
+        DATABASE_ID,
+        CANTEENS_COLLECTION_ID,
+        id,
+        { name: newName }
+      );
+      toast.success("Canteen updated successfully!");
+      fetchCanteens(); // Refetch to update UI
+    } catch (err: any) {
+      console.error("Failed to update canteen:", err);
+      toast.error(err.message || "Failed to update canteen.");
+    }
+  };
 
-    const unsubscribe = databases.client.subscribe(
-      `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_CANTEEN_COLLECTION_ID}.documents`,
-      (response) => {
-        const payload = response.payload as any;
-        
-        // Deserialize payload from real-time update
-        const deserializedPayload: CanteenData = {
-            ...payload,
-            items: deserializeItems(payload.items || []),
-        };
-
-        // NEW: Filter real-time updates by collegeName
-        if (deserializedPayload.collegeName !== userProfile.collegeName) {
-            return;
-        }
-
-        setAllCanteens(prev => {
-          const existingIndex = prev.findIndex(c => c.$id === deserializedPayload.$id);
-
-          if (response.events.includes("databases.*.collections.*.documents.*.create")) {
-            if (existingIndex === -1) {
-              toast.info(`New canteen added: ${deserializedPayload.name}`);
-              return [deserializedPayload, ...prev];
-            }
-          } else if (response.events.includes("databases.*.collections.*.documents.*.update")) {
-            if (existingIndex !== -1) {
-              // Update existing document
-              return prev.map(c => c.$id === deserializedPayload.$id ? deserializedPayload : c);
-            }
-          } else if (response.events.includes("databases.*.collections.*.documents.*.delete")) {
-            if (existingIndex !== -1) {
-              toast.info(`Canteen removed: ${deserializedPayload.name}`);
-              return prev.filter(c => c.$id !== deserializedPayload.$id);
-            }
-          }
-          return prev;
-        });
-      }
-    );
-
-    return () => {
-      unsubscribe();
-    };
-  }, [fetchCanteens, userProfile?.collegeName]); // NEW: Depend on userProfile.collegeName
+  const addCanteen = async (name: string, collegeName: string) => {
+    try {
+      await databases.createDocument(
+        DATABASE_ID,
+        CANTEENS_COLLECTION_ID,
+        ID.unique(),
+        { name, collegeName }
+      );
+      toast.success("Canteen added successfully!");
+      fetchCanteens(); // Refetch to update UI
+    } catch (err: any) {
+      console.error("Failed to add canteen:", err);
+      toast.error(err.message || "Failed to add canteen.");
+    }
+  };
 
   return { allCanteens, isLoading, error, refetch: fetchCanteens, updateCanteen, addCanteen };
 };

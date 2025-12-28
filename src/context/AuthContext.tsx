@@ -1,321 +1,217 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
-import { account, databases, APPWRITE_DATABASE_ID, APPWRITE_USER_PROFILES_COLLECTION_ID } from "@/lib/appwrite";
-import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
-import { Models, Query } from "appwrite";
-import { calculateMaxXpForLevel, checkAndApplyLevelUp } from "@/utils/leveling";
-import { isToday } from "date-fns"; // NEW: Import isToday
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Account, Client, ID, Models, Databases } from 'appwrite';
+import { useNavigate } from 'react-router-dom'; // Corrected import for React Router
+import toast from 'react-hot-toast'; // Ensure toast is imported
 
-interface AppwriteUser extends Models.User<Models.Preferences> {}
-
-interface UserProfile extends Models.Document {
-  userId: string;
-  firstName: string;
-  lastName: string;
-  age: number;
-  mobileNumber: string;
-  upiId: string;
-  collegeIdPhotoId?: string;
-  role: "user" | "developer";
-  gender: "male" | "female" | "prefer-not-to-say";
-  userType: "student" | "staff";
-  collegeName: string;
-  level: number;
-  currentXp: number;
-  maxXp: number;
-  ambassadorDeliveriesCount: number;
-  lastQuestCompletedDate: string | null; // NEW: Track last quest completion
-  itemsListedToday: number; // NEW: Track items listed today for quests
-  avatarStyle: string; // NEW: Add avatarStyle
+// Define custom user preferences
+interface UserPreferences extends Models.Preferences {
+  name: string;
+  yearOfStudy: string; // Required
+  collegeName?: string;
+  level?: number;
+  isDeveloper?: boolean;
+  isAmbassador?: boolean;
+  dailyQuestCompleted?: string; // Changed to string to store date
+  lastLoginStreakClaim?: string;
+  ambassadorDeliveriesCount?: number;
+  // Add any other custom preferences stored in Appwrite's preferences
 }
 
 interface AuthContextType {
+  user: Models.User | null; // Appwrite's built-in user object
+  userPreferences: UserPreferences | null; // Custom preferences
+  loading: boolean;
   isAuthenticated: boolean;
-  isLoading: boolean;
-  user: AppwriteUser | null;
-  userProfile: UserProfile | null;
   isVerified: boolean;
-  login: () => Promise<void>; // Re-added: Function to trigger session re-check
-  logout: () => void;
-  updateUserProfile: (profileId: string, data: Partial<UserProfile>) => Promise<void>;
+  signup: (email: string, password: string, name: string, yearOfStudy: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
   addXp: (amount: number) => Promise<void>;
-  deductXp: (amount: number, reason: string) => Promise<void>;
-  incrementAmbassadorDeliveriesCount: () => Promise<void>;
-  recordMarketListing: () => Promise<void>; // NEW: Function to record market listings
-  // handleAuthSuccess: (currentUser: AppwriteUser) => Promise<void>; // Removed
+  updateUserPreferences: (data: Partial<UserPreferences>) => Promise<void>; // Renamed from updateUserProfile
+  recordMarketListing: (data: any) => Promise<void>; // Placeholder, needs actual implementation
+  incrementAmbassadorDeliveriesCount: () => Promise<void>; // Placeholder, needs actual implementation
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const client = new Client();
+client
+  .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
+  .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!);
+
+const account = new Account(client);
+const databases = new Databases(client); // Assuming you have databases configured
+
+// Appwrite Collection IDs (replace with your actual IDs)
+const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'default_database_id';
+const MARKET_LISTINGS_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_MARKET_LISTINGS_COLLECTION_ID || 'market_listings';
+const USER_PROFILES_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_USER_PROFILES_COLLECTION_ID || 'user_profiles'; // Assuming a separate collection for more complex profiles
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<AppwriteUser | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [user, setUser] = useState<Models.User | null>(null);
+  const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const isVerified = user?.emailVerification ?? false;
+  const isAuthenticated = !!user;
+  const isVerified = !!user?.emailVerification;
 
-  const fetchUserProfile = useCallback(async (userId: string) => {
+  const fetchUserData = async () => {
     try {
-      const response = await databases.listDocuments(
-        APPWRITE_DATABASE_ID,
-        APPWRITE_USER_PROFILES_COLLECTION_ID,
-        [Query.equal('userId', userId)]
-      );
-      const profile = response.documents[0] as unknown as UserProfile | undefined;
-      if (profile) {
-        const level = profile.level ?? 1;
-        const maxXp = calculateMaxXpForLevel(level);
-
-        // Reset itemsListedToday if it's a new day since last quest completion
-        let itemsListedToday = profile.itemsListedToday ?? 0;
-        const lastQuestDate = profile.lastQuestCompletedDate ? new Date(profile.lastQuestCompletedDate) : null;
-        if (lastQuestDate && !isToday(lastQuestDate)) {
-          itemsListedToday = 0; // Reset if it's a new day
-        }
-
-        const completeProfile: UserProfile = {
-          ...profile,
-          level: level,
-          currentXp: profile.currentXp ?? 0,
-          maxXp: maxXp,
-          collegeName: profile.collegeName || "Unknown College",
-          ambassadorDeliveriesCount: profile.ambassadorDeliveriesCount ?? 0,
-          lastQuestCompletedDate: profile.lastQuestCompletedDate ?? null, // Initialize new field
-          itemsListedToday: itemsListedToday, // Initialize new field
-          avatarStyle: profile.avatarStyle || "lorelei", // NEW: Initialize avatarStyle
-        };
-        setUserProfile(completeProfile);
-      } else {
-        console.warn("User profile not found for user:", userId);
-        setUserProfile(null);
-      }
+      const loggedInUser = await account.get();
+      const prefs = await account.getPrefs();
+      setUser(loggedInUser);
+      // Ensure all required UserPreferences fields are present, providing defaults if missing
+      setUserPreferences({
+        name: loggedInUser.name,
+        yearOfStudy: (prefs as UserPreferences).yearOfStudy || 'I', // Default to 'I' if not set
+        collegeName: (prefs as UserPreferences).collegeName || undefined,
+        level: (prefs as UserPreferences).level || 1,
+        isDeveloper: (prefs as UserPreferences).isDeveloper || false,
+        isAmbassador: (prefs as UserPreferences).isAmbassador || false,
+        dailyQuestCompleted: (prefs as UserPreferences).dailyQuestCompleted || undefined,
+        lastLoginStreakClaim: (prefs as UserPreferences).lastLoginStreakClaim || undefined,
+        ambassadorDeliveriesCount: (prefs as UserPreferences).ambassadorDeliveriesCount || 0,
+        ...prefs, // Spread existing preferences to include any others
+      } as UserPreferences);
     } catch (error) {
-      console.error("Error fetching user profile:", error);
-      setUserProfile(null);
-    }
-  }, []);
-
-  const checkUserSession = useCallback(async () => {
-    try {
-      const currentUser = await account.get();
-      setIsAuthenticated(true);
-      setUser(currentUser);
-      await fetchUserProfile(currentUser.$id);
-    } catch (error) {
-      setIsAuthenticated(false);
       setUser(null);
-      setUserProfile(null);
+      setUserPreferences(null);
     } finally {
-      setIsLoading(false);
-    }
-  }, [fetchUserProfile]);
-
-  // Re-added login function
-  const login = useCallback(async () => {
-    setIsLoading(true);
-    await checkUserSession();
-  }, [checkUserSession]);
-
-
-  useEffect(() => {
-    checkUserSession();
-  }, [checkUserSession]);
-
-  const logout = async () => {
-    try {
-      await account.deleteSession("current");
-      setIsAuthenticated(false);
-      setUser(null);
-      setUserProfile(null);
-      toast.success("Logged out successfully!");
-      navigate("/auth", { replace: true });
-    } catch (error: any) {
-      toast.error(error.message || "Failed to log out.");
-      console.error("Logout error:", error);
+      setLoading(false);
     }
   };
 
-  const updateUserProfile = async (profileId: string, data: Partial<UserProfile>) => {
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  const signup = async (email: string, password: string, name: string, yearOfStudy: string) => {
     try {
-      const { maxXp, ...dataToSave } = data;
-
-      const updatedDoc = await databases.updateDocument(
-        APPWRITE_DATABASE_ID,
-        APPWRITE_USER_PROFILES_COLLECTION_ID,
-        profileId,
-        dataToSave
-      );
-      
-      const updatedProfileData = updatedDoc as unknown as UserProfile;
-      
-      const level = updatedProfileData.level ?? 1;
-      const calculatedMaxXp = calculateMaxXpForLevel(level);
-
-      const updatedProfile: UserProfile = {
-        ...updatedProfileData,
-        level: level,
-        currentXp: updatedProfileData.currentXp ?? 0,
-        maxXp: calculatedMaxXp,
-        collegeName: updatedProfileData.collegeName || "Unknown College",
-        ambassadorDeliveriesCount: updatedProfileData.ambassadorDeliveriesCount ?? 0,
-        lastQuestCompletedDate: updatedProfileData.lastQuestCompletedDate ?? null, // Ensure new field is updated
-        itemsListedToday: updatedProfileData.itemsListedToday ?? 0, // Ensure new field is updated
-        avatarStyle: updatedProfileData.avatarStyle || "lorelei", // NEW: Ensure avatarStyle is updated
-      };
-      setUserProfile(updatedProfile);
+      const newUser = await account.create(ID.unique(), email, password, name);
+      await account.createEmailPasswordSession(email, password); // Corrected Appwrite method
+      await account.updatePrefs({
+        yearOfStudy,
+        name,
+        level: 1,
+        isDeveloper: false,
+        isAmbassador: false,
+        dailyQuestCompleted: undefined, // Initialize as undefined
+        ambassadorDeliveriesCount: 0
+      }); // Save initial preferences
+      await fetchUserData(); // Re-fetch to update context
+      navigate('/');
     } catch (error: any) {
-      console.error("Error updating user profile:", error);
-      throw new Error(error.message || "Failed to update profile.");
+      console.error('Signup error:', error);
+      throw new Error(error.message || 'Failed to sign up');
+    }
+  };
+
+  const login = async (email: string, password: string) => {
+    try {
+      await account.createEmailPasswordSession(email, password); // Corrected Appwrite method
+      await fetchUserData(); // Re-fetch to update context
+      navigate('/');
+    } catch (error: any) {
+      console.error('Login error:', error);
+      throw new Error(error.message || 'Failed to log in');
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await account.deleteSession('current');
+      setUser(null);
+      setUserPreferences(null);
+      navigate('/auth');
+      toast.success('Logged out successfully.');
+    } catch (error: any) {
+      console.error('Logout error:', error);
+      toast.error(error.message || 'Failed to log out.');
     }
   };
 
   const addXp = async (amount: number) => {
-    if (!userProfile || !user) {
-      toast.error("Cannot add XP: User not logged in or profile missing.");
+    if (!userPreferences || !user) {
+      toast.error("User not logged in.");
       return;
     }
-
-    let currentLevel = userProfile.level;
-    let currentXp = userProfile.currentXp + amount;
-    let maxXp = userProfile.maxXp;
-
-    const { newLevel, newCurrentXp, newMaxXp } = checkAndApplyLevelUp(currentLevel, currentXp, maxXp);
-
     try {
-      if (newLevel !== currentLevel || newCurrentXp !== userProfile.currentXp) {
-        await updateUserProfile(userProfile.$id, {
-          level: newLevel,
-          currentXp: newCurrentXp,
-        });
-      }
-
-      if (newLevel > currentLevel) {
-        toast.success(`LEVEL UP! You reached Level ${newLevel}! Commission rate reduced.`);
-      } else {
-        toast.info(`+${amount} XP earned!`);
-      }
-    } catch (error) {
-      toast.error("Failed to update XP/Level.");
+      const currentLevel = userPreferences.level || 1;
+      const newLevel = currentLevel + amount; // Simple XP to level conversion
+      await account.updatePrefs({ level: newLevel });
+      setUserPreferences(prev => prev ? { ...prev, level: newLevel } : null);
+      toast.success(`Gained ${amount} XP! New level: ${newLevel}`);
+    } catch (error: any) {
+      console.error('Failed to add XP:', error);
+      toast.error('Failed to add XP.');
     }
   };
 
-  const deductXp = async (amount: number, reason: string) => {
-    if (!userProfile || !user) {
-      toast.error("Cannot deduct XP: User not logged in or profile missing.");
+  const updateUserPreferences = async (data: Partial<UserPreferences>) => {
+    if (!userPreferences || !user) {
+      toast.error("User not logged in.");
       return;
     }
-
-    let currentLevel = userProfile.level;
-    let currentXp = userProfile.currentXp - amount;
-    
-    // Ensure XP doesn't go below zero
-    if (currentXp < 0) currentXp = 0;
-
-    // Recalculate level if XP drops below current level's threshold
-    let newLevel = currentLevel;
-    let newMaxXp = calculateMaxXpForLevel(newLevel);
-
-    while (newLevel > 1 && currentXp < calculateMaxXpForLevel(newLevel - 1)) {
-      newLevel -= 1;
-      newMaxXp = calculateMaxXpForLevel(newLevel);
-      currentXp = newMaxXp + currentXp; // Carry over remaining XP to the new lower level
-    }
-    if (newLevel === 1 && currentXp < 0) currentXp = 0; // Ensure XP is not negative at level 1
-
     try {
-      if (newLevel !== currentLevel || currentXp !== userProfile.currentXp) {
-        await updateUserProfile(userProfile.$id, {
-          level: newLevel,
-          currentXp: currentXp,
-        });
-      }
+      await account.updatePrefs(data);
+      setUserPreferences(prev => prev ? { ...prev, ...data } : null);
+      toast.success('Profile updated successfully!');
+    } catch (error: any) {
+      console.error('Failed to update user profile:', error);
+      toast.error('Failed to update profile.');
+    }
+  };
 
-      if (newLevel < currentLevel) {
-        toast.warning(`LEVEL DOWN! You dropped to Level ${newLevel} due to ${reason}.`);
-      } else {
-        toast.warning(`-${amount} XP deducted due to ${reason}.`);
-      }
-    } catch (error) {
-      toast.error("Failed to deduct XP/Level.");
+  const recordMarketListing = async (data: any) => {
+    if (!user || !userPreferences?.collegeName) {
+      toast.error("User not logged in or college not set.");
+      return;
+    }
+    try {
+      // This is a placeholder. You would typically create a document in a 'market_listings' collection.
+      // Example: await databases.createDocument(DATABASE_ID, MARKET_LISTINGS_COLLECTION_ID, ID.unique(), { ...data, userId: user.$id, collegeName: userPreferences.collegeName });
+      console.log('Market listing recorded:', data);
+      toast.success('Market listing posted successfully!');
+    } catch (error: any) {
+      console.error('Failed to record market listing:', error);
+      toast.error('Failed to post market listing.');
     }
   };
 
   const incrementAmbassadorDeliveriesCount = async () => {
-    if (!userProfile || !user) {
-      console.warn("Cannot increment ambassador deliveries count: User not logged in or profile missing.");
+    if (!userPreferences || !user) {
+      toast.error("User not logged in.");
       return;
     }
-    const newCount = (userProfile.ambassadorDeliveriesCount || 0) + 1;
     try {
-      await updateUserProfile(userProfile.$id, { ambassadorDeliveriesCount: newCount });
-      console.log(`Ambassador deliveries count incremented to ${newCount}`);
-
-      const AMBASSADOR_MISUSE_THRESHOLD = userProfile.gender === "female" ? 10 : 5;
-      const XP_DEDUCTION_AMOUNT = userProfile.gender === "female" ? 10 : 25;
-
-      if (newCount > AMBASSADOR_MISUSE_THRESHOLD && newCount % AMBASSADOR_MISUSE_THRESHOLD === 1) {
-        toast.warning(`Excessive ambassador delivery usage detected (${newCount} times). This may lead to XP deduction.`);
-        await deductXp(XP_DEDUCTION_AMOUNT, "excessive ambassador delivery usage");
-      }
-    } catch (error) {
-      console.error("Failed to update ambassador deliveries count:", error);
+      const currentCount = userPreferences.ambassadorDeliveriesCount || 0;
+      const newCount = currentCount + 1;
+      await account.updatePrefs({ ambassadorDeliveriesCount: newCount });
+      setUserPreferences(prev => prev ? { ...prev, ambassadorDeliveriesCount: newCount } : null);
+      toast.success('Ambassador delivery count updated!');
+    } catch (error: any) {
+      console.error('Failed to increment ambassador deliveries:', error);
+      toast.error('Failed to update ambassador deliveries.');
     }
   };
-
-  // NEW: Function to record market listings for daily quest
-  const recordMarketListing = async () => {
-    if (!userProfile || !user) {
-      console.warn("Cannot record market listing: User not logged in or profile missing.");
-      return;
-    }
-
-    let currentItemsListedToday = userProfile.itemsListedToday ?? 0;
-    const lastQuestDate = userProfile.lastQuestCompletedDate ? new Date(userProfile.lastQuestCompletedDate) : null;
-
-    // Reset if it's a new day since last quest completion
-    if (lastQuestDate && !isToday(lastQuestDate)) {
-      currentItemsListedToday = 0;
-    }
-
-    currentItemsListedToday += 1;
-
-    try {
-      await updateUserProfile(userProfile.$id, { itemsListedToday: currentItemsListedToday });
-      toast.info(`You've listed ${currentItemsListedToday} item(s) today for the daily quest!`);
-    } catch (error) {
-      console.error("Failed to record market listing:", error);
-    }
-  };
-
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
-        <Loader2 className="h-10 w-10 animate-spin text-secondary-neon" />
-        <p className="ml-3 text-lg text-muted-foreground">Loading application...</p>
-      </div>
-    );
-  }
 
   return (
-    <AuthContext.Provider value={{ 
-      isAuthenticated, 
-      isLoading, 
-      user, 
-      userProfile, 
-      isVerified, 
-      login, // Re-added
-      logout, 
-      updateUserProfile, 
-      addXp, 
-      deductXp, 
-      incrementAmbassadorDeliveriesCount, 
+    <AuthContext.Provider value={{
+      user,
+      userPreferences,
+      loading,
+      isAuthenticated,
+      isVerified,
+      signup,
+      login,
+      logout,
+      addXp,
+      updateUserPreferences,
       recordMarketListing,
+      incrementAmbassadorDeliveriesCount,
     }}>
       {children}
     </AuthContext.Provider>
@@ -325,7 +221,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };

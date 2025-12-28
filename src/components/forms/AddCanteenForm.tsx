@@ -1,62 +1,54 @@
 "use client";
 
-import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { DialogFooter } from "@/components/ui/dialog";
-import { toast } from "sonner";
-import { useAuth } from "@/context/AuthContext"; // NEW: Import useAuth
-import { Loader2 } from "lucide-react"; // NEW: Import Loader2
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useAuth } from '@/context/AuthContext'; // NEW: Use useAuth hook
+import toast from 'react-hot-toast'; // Ensure toast is imported
 
 interface AddCanteenFormProps {
-  onSubmit: (canteenName: string, collegeName: string) => Promise<void>; // Changed to return Promise<void> and accept collegeName
+  onSubmit: (canteenName: string, collegeName: string) => void;
   onCancel: () => void;
-  loading: boolean; // Added loading prop
+  loading: boolean;
 }
 
 const AddCanteenForm: React.FC<AddCanteenFormProps> = ({ onSubmit, onCancel, loading }) => {
-  const { userProfile } = useAuth(); // NEW: Use useAuth hook
+  const { userPreferences } = useAuth(); // NEW: Use useAuth hook
   const [canteenName, setCanteenName] = useState("");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canteenName.trim()) {
-      toast.error("Canteen name cannot be empty.");
+    if (!userPreferences?.collegeName) {
+      toast.error("Please set your college name in your profile before adding a canteen.");
       return;
     }
-    if (!userProfile?.collegeName) { // NEW: Check for collegeName
-      toast.error("Your profile is missing college information. Please update your profile first.");
-      return;
+    if (canteenName.trim()) {
+      onSubmit(canteenName.trim(), userPreferences.collegeName);
     }
-    await onSubmit(canteenName.trim(), userProfile.collegeName); // NEW: Pass collegeName
-    setCanteenName(""); // Clear input after submission attempt
   };
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
-        <Label htmlFor="canteenName" className="text-left sm:text-right text-foreground">
-          Canteen Name
-        </Label>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="canteenName">Canteen Name</Label>
         <Input
           id="canteenName"
+          type="text"
           value={canteenName}
           onChange={(e) => setCanteenName(e.target.value)}
-          className="col-span-3 bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          placeholder="e.g., Main Mess, Annex Cafe"
+          placeholder="e.g., Main Cafeteria"
           required
-          disabled={loading}
         />
       </div>
-      <DialogFooter className="pt-4 flex flex-col sm:flex-row gap-2">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={loading} className="w-full sm:w-auto border-border text-primary-foreground hover:bg-muted">
+      <div className="flex justify-end space-x-2">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
           Cancel
         </Button>
-        <Button type="submit" disabled={loading} className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Add Canteen"}
+        <Button type="submit" disabled={loading}>
+          {loading ? "Adding..." : "Add Canteen"}
         </Button>
-      </DialogFooter>
+      </div>
     </form>
   );
 };

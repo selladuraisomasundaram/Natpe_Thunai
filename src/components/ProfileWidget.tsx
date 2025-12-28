@@ -1,118 +1,78 @@
 "use client";
 
-import React from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
-import { Card, CardContent } from "@/components/ui/card";
-import { User, DollarSign, Award } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
-import { generateAvatarUrl } from "@/utils/avatarGenerator";
-import { calculateCommissionRate, formatCommissionRate } from "@/utils/commission";
-import { getLevelBadge } from "@/utils/badges";
-import { getGraduationData } from "@/utils/time";
+import React from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Progress } from '@/components/ui/progress';
+import { useAuth } from '@/context/AuthContext';
+import { getGraduationData } from '@/utils/time';
+import { User } from 'lucide-react';
 
 const ProfileWidget = () => {
-  const { user, userProfile } = useAuth();
+  const { user, userPreferences, loading } = useAuth();
 
-  const displayName = user?.name || "CampusExplorer";
-  
-  const userLevel = userProfile?.level ?? 1;
-  const currentXp = userProfile?.currentXp ?? 0;
-  const maxXp = userProfile?.maxXp ?? 100;
-  const xpPercentage = (currentXp / maxXp) * 100;
-  
-  const commissionRate = calculateCommissionRate(userLevel);
-  const userBadge = getLevelBadge(userLevel);
-
-  const avatarUrl = generateAvatarUrl(
-    displayName,
-    userProfile?.gender || "prefer-not-to-say",
-    userProfile?.userType || "student",
-    userProfile?.avatarStyle || "lorelei" // NEW: Pass avatarStyle
-  );
-
-  const renderMotivationalMessage = () => {
-    if (userProfile?.userType !== "student" || userProfile?.role === "developer") {
-      return null; // Only for students, not developers
-    }
-
-    const userCreationDate = user?.$createdAt;
-    if (!userCreationDate) return null;
-
-    const graduationInfo = getGraduationData(userCreationDate);
-    const targetLevel = 25;
-    const levelsToGo = targetLevel - userProfile.level;
-    const daysRemaining = graduationInfo.countdown.days;
-
-    if (graduationInfo.isGraduated) {
-      return (
-        <p className="text-sm text-muted-foreground mt-2">
-          You've completed your journey! We hope you gained valuable skills and connections.
-        </p>
-      );
-    }
-
-    if (userProfile.level >= targetLevel) {
-      return (
-        <p className="text-sm text-green-500 mt-2 font-semibold">
-          Congratulations! You've reached Level {targetLevel} and achieved the lowest commission rate. Keep up the great work!
-        </p>
-      );
-    }
-
-    let message = "";
-    if (userLevel >= 1 && userLevel <= 5) {
-      message = "Welcome to the campus hustle! Every listing, every interaction, builds your rep. Aim for Level 25 to unlock sweet commission rates and become a campus legend!";
-    } else if (userLevel >= 6 && userLevel <= 10) {
-      message = "You're getting the hang of it! Keep connecting, selling, and helping out. Level up to reduce those commission fees and make more from your grind!";
-    } else if (userLevel >= 11 && userLevel <= 15) {
-      message = "Halfway to the top! Your influence is growing. Master new skills, offer more services, and watch that commission rate drop even further. You're building a legacy!";
-    } else if (userLevel >= 16 && userLevel <= 20) {
-      message = "Almost there, champ! You're a key player in the campus economy. Push for Level 25 to secure the ultimate commission rate and truly thrive.";
-    } else if (userLevel >= 21 && userLevel <= 24) {
-      message = "The finish line is in sight! Just a few more levels to become a true Campus Legend and lock in the lowest commission. Keep innovating, keep earning, and make your final year count!";
-    }
-
-    if (daysRemaining > 0 && levelsToGo > 0) {
-      message += ` You have ${daysRemaining} days left before graduation.`;
-    } else if (daysRemaining <= 0 && levelsToGo > 0) {
-      message += ` Time is running out! Focus on learning new skills to reach Level ${targetLevel}.`;
-    }
-
+  if (loading) {
     return (
-      <p className="text-sm text-muted-foreground mt-2">
-        {message}
-      </p>
+      <Card className="w-full max-w-xs bg-card text-foreground shadow-lg rounded-lg border-border animate-fade-in">
+        <CardContent className="p-4 flex flex-col items-center text-center">
+          <div className="h-12 w-12 rounded-full bg-muted animate-pulse"></div>
+          <div className="h-4 w-3/4 bg-muted mt-3 animate-pulse"></div>
+          <div className="h-3 w-1/2 bg-muted mt-1 animate-pulse"></div>
+          <div className="h-2 w-full bg-muted mt-4 animate-pulse"></div>
+        </CardContent>
+      </Card>
     );
-  };
+  }
+
+  if (!user || !userPreferences) {
+    return null; // Or a placeholder for logged out state
+  }
+
+  const userCreationDate = user.$createdAt;
+  const userYearOfStudy = userPreferences.yearOfStudy;
+
+  if (!userCreationDate || !userYearOfStudy) return null;
+
+  const graduationInfo = getGraduationData(userCreationDate, userYearOfStudy);
+  const targetLevel = 25; // Example target level
+  const currentLevel = userPreferences.level || 1;
+
+  const levelsToGo = targetLevel - currentLevel;
+  const daysRemaining = graduationInfo.remainingDays;
 
   return (
-    <Card className="bg-card text-card-foreground shadow-lg border-border">
-      <CardContent className="p-4 flex items-center space-x-4">
-        <Avatar className="h-16 w-16 border-2 border-secondary-neon">
-          <AvatarImage src={avatarUrl} alt={displayName} />
-          <AvatarFallback className="bg-primary text-primary-foreground">
-            <User className="h-8 w-8" />
-          </AvatarFallback>
+    <Card className="w-full max-w-xs bg-card text-foreground shadow-lg rounded-lg border-border animate-fade-in">
+      <CardContent className="p-4 flex flex-col items-center text-center">
+        <Avatar className="h-16 w-16 mb-3 border-2 border-primary-neon">
+          <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${userPreferences.name}`} alt={userPreferences.name} />
+          <AvatarFallback><User className="h-8 w-8 text-muted-foreground" /></AvatarFallback>
         </Avatar>
-        <div className="flex-grow space-y-1">
-          <h3 className="text-xl font-bold text-foreground">{displayName}</h3>
-          <p className="text-sm text-muted-foreground">Level {userLevel}</p>
-          <div className="flex items-center gap-2 mt-1">
-            <Progress value={xpPercentage} className="h-2 bg-muted-foreground/30 [&::-webkit-progress-bar]:bg-secondary-neon [&::-webkit-progress-value]:bg-secondary-neon" />
-            <span className="text-xs text-muted-foreground">{currentXp}/{maxXp} XP</span>
+        <h3 className="text-lg font-semibold text-foreground">{userPreferences.name}</h3>
+        <p className="text-sm text-muted-foreground">{userPreferences.collegeName || 'College Student'}</p>
+
+        <div className="w-full mt-4 space-y-2">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Level {currentLevel}</span>
+            <span>{targetLevel}</span>
           </div>
-          <div className="flex items-center text-xs text-muted-foreground pt-1">
-            <DollarSign className="h-3 w-3 mr-1 text-secondary-neon" />
-            Commission Rate: <span className="font-semibold text-foreground ml-1">{formatCommissionRate(commissionRate)}</span>
+          <Progress value={(currentLevel / targetLevel) * 100} className="h-2 bg-muted" />
+        </div>
+
+        <div className="w-full mt-4 space-y-2">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Graduation Progress</span>
+            <span>{graduationInfo.progress.toFixed(1)}%</span>
           </div>
-          {userBadge && (
-            <div className="flex items-center text-xs text-muted-foreground">
-              <Award className="h-3 w-3 mr-1 text-secondary-neon" />
-              Badge: <span className="font-semibold text-foreground ml-1">{userBadge}</span>
-            </div>
+          <Progress value={graduationInfo.progress} className="h-2 bg-muted" />
+        </div>
+
+        <div className="mt-4 text-sm text-muted-foreground">
+          {levelsToGo > 0 ? (
+            <p>{levelsToGo} levels to go!</p>
+          ) : (
+            <p>Max level reached!</p>
           )}
-          {renderMotivationalMessage()}
+          <p>{daysRemaining > 0 ? `${daysRemaining} days until graduation` : 'Graduated!'}</p>
         </div>
       </CardContent>
     </Card>
