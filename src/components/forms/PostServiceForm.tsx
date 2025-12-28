@@ -1,16 +1,31 @@
-import React from 'react';
 import { Form } from 'react-final-form';
-import { Button, Loader2 } from '../ui'; // Update the import statement
-import { DeletionInfoMessage } from './DeletionInfoMessage';
+import { Button, Loader } from '@shadcn/ui'; 
+import DeletionInfoMessage from './DeletionInfoMessage';
 
 interface PostServiceFormProps {
-  // Define the PostServiceFormProps interface
-  onSubmit: (values: any) => void;
+  onSubmit: (data: any) => Promise<void>;
   onCancel: () => void;
-  isSubmitting: boolean;
-  categoryOptions: any[]; // Add the categoryOptions prop
-  initialCategory: string; // Add the initialCategory prop
-  isCustomOrder?: boolean; // Add the isCustomOrder prop
+  categoryOptions: any[];
+  initialCategory: string;
+  ambassadorMessagePlaceholder: string;
+  titlePlaceholder: string;
+  descriptionPlaceholder: string;
+  isCustomOrder?: boolean;
 }
 
-// ... (rest of the component code)
+export default function PostServiceForm({
+  onSubmit,
+  onCancel,
+  categoryOptions,
+  initialCategory,
+  ambassadorMessagePlaceholder,
+  titlePlaceholder,
+  descriptionPlaceholder,
+  isCustomOrder,
+}: PostServiceFormProps) {
+  return ( 
+    <div>
+      {/* component code */}
+    </div>
+  );
+}
