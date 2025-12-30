@@ -3,20 +3,17 @@
 import React from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext"; // Import useAuth
-import { HeartHandshake } from "lucide-react"; // Import HeartHandshake
-import StudentWelfareLinks from "@/components/StudentWelfareLinks"; // NEW IMPORT
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+import { HeartHandshake, ShoppingBag } from "lucide-react";
+import StudentWelfareLinks from "@/components/StudentWelfareLinks";
 
 const ServicesPage = () => {
   const navigate = useNavigate();
   const { userProfile } = useAuth();
 
-  // Get user's age from profile, default to 0 if not available
   const userAge = userProfile?.age || 0; 
-  // Content is age-gated if user is 25 or older (meaning they CANNOT access it)
   const isAgeGated = userAge >= 25; 
 
   const handleServiceClick = (path: string, serviceName: string) => {
@@ -32,9 +29,9 @@ const ServicesPage = () => {
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
       <h1 className="text-4xl font-bold mb-6 text-center text-foreground">The Grind (Services)</h1>
       <div className="max-w-md mx-auto space-y-6">
-        {/* Student Welfare & E-commerce Links */}
         <StudentWelfareLinks />
 
+        {/* Freelance Section */}
         <Card className="bg-card p-4 rounded-lg shadow-md border border-border cursor-pointer hover:shadow-xl transition-shadow" onClick={() => handleServiceClick("/services/freelance", "Freelance Section")}>
           <CardHeader className="p-0 pb-2">
             <CardTitle className="text-xl font-semibold text-card-foreground">Freelance Section</CardTitle>
@@ -70,6 +67,7 @@ const ServicesPage = () => {
           </CardContent>
         </Card>
 
+        {/* Food & Wellness */}
         <Card className="bg-card p-4 rounded-lg shadow-md border border-border cursor-pointer hover:shadow-xl transition-shadow" onClick={() => handleServiceClick("/services/food-wellness", "Food & Wellness")}>
           <CardHeader className="p-0 pb-2">
             <CardTitle className="text-xl font-semibold text-card-foreground">Food & Wellness</CardTitle>
@@ -79,15 +77,20 @@ const ServicesPage = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-card p-4 rounded-lg shadow-md border border-border cursor-pointer hover:shadow-xl transition-shadow" onClick={() => handleServiceClick("/services/ticket-booking", "Ticket Booking")}>
+        {/* THE EDIT - INTEGRATED CUELINKS SECTION */}
+        <Card className="bg-card p-4 rounded-lg shadow-md border border-secondary-neon/30 cursor-pointer hover:shadow-xl hover:border-secondary-neon transition-all" onClick={() => handleServiceClick("/services/the-edit", "The Edit")}>
           <CardHeader className="p-0 pb-2">
-            <CardTitle className="text-xl font-semibold text-card-foreground">Ticket Booking</CardTitle>
+            <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
+              <ShoppingBag className="h-5 w-5 text-secondary-neon" /> The Edit
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <p className="text-muted-foreground">IRCTC, Abhi Bus, Paytm redirection for easy travel bookings.</p>
-            </CardContent>
+            <p className="text-muted-foreground font-medium">Curated Loot & Campus Essentials.</p>
+            <p className="text-xs text-muted-foreground mt-1">Exclusive student deals from Amazon, Flipkart, Myntra & more.</p>
+          </CardContent>
         </Card>
 
+        {/* Project Collaborator Tab */}
         <Card className="bg-card p-4 rounded-lg shadow-md border border-border cursor-pointer hover:shadow-xl transition-shadow" onClick={() => handleServiceClick("/services/collaborators", "Project Collaborator Tab")}>
           <CardHeader className="p-0 pb-2">
             <CardTitle className="text-xl font-semibold text-card-foreground">Project Collaborator Tab</CardTitle>
@@ -97,7 +100,7 @@ const ServicesPage = () => {
           </CardContent>
         </Card>
         
-        {/* New Ambassador Program Card */}
+        {/* Ambassador Program Card */}
         <Card className="bg-card p-4 rounded-lg shadow-md border border-border cursor-pointer hover:shadow-xl transition-shadow" onClick={() => handleServiceClick("/services/ambassador-program", "Ambassador Program")}>
           <CardHeader className="p-0 pb-2">
             <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
