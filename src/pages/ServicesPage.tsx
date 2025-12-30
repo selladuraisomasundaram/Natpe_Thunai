@@ -31,6 +31,19 @@ const ServicesPage = () => {
       <div className="max-w-md mx-auto space-y-6">
         <StudentWelfareLinks />
 
+         {/* THE EDIT - INTEGRATED CUELINKS SECTION */}
+        <Card className="bg-card p-4 rounded-lg shadow-md border border-secondary-neon/30 cursor-pointer hover:shadow-xl hover:border-secondary-neon transition-all" onClick={() => handleServiceClick("/services/the-edit", "The Edit")}>
+          <CardHeader className="p-0 pb-2">
+            <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
+              <ShoppingBag className="h-5 w-5 text-secondary-neon" /> The Edit
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <p className="text-muted-foreground font-medium">Curated Loot & Campus Essentials.</p>
+            <p className="text-xs text-muted-foreground mt-1">Exclusive student deals from Amazon, Flipkart, Myntra & more.</p>
+          </CardContent>
+        </Card>
+
         {/* Freelance Section */}
         <Card className="bg-card p-4 rounded-lg shadow-md border border-border cursor-pointer hover:shadow-xl transition-shadow" onClick={() => handleServiceClick("/services/freelance", "Freelance Section")}>
           <CardHeader className="p-0 pb-2">
@@ -77,19 +90,7 @@ const ServicesPage = () => {
           </CardContent>
         </Card>
 
-        {/* THE EDIT - INTEGRATED CUELINKS SECTION */}
-        <Card className="bg-card p-4 rounded-lg shadow-md border border-secondary-neon/30 cursor-pointer hover:shadow-xl hover:border-secondary-neon transition-all" onClick={() => handleServiceClick("/services/the-edit", "The Edit")}>
-          <CardHeader className="p-0 pb-2">
-            <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
-              <ShoppingBag className="h-5 w-5 text-secondary-neon" /> The Edit
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <p className="text-muted-foreground font-medium">Curated Loot & Campus Essentials.</p>
-            <p className="text-xs text-muted-foreground mt-1">Exclusive student deals from Amazon, Flipkart, Myntra & more.</p>
-          </CardContent>
-        </Card>
-
+       
         {/* Project Collaborator Tab */}
         <Card className="bg-card p-4 rounded-lg shadow-md border border-border cursor-pointer hover:shadow-xl transition-shadow" onClick={() => handleServiceClick("/services/collaborators", "Project Collaborator Tab")}>
           <CardHeader className="p-0 pb-2">
