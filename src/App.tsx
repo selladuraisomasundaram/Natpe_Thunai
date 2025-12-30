@@ -149,7 +149,7 @@ const OnlineRoutes = () => {
         <Route path="/services/errands" element={<ErrandsPage />} />
         <Route path="/services/short-term" element={<ShortTermNeedsPage />} />
         <Route path="/services/food-wellness" element={<FoodWellnessPage />} />
-        <Route path="/services/ticket-booking" element={<TicketBookingPage />} />
+        <Route path="/services/ticket-booking" element={<TheEditPage />} />
         <Route path="/services/collaborators" element={<CollaboratorsPage />} />
         <Route path="/services/post-job" element={<PostJobPage />} />
         <Route path="/services/ambassador-program" element={<AmbassadorProgramPage />} />
