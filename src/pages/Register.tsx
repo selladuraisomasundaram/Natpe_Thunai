@@ -2,12 +2,12 @@
 
 import React from 'react';
 
-const ServicesPage: React.FC = () => {
+const RegisterPage: React.FC = () => {
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
-      <h1 className="text-2xl font-bold text-foreground">Services Page</h1>
+      <h1 className="text-2xl font-bold text-foreground">Register Page</h1>
     </div>
   );
 };
 
-export default ServicesPage;
+export default RegisterPage;
