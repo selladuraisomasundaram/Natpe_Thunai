@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID, APPWRITE_PRODUCTS_COLLECTION_ID } from '@/lib/appwrite';
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID } from '@/lib/appwrite';
 import { Models, Query, ID } from 'appwrite';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
-import { Product } from '@/lib/mockData';
+// Removed specific Product import to make it generic
+// import { Product } from '@/lib/mockData'; 
 
 export interface BargainRequest extends Models.Document {
-  productId: string;
+  productId: string; // Acts as the generic Listing ID (Service ID or Product ID)
   productTitle: string;
   originalPrice: string;
   requestedPrice: string;
@@ -20,12 +21,21 @@ export interface BargainRequest extends Models.Document {
   collegeName: string;
 }
 
+// NEW: Generic interface for any item that can be bargained (Product or Service)
+export interface BargainableItem {
+  $id: string;
+  title: string;
+  userId: string; // For Services, map 'posterId' to this. For Products, use 'userId'.
+  sellerName: string; // For Services, map 'posterName' to this.
+  price: string;
+}
+
 interface UseBargainRequestsState {
   buyerRequests: BargainRequest[];
   sellerRequests: BargainRequest[];
   isLoading: boolean;
   error: string | null;
-  sendBargainRequest: (product: Product, requestedPrice: number) => Promise<void>;
+  sendBargainRequest: (item: BargainableItem, requestedPrice: number) => Promise<void>;
   updateBargainStatus: (requestId: string, newStatus: "accepted" | "denied") => Promise<void>;
   getBargainStatusForProduct: (productId: string) => { status: BargainRequest['status'] | null; requestId: string | null };
   refetch: () => void;
@@ -139,7 +149,8 @@ export const useBargainRequests = (): UseBargainRequestsState => {
     };
   }, [fetchBargainRequests, user?.$id, userProfile?.collegeName]);
 
-  const sendBargainRequest = useCallback(async (product: Product, requestedPrice: number) => {
+  // UPDATED: Now accepts BargainableItem (Generic) instead of just Product
+  const sendBargainRequest = useCallback(async (item: BargainableItem, requestedPrice: number) => {
     if (!user || !userProfile) {
       toast.error("You must be logged in to send a bargain request.");
       return;
@@ -148,9 +159,9 @@ export const useBargainRequests = (): UseBargainRequestsState => {
       toast.error("Your profile is missing college information. Please update your profile first.");
       return;
     }
-    if (!product.userId || product.userId.trim() === "") {
+    if (!item.userId || item.userId.trim() === "") {
       toast.error("Seller information is missing or invalid. Cannot send bargain request.");
-      console.error("Seller ID is missing or empty for product:", product);
+      console.error("Seller ID is missing or empty for item:", item);
       return;
     }
 
@@ -160,19 +171,21 @@ export const useBargainRequests = (): UseBargainRequestsState => {
         APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID,
         ID.unique(),
         {
-          productId: product.$id,
-          productTitle: product.title,
-          originalPrice: product.price,
+          productId: item.$id, // This stores either productID OR serviceID
+          productTitle: item.title,
+          originalPrice: item.price,
           requestedPrice: requestedPrice.toFixed(2),
           buyerId: user.$id,
           buyerName: user.name,
-          sellerId: product.userId, // Changed to product.userId
-          sellerName: product.sellerName,
+          sellerId: item.userId, 
+          sellerName: item.sellerName,
           status: "pending",
           collegeName: userProfile.collegeName,
+          // Optional: Add a 'type' field ('product' | 'service') to your database collection if you want to distinguish later
+          // type: 'service' | 'product' 
         }
       );
-      toast.success(`Bargain request for ₹${requestedPrice.toFixed(2)} sent to ${product.sellerName}!`);
+      toast.success(`Bargain request for ₹${requestedPrice.toFixed(2)} sent to ${item.sellerName}!`);
       fetchBargainRequests();
     } catch (err: any) {
       console.error("Error sending bargain request:", err);
