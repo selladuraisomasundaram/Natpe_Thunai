@@ -4,20 +4,18 @@ import React, { useState, useEffect } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, Zap, PlusCircle, Loader2, X, Package, Handshake, ShoppingCart } from "lucide-react"; // Added new icons
+import { Clock, Zap, PlusCircle, Loader2, X, Package, Handshake, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import PostErrandForm from "@/components/forms/PostErrandForm";
 import { useErrandListings, ErrandPost } from "@/hooks/useErrandListings";
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_ERRANDS_COLLECTION_ID,
-APPWRITE_SERVICE_REVIEWS_COLLECTION_ID } from "@/lib/appwrite";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_ERRANDS_COLLECTION_ID, APPWRITE_SERVICE_REVIEWS_COLLECTION_ID } from "@/lib/appwrite";
 import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
 import * as z from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-// import DeletionInfoMessage from "@/components/DeletionInfoMessage"; // REMOVED: Duplicate instance
 
-// Need types specific to this page (Products, Services, Errands, Other)
+// Need types specific to this page
 const NEED_TYPES = ["product-need", "service-need", "errand-need", "other"];
 
 const NEED_OPTIONS = [
@@ -27,25 +25,25 @@ const NEED_OPTIONS = [
   { value: "other", label: "Other Need" },
 ];
 
-// Define the Zod schema for the PostErrandForm data (copied from PostErrandForm.tsx)
+// Define the Zod schema
 const ErrandFormSchema = z.object({
   title: z.string().min(2, { message: "Title must be at least 2 characters." }),
   description: z.string().min(10, { message: "Description must be at least 10 characters." }),
   type: z.string().min(1, { message: "Please select a need type." }),
-  otherTypeDescription: z.string().optional(), // For 'other' type
+  otherTypeDescription: z.string().optional(),
   compensation: z.string().min(2, { message: "Compensation details are required." }),
   deadline: z.date().optional(),
   contact: z.string().min(5, { message: "Contact information is required." }),
 });
 
-const ShortTermNeedsPage = () => { // Renamed to PostANeedPage in summary, but keeping file name for now
+const ShortTermNeedsPage = () => {
   const { user, userProfile } = useAuth();
   const [isPostErrandDialogOpen, setIsPostErrandDialogOpen] = useState(false);
   const [initialTypeForForm, setInitialTypeForForm] = useState<string | undefined>(undefined);
-  const [showNeedFormInfoAlert, setShowNeedFormInfoAlert] = useState(true); // Renamed state for dismissible alert
+  const [showNeedFormInfoAlert, setShowNeedFormInfoAlert] = useState(true);
   
   // Fetch only needs for the user's college
-  const { errands: postedNeeds, isLoading, error } = useErrandListings(NEED_TYPES); // Changed variable name
+  const { errands: postedNeeds, isLoading, error } = useErrandListings(NEED_TYPES);
 
   // Content is age-gated if user is 25 or older
   const isAgeGated = (userProfile?.age ?? 0) >= 25; 
@@ -58,7 +56,7 @@ const ShortTermNeedsPage = () => { // Renamed to PostANeedPage in summary, but k
   const handleNeedClick = (needType: string) => {
     setInitialTypeForForm(needType);
     setIsPostErrandDialogOpen(true);
-    setShowNeedFormInfoAlert(true); // Reset alert visibility when dialog opens
+    setShowNeedFormInfoAlert(true);
   };
 
   const handlePostErrand = async (data: z.infer<typeof ErrandFormSchema>) => {
@@ -74,7 +72,7 @@ const ShortTermNeedsPage = () => { // Renamed to PostANeedPage in summary, but k
         type: data.type === 'other' && data.otherTypeDescription 
                   ? data.otherTypeDescription 
                   : data.type,
-        deadline: data.deadline ? data.deadline.toISOString() : null, // Convert Date to ISO string
+        deadline: data.deadline ? data.deadline.toISOString() : null,
         posterId: user.$id,
         posterName: user.name,
         collegeName: userProfile.collegeName,
@@ -89,7 +87,7 @@ const ShortTermNeedsPage = () => { // Renamed to PostANeedPage in summary, but k
       
       toast.success(`Your need "${data.title}" has been posted!`);
       setIsPostErrandDialogOpen(false);
-      setInitialTypeForForm(undefined); // Reset initial type
+      setInitialTypeForForm(undefined);
     } catch (e: any) {
       console.error("Error posting need:", e);
       toast.error(e.message || "Failed to post need listing.");
@@ -98,18 +96,18 @@ const ShortTermNeedsPage = () => { // Renamed to PostANeedPage in summary, but k
 
   return (
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
-      <h1 className="text-4xl font-bold mb-6 text-center text-foreground">Post a Need</h1> {/* Changed page title */}
+      <h1 className="text-4xl font-bold mb-6 text-center text-foreground">Post a Need</h1>
       <div className="max-w-md mx-auto space-y-6">
         <Card className="bg-card text-card-foreground shadow-lg border-border">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
               <Clock className="h-5 w-5 text-secondary-neon" /> Post a Need
-            </CardTitle> {/* Changed card title */}
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-3">
             <p className="text-sm text-muted-foreground">
               Request products, services, errands, or any other help you need from your college peers!
-            </p> {/* Changed card description */}
+            </p>
             <Button
               className="w-full justify-start bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={() => handleNeedClick("product-need")}
@@ -135,34 +133,26 @@ const ShortTermNeedsPage = () => { // Renamed to PostANeedPage in summary, but k
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
-                <DialogHeader className="relative">
-                  <DialogTitle className="text-foreground">Post New Need</DialogTitle> {/* Changed dialog title */}
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:bg-muted"
-                    onClick={() => setIsPostErrandDialogOpen(false)}
-                  >
-                    <X className="h-4 w-4" />
-                    <span className="sr-only">Close</span>
-                  </Button>
+                {/* FIXED: Removed the manual close Button here. The DialogContent component handles the close button automatically. */}
+                <DialogHeader>
+                  <DialogTitle className="text-foreground">Post New Need</DialogTitle>
                 </DialogHeader>
+                
                 <div className="max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
-                  {showNeedFormInfoAlert && ( // Using the renamed state
+                  {showNeedFormInfoAlert && (
                     <Alert className="bg-blue-50 border-blue-200 text-blue-800 flex items-center justify-between mb-4">
                       <AlertDescription>
                         Fill out the details to post your need for college peers.
-                      </AlertDescription> {/* Changed alert description */}
+                      </AlertDescription>
                       <Button variant="ghost" size="icon" onClick={() => setShowNeedFormInfoAlert(false)} className="text-blue-800 hover:bg-blue-100">
                         <X className="h-4 w-4" />
                       </Button>
                     </Alert>
                   )}
-                  {/* <DeletionInfoMessage /> REMOVED: Duplicate instance */}
                   <PostErrandForm 
                     onSubmit={handlePostErrand} 
                     onCancel={() => { setIsPostErrandDialogOpen(false); setInitialTypeForForm(undefined); }}
-                    typeOptions={NEED_OPTIONS} // Using the new options
+                    typeOptions={NEED_OPTIONS}
                     initialType={initialTypeForForm}
                   />
                 </div>
@@ -176,18 +166,18 @@ const ShortTermNeedsPage = () => { // Renamed to PostANeedPage in summary, but k
 
         <Card className="bg-card text-card-foreground shadow-lg border-border">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xl font-semibold text-card-foreground">Recently Posted Needs</CardTitle> {/* Changed card title */}
+            <CardTitle className="text-xl font-semibold text-card-foreground">Recently Posted Needs</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
-                <p className="ml-3 text-muted-foreground">Loading needs...</p> {/* Changed loading text */}
+                <p className="ml-3 text-muted-foreground">Loading needs...</p>
               </div>
-            ) : ( // Explicitly close isLoading's true branch, start its false branch
+            ) : (
               error ? (
                 <p className="text-center text-destructive py-4">Error loading requests: {error}</p>
-              ) : ( // Explicitly close error's true branch, start its false branch
+              ) : (
                 postedNeeds.length > 0 ? (
                   postedNeeds.map((request) => (
                     <div key={request.$id} className="p-3 border border-border rounded-md bg-background">
@@ -200,7 +190,7 @@ const ShortTermNeedsPage = () => { // Renamed to PostANeedPage in summary, but k
                       <p className="text-xs text-muted-foreground">Posted: {new Date(request.$createdAt).toLocaleDateString()}</p>
                     </div>
                   ))
-                ) : ( // Explicitly close postedNeeds.length > 0's true branch, start its false branch
+                ) : (
                   <p className="text-center text-muted-foreground py-4">No needs posted yet for your college. Be the first!</p>
                 )
               )
