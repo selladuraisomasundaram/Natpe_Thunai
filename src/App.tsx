@@ -3,6 +3,12 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom";
+import React from "react";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { Loader2 } from "lucide-react";
+import { useOnlineStatus } from "./hooks/useOnlineStatus";
+
+// --- Page Imports ---
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
@@ -12,26 +18,17 @@ import ServicesPage from "./pages/ServicesPage";
 import ActivityPage from "./pages/ActivityPage";
 import ProfilePage from "./pages/ProfilePage";
 import TournamentPage from "./pages/TournamentPage";
-import ComingSoonPage from "./pages/ComingSoonPage";
 import BottomNavbar from "./components/layout/BottomNavbar";
 import Header from "./components/layout/Header";
-import React from "react";
-import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { Loader2 } from "lucide-react";
 import VerificationBanner from "./components/VerificationBanner";
-import { useOnlineStatus } from "./hooks/useOnlineStatus";
 
-// Import new Activity sub-pages
+// Sub-pages imports
 import TrackingPage from "./pages/TrackingPage";
 import CashExchangePage from "./pages/CashExchangePage";
 import LostAndFoundPage from "./pages/LostAndFoundPage";
-
-// Import new Profile sub-pages
 import ProfileDetailsPage from "./pages/ProfileDetailsPage";
 import WalletPage from "./pages/WalletPage";
 import PoliciesPage from "./pages/PoliciesPage";
-
-// Import new Services sub-pages
 import FreelancePage from "./pages/FreelancePage";
 import ErrandsPage from "./pages/ErrandsPage";
 import ShortTermNeedsPage from "./pages/ShortTermNeedsPage";
@@ -40,29 +37,18 @@ import TheEditPage from "./pages/TheEditPage";
 import CollaboratorsPage from "./pages/CollaboratorsPage";
 import PostJobPage from "./pages/PostJobPage";
 import AmbassadorProgramPage from "./pages/AmbassadorProgramPage";
-
-// Import new Market sub-pages
 import ProductDetailsPage from "./pages/ProductDetailsPage";
 import PaymentConfirmationPage from "./pages/PaymentConfirmationPage";
-
-// Import new Auth-related pages
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
-
-// Import new Developer Dashboard page
 import DeveloperDashboardPage from "./pages/DeveloperDashboardPage";
-
-// Import Offline Page
-import OfflinePage from "./pages/OfflinePage";
-
-// NEW: Import ImageToUrlHelpPage
 import ImageToUrlHelpPage from "./pages/ImageToUrlHelpPage";
-
-// NEW: Import ServicePaymentConfirmationPage and ChatPage
 import ServicePaymentConfirmationPage from "./pages/ServicePaymentConfirmationPage";
 import ChatPage from "./pages/ChatPage";
 
+// NEW: Import the Offline Game Page
+import OfflinePage from "./pages/OfflinePage";
 
 const queryClient = new QueryClient();
 
@@ -112,7 +98,6 @@ const DeveloperLayout = () => {
   );
 };
 
-// New component to hold all the routes when online
 const OnlineRoutes = () => {
   return (
     <Routes>
@@ -123,7 +108,6 @@ const OnlineRoutes = () => {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/help/image-to-url" element={<ImageToUrlHelpPage />} />
       
-      {/* Protected Routes for all authenticated users */}
       <Route element={<AppLayout />}>
         <Route path="/home" element={<HomePage />} />
         <Route path="/market" element={<MarketPage />} />
@@ -134,33 +118,25 @@ const OnlineRoutes = () => {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/tournaments" element={<TournamentPage />} />
 
-        {/* Activity Sub-pages */}
+        {/* Sub-pages */}
         <Route path="/activity/tracking" element={<TrackingPage />} />
         <Route path="/activity/cash-exchange" element={<CashExchangePage />} />
         <Route path="/activity/lost-found" element={<LostAndFoundPage />} />
-
-        {/* Profile Sub-pages */}
         <Route path="/profile/details" element={<ProfileDetailsPage />} />
         <Route path="/profile/wallet" element={<WalletPage />} />
         <Route path="/profile/policies" element={<PoliciesPage />} />
-
-        {/* Services Sub-pages */}
         <Route path="/services/freelance" element={<FreelancePage />} />
         <Route path="/services/errands" element={<ErrandsPage />} />
         <Route path="/services/short-term" element={<ShortTermNeedsPage />} />
         <Route path="/services/food-wellness" element={<FoodWellnessPage />} />
-        
-        {/* FIX: Changed path from /services/ticket-booking to /services/the-edit */}
         <Route path="/services/the-edit" element={<TheEditPage />} />
-        
         <Route path="/services/collaborators" element={<CollaboratorsPage />} />
         <Route path="/services/post-job" element={<PostJobPage />} />
         <Route path="/services/ambassador-program" element={<AmbassadorProgramPage />} />
-        <Route path="/services/confirm-payment/:transactionId" element={<ServicePaymentConfirmationPage />} /> {/* NEW */}
-        <Route path="/chat/:chatRoomId" element={<ChatPage />} /> {/* NEW */}
+        <Route path="/services/confirm-payment/:transactionId" element={<ServicePaymentConfirmationPage />} />
+        <Route path="/chat/:chatRoomId" element={<ChatPage />} />
       </Route>
 
-      {/* Protected Routes for Developers Only */}
       <Route element={<DeveloperLayout />}>
         <Route path="/developer-dashboard" element={<DeveloperDashboardPage />} />
       </Route>
@@ -171,7 +147,8 @@ const OnlineRoutes = () => {
 };
 
 const App = () => {
-  const isOnline = useOnlineStatus(); // Call hook unconditionally at the top level of App
+  // Use the online status hook to detect connectivity
+  const isOnline = useOnlineStatus();
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -180,6 +157,7 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            {/* Toggle between the full app routes and the Offline Game based on status */}
             {isOnline ? <OnlineRoutes /> : <OfflinePage />}
           </AuthProvider>
         </BrowserRouter>
