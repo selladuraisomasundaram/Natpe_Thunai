@@ -11,7 +11,7 @@ import { MadeWithDyad } from "@/components/made-with-dyad";
 
 // --- CONFIGURATION ---
 // If your .env variables aren't working, replace these strings with your actual IDs
-const API_ENDPOINT = "https://cloud.appwrite.io/v1";
+const API_ENDPOINT = "https://nyc.cloud.appwrite.io/v1";
 const PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID; 
 const COLLECTION_ID = "affiliate_listings"; // Ensure this matches your Collection ID exactly
