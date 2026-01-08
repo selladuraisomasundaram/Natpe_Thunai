@@ -10,7 +10,6 @@ import { useAuth } from "@/context/AuthContext";
 import { isToday } from "date-fns";
 
 // --- Configuration: Daily Quest Definitions ---
-// In a real backend, these would come from a database.
 const DAILY_QUESTS = [
   {
     id: "quest_list_items",
@@ -19,7 +18,7 @@ const DAILY_QUESTS = [
     target: 2,
     xpReward: 50,
     coinsReward: 100,
-    type: "itemsListed", // Maps to userProfile property
+    type: "itemsListed", 
   },
   {
     id: "quest_login_streak",
@@ -28,13 +27,13 @@ const DAILY_QUESTS = [
     target: 3,
     xpReward: 30,
     coinsReward: 50,
-    type: "loginStreak", // Maps to userProfile or local storage logic
+    type: "loginStreak", 
   },
   {
     id: "quest_complete_profile",
     title: "Identity Verified",
     description: "Complete your profile details (Phone & UPI).",
-    target: 1, // Boolean completion counts as 1
+    target: 1, 
     xpReward: 100,
     coinsReward: 200,
     type: "profileCompleted",
@@ -54,10 +53,8 @@ const DailyQuestCard = () => {
       case "itemsListed":
         return userProfile.itemsListedToday ?? 0;
       case "loginStreak":
-        // Assuming loginStreak is stored in localStorage as per previous component
         return parseInt(localStorage.getItem("loginStreak") || "0", 10);
       case "profileCompleted":
-        // Check if critical fields are filled
         return (userProfile.mobileNumber && userProfile.upiId) ? 1 : 0;
       default:
         return 0;
@@ -66,9 +63,12 @@ const DailyQuestCard = () => {
 
   // --- Helper: Check if a specific quest is already claimed today ---
   const isQuestClaimed = (questId: string): boolean => {
-    if (!userProfile?.claimedQuests) return false;
+    // FIX: Cast to 'any' to bypass TS error until AuthContext is updated
+    const profile = userProfile as any;
+    if (!profile?.claimedQuests) return false;
+    
     // claimedQuests structure: { "quest_id": "2023-10-27T..." }
-    const claimedDateStr = userProfile.claimedQuests[questId];
+    const claimedDateStr = profile.claimedQuests[questId];
     if (!claimedDateStr) return false;
     return isToday(new Date(claimedDateStr));
   };
@@ -77,7 +77,7 @@ const DailyQuestCard = () => {
   const completedQuestsCount = DAILY_QUESTS.filter(q => {
     const progress = getQuestProgress(q.type);
     const claimed = isQuestClaimed(q.id);
-    return progress >= q.target || claimed; // Count as done if target met or already claimed
+    return progress >= q.target || claimed; 
   }).length;
 
   const handleViewQuests = () => {
@@ -91,18 +91,19 @@ const DailyQuestCard = () => {
     try {
       await addXp(quest.xpReward);
       
-      // Update claimed status in user profile
-      // We store a map of questId -> claimDate
-      const currentClaimedQuests = userProfile.claimedQuests || {};
+      // FIX: Cast to 'any' to access claimedQuests
+      const profile = userProfile as any;
+      const currentClaimedQuests = profile.claimedQuests || {};
+      
       const updatedClaimedQuests = {
         ...currentClaimedQuests,
         [quest.id]: new Date().toISOString()
       };
 
-      await updateUserProfile(userProfile.$id, {
-        claimedQuests: updatedClaimedQuests,
-        // Optional: Reset specific counters if needed, but usually daily resets happen on server/login
-      });
+      // FIX: Cast object to 'any' so we can send 'claimedQuests' to update function
+      await updateUserProfile({
+        claimedQuests: updatedClaimedQuests
+      } as any);
 
       toast.success(`Claimed: ${quest.title}! +${quest.xpReward} XP earned.`);
     } catch (error: any) {
