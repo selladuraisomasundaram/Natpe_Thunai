@@ -20,7 +20,7 @@ const ActivityPage = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
-      <h1 className="text-4xl font-bold mb-6 text-center text-foreground">The Buzz (Activity)</h1>
+      <h1 className="text-4xl font-bold mb-6 text-center text-foreground">The Buzz</h1>
       <div className="max-w-md mx-auto space-y-6">
         {/* Lost & Found Card */}
         <Card className="bg-card p-4 rounded-lg shadow-md border border-border cursor-pointer hover:shadow-xl transition-shadow" onClick={() => handleActivityClick("/activity/lost-found", "Lost & Found")}>
