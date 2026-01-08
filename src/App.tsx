@@ -161,6 +161,8 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <AuthProvider>
+              {/* AUTOMATIC SWITCHING LOGIC */}
+              {/* If online: Show App Routes. If offline: Show Cosmic Dash Game. */}
               {isOnline ? <OnlineRoutes /> : <OfflinePage />}
             </AuthProvider>
           </BrowserRouter>
