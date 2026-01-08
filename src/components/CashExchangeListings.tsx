@@ -14,7 +14,7 @@ import { ID } from "appwrite";
 
 interface Listing {
   $id: string;
-  $createdAt: string; // FIX: Added this property to resolve the error
+  $createdAt: string;
   type: "request" | "offer" | "group-contribution";
   amount: number;
   notes: string;
@@ -68,6 +68,7 @@ const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, i
       }
 
       // 2. Create a Transaction Record for the Tracking Page
+      // This is the "Notification" that appears in the user's tracking tab
       await databases.createDocument(
         APPWRITE_DATABASE_ID,
         APPWRITE_TRANSACTIONS_COLLECTION_ID,
@@ -76,11 +77,11 @@ const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, i
           productId: selectedListing.$id,
           productTitle: `Cash Exchange: ${selectedListing.type === 'request' ? 'Request' : 'Offer'}`,
           amount: selectedListing.amount,
-          buyerId: user.$id, 
+          buyerId: user.$id, // The person accepting (You)
           buyerName: user.name,
-          sellerId: selectedListing.posterId, 
+          sellerId: selectedListing.posterId, // The original poster (They will get the notification)
           sellerName: selectedListing.posterName,
-          status: "seller_confirmed_delivery", 
+          status: "meeting_scheduled", // Special status for tracking page logic
           type: "cash-exchange",
           collegeName: selectedListing.collegeName,
           ambassadorDelivery: false,
@@ -88,7 +89,7 @@ const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, i
         }
       );
 
-      toast.success("Exchange accepted! Check your Tracking page for details.");
+      toast.success("Exchange accepted! The poster has been notified in their Tracking page.");
       setIsConfirmDialogOpen(false);
     } catch (error: any) {
       console.error("Error accepting exchange:", error);
