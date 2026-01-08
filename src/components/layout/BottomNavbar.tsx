@@ -9,7 +9,7 @@ const navItems = [
   { name: "The Hub", icon: Home, path: "/home" },
   { name: "The Exchange", icon: ShoppingBag, path: "/market" },
   { name: "The Grind", icon: Handshake, path: "/services" },
-  { name: "Activity", icon: Activity, path: "/activity" },
+  { name: "The Buzz", icon: Activity, path: "/activity" },
   { name: "My Zone", icon: User, path: "/profile" },
 ];
 
