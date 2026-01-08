@@ -8,6 +8,9 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 
+// NEW: Import ThemeProvider
+import { ThemeProvider } from "@/components/theme-provider";
+
 // --- Page Imports ---
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
@@ -47,7 +50,7 @@ import ImageToUrlHelpPage from "./pages/ImageToUrlHelpPage";
 import ServicePaymentConfirmationPage from "./pages/ServicePaymentConfirmationPage";
 import ChatPage from "./pages/ChatPage";
 
-// NEW: Import the Offline Game Page
+// Import the Offline Game Page
 import OfflinePage from "./pages/OfflinePage";
 
 const queryClient = new QueryClient();
@@ -147,20 +150,21 @@ const OnlineRoutes = () => {
 };
 
 const App = () => {
-  // Use the online status hook to detect connectivity
   const isOnline = useOnlineStatus();
 
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            {/* Toggle between the full app routes and the Offline Game based on status */}
-            {isOnline ? <OnlineRoutes /> : <OfflinePage />}
-          </AuthProvider>
-        </BrowserRouter>
+        {/* WRAP EVERYTHING IN THEME PROVIDER */}
+        <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AuthProvider>
+              {isOnline ? <OnlineRoutes /> : <OfflinePage />}
+            </AuthProvider>
+          </BrowserRouter>
+        </ThemeProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
