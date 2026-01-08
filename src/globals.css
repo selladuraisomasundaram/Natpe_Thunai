@@ -1,130 +1,229 @@
 @tailwind base;
+
 @tailwind components;
+
 @tailwind utilities;
 
+
+
 @layer base {
+
   :root {
-    /* BACKGROUND: Very subtle Mint-White (Eye-catchy but clean) */
-    --background: 140 25% 98%;
-    /* FOREGROUND: Deep Forest Green/Slate (Readable text) */
-    --foreground: 160 40% 10%;
 
-    /* CARD: Pure White for pop against the mint background */
+    --background: 0 0% 100%;
+
+    --foreground: 222.2 84% 4.9%;
+
+
+
     --card: 0 0% 100%;
-    --card-foreground: 160 40% 10%;
 
-    /* POPOVER: White */
+    --card-foreground: 222.2 84% 4.9%;
+
+
+
     --popover: 0 0% 100%;
-    --popover-foreground: 160 40% 10%;
 
-    /* PRIMARY: Bold Emerald Green (Attractive & Professional) */
-    --primary: 142 70% 40%; 
-    --primary-foreground: 355 100% 100%; /* White text on buttons */
+    --popover-foreground: 222.2 84% 4.9%;
 
-    /* SECONDARY: Soft Mint Green (For secondary actions) */
-    --secondary: 140 40% 94%;
-    --secondary-foreground: 160 40% 20%;
 
-    /* MUTED: Grey-Green for disabled/subtle text */
-    --muted: 140 20% 94%;
-    --muted-foreground: 160 10% 45%;
 
-    /* ACCENT: Electric Neon Green (The "Glowing" Vibe) */
-    --accent: 120 100% 50%;
-    --accent-foreground: 160 60% 10%;
+    --primary: 220 30% 20%; /* Custom Primary Blue */
 
-    /* DESTRUCTIVE: Red (Kept standard for errors) */
+    --primary-foreground: 210 40% 98%; /* White/Off-white */
+
+
+
+    --secondary: 210 40% 96.1%;
+
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+
+
+    --muted: 210 40% 96.1%;
+
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+
+
+    --accent: 120 80% 60%; /* Custom Secondary Neon */
+
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+
+
     --destructive: 0 84.2% 60.2%;
+
     --destructive-foreground: 210 40% 98%;
 
-    /* BORDER & INPUT: Subtle Greenish-Grey */
-    --border: 140 20% 88%;
-    --input: 140 20% 88%;
-    
-    /* RING: Matches Primary Green for focus states */
-    --ring: 142 70% 40%;
+
+
+    --border: 214.3 31.8% 91.4%;
+
+    --input: 214.3 31.8% 91.4%;
+
+    --ring: 222.2 84% 4.9%;
+
+
 
     --radius: 0.5rem;
 
-    /* Sidebar Variables (Light Mode) */
-    --sidebar-background: 140 25% 96%;
-    --sidebar-foreground: 160 40% 20%;
-    --sidebar-primary: 142 70% 40%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 140 30% 90%;
-    --sidebar-accent-foreground: 142 70% 40%;
-    --sidebar-border: 140 20% 88%;
-    --sidebar-ring: 142 70% 40%;
+
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
   }
+
+
 
   .dark {
+
     --background: 222.2 84% 4.9%;
+
     --foreground: 210 40% 98%;
 
+
+
     --card: 222.2 84% 4.9%;
+
     --card-foreground: 210 40% 98%;
 
+
+
     --popover: 222.2 84% 4.9%;
+
     --popover-foreground: 210 40% 98%;
 
-    --primary: 220 30% 20%; /* Keep dark mode primary distinct or match green if desired */
-    --primary-foreground: 210 40% 98%;
+
+
+    --primary: 220 30% 20%; /* Custom Primary Blue */
+
+    --primary-foreground: 210 40% 98%; /* White/Off-white */
+
+
 
     --secondary: 217.2 32.6% 17.5%;
+
     --secondary-foreground: 210 40% 98%;
 
+
+
     --muted: 217.2 32.6% 17.5%;
+
     --muted-foreground: 215 20.2% 65.1%;
 
+
+
     --accent: 120 80% 60%; /* Custom Secondary Neon */
+
     --accent-foreground: 210 40% 98%;
 
+
+
     --destructive: 0 62.8% 30.6%;
+
     --destructive-foreground: 210 40% 98%;
 
+
+
     --border: 217.2 32.6% 17.5%;
+
     --input: 217.2 32.6% 17.5%;
+
     --ring: 212.7 26.8% 83.9%;
-    
+
     --sidebar-background: 240 5.9% 10%;
+
     --sidebar-foreground: 240 4.8% 95.9%;
+
     --sidebar-primary: 224.3 76.3% 48%;
+
     --sidebar-primary-foreground: 0 0% 100%;
+
     --sidebar-accent: 240 3.7% 15.9%;
+
     --sidebar-accent-foreground: 240 4.8% 95.9%;
+
     --sidebar-border: 240 3.7% 15.9%;
+
     --sidebar-ring: 217.2 91.2% 59.8%;
+
   }
+
 }
+
+
 
 @layer base {
+
   * {
+
     @apply border-border;
+
   }
+
+
 
   body {
+
     @apply bg-background text-foreground;
+
   }
+
 }
 
-/* Updated Global Animation for Green Vibe */
+
+
+/* Add this to your globals.css */
+
 @keyframes cyber-pulse {
+
   0% {
-    /* Changed #00f3ff (Cyan) to #39ff14 (Neon Green) */
-    filter: drop-shadow(0 0 2px #39ff14) brightness(1);
+
+    filter: drop-shadow(0 0 2px #00f3ff) brightness(1);
+
     transform: scale(1);
+
   }
+
   50% {
-    filter: drop-shadow(0 0 15px #39ff14) brightness(1.2);
+
+    filter: drop-shadow(0 0 15px #00f3ff) brightness(1.2);
+
     transform: scale(1.05);
+
   }
+
   100% {
-    filter: drop-shadow(0 0 2px #39ff14) brightness(1);
+
+    filter: drop-shadow(0 0 2px #00f3ff) brightness(1);
+
     transform: scale(1);
+
   }
+
 }
+
+
 
 .logo-animated {
+
   animation: cyber-pulse 3s infinite ease-in-out;
-  color: #39ff14; /* Updated to Neon Green */
+
+  color: #00f3ff;
+
 }
