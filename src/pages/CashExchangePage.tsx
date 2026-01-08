@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, Handshake, PlusCircle, Users, Loader2 } from "lucide-react";
+import { DollarSign, Handshake, PlusCircle, Users, Loader2, Info } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -16,9 +16,8 @@ import { databases, APPWRITE_DATABASE_ID, APPWRITE_CASH_EXCHANGE_COLLECTION_ID }
 import { ID, Models, Query } from "appwrite";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
-import { calculateCommissionRate, formatCommissionRate } from "@/utils/commission"; // Import dynamic commission
-import CashExchangeListings from "@/components/CashExchangeListings"; // NEW IMPORT
-import DeletionInfoMessage from "@/components/DeletionInfoMessage"; // NEW: Import DeletionInfoMessage
+import CashExchangeListings from "@/components/CashExchangeListings";
+import DeletionInfoMessage from "@/components/DeletionInfoMessage";
 
 interface Contribution {
   userId: string;
@@ -33,13 +32,12 @@ interface CashExchangeRequest extends Models.Document {
   status: "Open" | "Accepted" | "Completed" | "Group Contribution";
   meetingLocation: string;
   meetingTime: string;
-  contributions?: Contribution[]; // This is the deserialized type for the component's state
-  posterId: string; // ID of the user who posted the request/offer
-  posterName: string; // Name of the user who posted
-  collegeName: string; // NEW: Add collegeName
+  contributions?: Contribution[];
+  posterId: string;
+  posterName: string;
+  collegeName: string;
 }
 
-// Helper functions for serialization/deserialization
 const serializeContributions = (contributions: Contribution[]): string[] => {
   return contributions.map(c => JSON.stringify(c));
 };
@@ -69,15 +67,14 @@ const CashExchangePage = () => {
   const [exchangeRequests, setExchangeRequests] = useState<CashExchangeRequest[]>([]);
   const [isPosting, setIsPosting] = useState(false);
 
-  // Scroll to top on component mount
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
   const fetchRequests = useCallback(async () => {
-    if (!userProfile?.collegeName) { // NEW: Only fetch if collegeName is available
+    if (!userProfile?.collegeName) {
       setLoading(false);
-      setExchangeRequests([]); // Clear requests if no college is set
+      setExchangeRequests([]);
       return;
     }
 
@@ -88,13 +85,13 @@ const CashExchangePage = () => {
         APPWRITE_CASH_EXCHANGE_COLLECTION_ID,
         [
           Query.orderDesc('$createdAt'),
-          Query.equal('collegeName', userProfile.collegeName) // NEW: Filter by collegeName
+          Query.equal('collegeName', userProfile.collegeName)
         ]
       );
-      // Deserialize contributions when fetching
+      
       const deserializedRequests = (response.documents as any[]).map(doc => ({
         ...doc,
-        contributions: deserializeContributions(doc.contributions || []), // Ensure array is passed
+        contributions: deserializeContributions(doc.contributions || []),
       })) as unknown as CashExchangeRequest[];
       setExchangeRequests(deserializedRequests);
     } catch (error) {
@@ -103,19 +100,18 @@ const CashExchangePage = () => {
     } finally {
       setLoading(false);
     }
-  }, [userProfile?.collegeName]); // NEW: Depend on userProfile.collegeName
+  }, [userProfile?.collegeName]);
 
   useEffect(() => {
     fetchRequests();
 
-    if (!userProfile?.collegeName) return; // NEW: Only subscribe if collegeName is available
+    if (!userProfile?.collegeName) return;
 
     const unsubscribe = databases.client.subscribe(
       `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_CASH_EXCHANGE_COLLECTION_ID}.documents`,
       (response) => {
-        const payload = response.payload as any; // Use 'any' for raw payload to handle mixed types
+        const payload = response.payload as any;
         
-        // NEW: Filter real-time updates by collegeName
         if (payload.collegeName !== userProfile.collegeName) {
             return;
         }
@@ -123,10 +119,9 @@ const CashExchangePage = () => {
         setExchangeRequests(prev => {
           const existingIndex = prev.findIndex(r => r.$id === payload.$id);
           
-          // Deserialize contributions from the payload, explicitly casting to string[]
           const deserializedPayload: CashExchangeRequest = {
             ...payload,
-            contributions: deserializeContributions(payload.contributions as string[] || []), // Explicitly cast here
+            contributions: deserializeContributions(payload.contributions as string[] || []),
           };
 
           if (response.events.includes("databases.*.collections.*.documents.*.create")) {
@@ -175,22 +170,20 @@ const CashExchangePage = () => {
 
     setIsPosting(true);
     try {
-      // Commission is now 0 for cash exchange
       const commissionAmount = 0; 
 
       const newRequestData = {
         type: postType,
         amount: parsedAmount,
-        commission: commissionAmount, // Set commission to 0
+        commission: commissionAmount,
         notes: notes.trim(),
         status: postType === "group-contribution" ? "Group Contribution" : "Open",
         meetingLocation: meetingLocation.trim(),
         meetingTime: meetingTime.trim(),
-        // Serialize contributions array before sending to Appwrite
         contributions: postType === "group-contribution" ? serializeContributions([]) : undefined,
         posterId: user.$id,
         posterName: user.name,
-        collegeName: userProfile.collegeName, // NEW: Add collegeName
+        collegeName: userProfile.collegeName,
       };
 
       await databases.createDocument(
@@ -223,6 +216,18 @@ const CashExchangePage = () => {
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
       <h1 className="text-4xl font-bold mb-6 text-center text-foreground">Cash Exchange</h1>
       <div className="max-w-md mx-auto space-y-6">
+        
+        {/* DISCLAIMER CARD */}
+        <Card className="bg-amber-50/50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-card-foreground shadow-sm">
+          <CardContent className="p-4 flex gap-3">
+            <Info className="h-6 w-6 text-amber-600 dark:text-amber-400 shrink-0 mt-1" />
+            <div className="text-sm text-amber-800 dark:text-amber-200">
+              <p className="font-semibold mb-1">Not for Money Lending</p>
+              This platform is strictly for <strong>Physical-to-Digital</strong> or <strong>Digital-to-Physical</strong> cash exchange between students (e.g., "I have ₹500 cash, need UPI"). Do not use this for loans or borrowing.
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="bg-card text-card-foreground shadow-lg border-border">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
@@ -231,7 +236,7 @@ const CashExchangePage = () => {
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-3">
             <p className="text-sm text-muted-foreground">
-              Post your cash requirements or offers for your college. This is a non-commissioned service. If you are benefited, consider contributing to the developers.
+              Post your cash requirements or offers for your college. This is a non-commissioned service.
             </p>
             <Button
               className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90"
@@ -275,13 +280,12 @@ const CashExchangePage = () => {
       </div>
       <MadeWithDyad />
 
-      {/* Post Request/Offer Dialog */}
       <Dialog open={isPostDialogOpen} onOpenChange={setIsPostDialogOpen}>
         <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
           <DialogHeader>
             <DialogTitle className="text-foreground">Post New Cash Exchange</DialogTitle>
           </DialogHeader>
-          <DeletionInfoMessage /> {/* NEW: Deletion Info Message */}
+          <DeletionInfoMessage />
           <form onSubmit={handlePostSubmit} className="grid gap-4 py-4">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-4 items-center">
               <Label htmlFor="postType" className="text-left sm:text-right text-foreground">
