@@ -27,7 +27,7 @@ const ServicesPage = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
-      <h1 className="text-4xl font-bold mb-6 text-center text-foreground">The Grind (Services)</h1>
+      <h1 className="text-4xl font-bold mb-6 text-center text-foreground">The Grind</h1>
       <div className="max-w-md mx-auto space-y-6">
         <StudentWelfareLinks />
 
