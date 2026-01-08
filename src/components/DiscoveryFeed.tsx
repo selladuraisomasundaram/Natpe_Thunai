@@ -3,12 +3,12 @@
 import React, { useState, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import ProductListingCard from "@/components/ProductListingCard";
-import ServiceListingCard from "@/components/ServiceListingCard"; // Import Service Card
+import ServiceListingCard from "@/components/ServiceListingCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useMarketListings } from '@/hooks/useMarketListings';
-import { useServiceListings } from '@/hooks/useServiceListings'; // Import Service Hook
+import { useServiceListings } from '@/hooks/useServiceListings';
 import { Button } from "@/components/ui/button";
 
 const ITEMS_PER_PAGE = 4;
@@ -18,21 +18,22 @@ const DiscoveryFeed: React.FC = () => {
   
   // 1. Fetch both Products and Services
   const { products, isLoading: productsLoading, error: productsError } = useMarketListings();
-  const { services, isLoading: servicesLoading, error: servicesError } = useServiceListings(undefined); // undefined gets all categories
+  const { services, isLoading: servicesLoading, error: servicesError } = useServiceListings(undefined);
 
   // State for Pagination
   const [currentPage, setCurrentPage] = useState(1);
 
   // 2. Combine and Sort Data (Memoized for performance)
   const combinedFeed = useMemo(() => {
-    // Add a 'kind' tag to distinguish them easily
+    // Add a 'feedType' tag to distinguish them easily
     const taggedProducts = products.map(p => ({ ...p, feedType: 'product' }));
     const taggedServices = services.map(s => ({ ...s, feedType: 'service' }));
 
     const allItems = [...taggedProducts, ...taggedServices];
 
     // Sort by creation date (Newest first)
-    return allItems.sort((a, b) => 
+    // FIX: Cast 'a' and 'b' to 'any' to bypass TypeScript error regarding $createdAt
+    return allItems.sort((a: any, b: any) => 
       new Date(b.$createdAt).getTime() - new Date(a.$createdAt).getTime()
     );
   }, [products, services]);
@@ -48,7 +49,7 @@ const DiscoveryFeed: React.FC = () => {
   const handleNext = () => {
     if (currentPage < totalPages) {
       setCurrentPage(prev => prev + 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to top of feed
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -104,13 +105,12 @@ const DiscoveryFeed: React.FC = () => {
             {item.feedType === 'product' ? (
               <ProductListingCard
                 product={item}
-                // REMOVED: onDeveloperDelete prop to hide the button
               />
             ) : (
               <ServiceListingCard
                 service={item}
                 isFoodOrWellnessCategory={['homemade-meals', 'wellness-remedies'].includes(item.category)}
-                onOpenBargainDialog={() => {}} // Pass dummies if handled internally by card now
+                onOpenBargainDialog={() => {}} 
                 onOpenReviewDialog={() => {}}
               />
             )}
