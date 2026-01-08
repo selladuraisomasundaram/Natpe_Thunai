@@ -14,6 +14,7 @@ import { ID } from "appwrite";
 
 interface Listing {
   $id: string;
+  $createdAt: string; // FIX: Added this property to resolve the error
   type: "request" | "offer" | "group-contribution";
   amount: number;
   notes: string;
@@ -56,8 +57,7 @@ const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, i
 
     setIsProcessing(true);
     try {
-      // 1. Update the listing status to "Accepted" (optional, depending on if you want to close it immediately)
-      // For 1-on-1 exchanges, we usually close it. For group, we might keep it open.
+      // 1. Update the listing status to "Accepted"
       if (selectedListing.type !== 'group-contribution') {
         await databases.updateDocument(
           APPWRITE_DATABASE_ID,
@@ -68,21 +68,20 @@ const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, i
       }
 
       // 2. Create a Transaction Record for the Tracking Page
-      // This ensures the original poster gets a notification in their tracking tab
       await databases.createDocument(
         APPWRITE_DATABASE_ID,
         APPWRITE_TRANSACTIONS_COLLECTION_ID,
         ID.unique(),
         {
-          productId: selectedListing.$id, // Link to this exchange ID
+          productId: selectedListing.$id,
           productTitle: `Cash Exchange: ${selectedListing.type === 'request' ? 'Request' : 'Offer'}`,
           amount: selectedListing.amount,
-          buyerId: user.$id, // The person accepting (You)
+          buyerId: user.$id, 
           buyerName: user.name,
-          sellerId: selectedListing.posterId, // The original poster
+          sellerId: selectedListing.posterId, 
           sellerName: selectedListing.posterName,
-          status: "seller_confirmed_delivery", // Use a status that indicates "Action Required" or "Meeting Scheduled"
-          type: "cash-exchange", // Special type to distinguish in tracking
+          status: "seller_confirmed_delivery", 
+          type: "cash-exchange",
           collegeName: selectedListing.collegeName,
           ambassadorDelivery: false,
           ambassadorMessage: `Meeting at ${selectedListing.meetingLocation} @ ${selectedListing.meetingTime}`
