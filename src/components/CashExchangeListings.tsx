@@ -1,205 +1,201 @@
 "use client";
 
-import React from "react";
+import React, { useState } from 'react';
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, DollarSign, Handshake, PlusCircle, Users } from "lucide-react";
-import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { MapPin, Clock, ArrowRight, CheckCircle, Loader2, AlertTriangle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/context/AuthContext";
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_CASH_EXCHANGE_COLLECTION_ID } from "@/lib/appwrite";
-import { Models } from "appwrite";
+import { toast } from "sonner";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_CASH_EXCHANGE_COLLECTION_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID } from "@/lib/appwrite";
+import { ID } from "appwrite";
 
-interface Contribution {
-  userId: string;
-  amount: number;
-}
-
-interface CashExchangeRequest extends Models.Document {
+interface Listing {
+  $id: string;
   type: "request" | "offer" | "group-contribution";
   amount: number;
-  commission: number;
   notes: string;
-  status: "Open" | "Accepted" | "Completed" | "Group Contribution";
+  status: string;
   meetingLocation: string;
   meetingTime: string;
-  contributions?: Contribution[];
   posterId: string;
   posterName: string;
+  contributions?: any[];
   collegeName: string;
 }
 
 interface CashExchangeListingsProps {
-  listings: CashExchangeRequest[];
+  listings: Listing[];
   isLoading: boolean;
   type: "request" | "offer" | "group-contribution";
-  // Add refetch if needed for parent to trigger a refresh after actions
 }
-
-// Helper functions for serialization/deserialization (copied from CashExchangePage)
-const serializeContributions = (contributions: Contribution[]): string[] => {
-  return contributions.map(c => JSON.stringify(c));
-};
-
-const deserializeContributions = (contributions: string[] | undefined): Contribution[] => {
-  if (!contributions || !Array.isArray(contributions)) return [];
-  return contributions.map(c => {
-    try {
-      return JSON.parse(c);
-    } catch (e) {
-      console.error("Failed to parse contribution item:", c, e);
-      return { userId: "unknown", amount: 0 };
-    }
-  });
-};
-
 
 const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, isLoading, type }) => {
   const { user } = useAuth();
-  const [isUpdating, setIsUpdating] = React.useState(false);
+  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleAcceptDeal = async (request: CashExchangeRequest) => {
-    if (request.posterId === user?.$id) {
-      toast.error("You cannot accept your own deal.");
+  const handleActionClick = (listing: Listing) => {
+    if (!user) {
+      toast.error("Please log in to participate.");
       return;
     }
-    if (request.status !== "Open") {
-      toast.error("This deal is no longer open.");
+    if (user.$id === listing.posterId) {
+      toast.info("You cannot accept your own post.");
       return;
     }
-
-    setIsUpdating(true);
-    try {
-      await databases.updateDocument(
-        APPWRITE_DATABASE_ID,
-        APPWRITE_CASH_EXCHANGE_COLLECTION_ID,
-        request.$id,
-        { status: "Accepted" }
-      );
-      toast.success(`Deal accepted for ${request.type} of ₹${request.amount}! Please arrange meeting.`);
-    } catch (error: any) {
-      console.error("Error accepting deal:", error);
-      toast.error(error.message || "Failed to accept deal.");
-    } finally {
-      setIsUpdating(false);
-    }
+    setSelectedListing(listing);
+    setIsConfirmDialogOpen(true);
   };
 
-  const handleContribute = async (request: CashExchangeRequest) => {
-    if (request.posterId === user?.$id) {
-      toast.error("You cannot contribute to your own request.");
-      return;
-    }
-    if (request.status !== "Group Contribution") {
-      toast.error("This is not an active group contribution request.");
-      return;
-    }
-    if (!user) return;
+  const handleConfirmAction = async () => {
+    if (!selectedListing || !user) return;
 
-    const contributionAmount = 500; // Example fixed contribution amount
-    const currentContributions = request.contributions || []; // Deserialize here
-    const currentContributionTotal = currentContributions.reduce((sum, c) => sum + c.amount, 0) || 0;
-    const remainingAmount = request.amount - currentContributionTotal;
-
-    if (remainingAmount <= 0) {
-      toast.error("This group contribution is already fully funded.");
-      return;
-    }
-    
-    const actualContribution = Math.min(contributionAmount, remainingAmount);
-    
-    // Check if user already contributed (optional, but good practice)
-    if (currentContributions.some(c => c.userId === user.$id)) {
-        toast.warning("You have already contributed to this request.");
-        // For simplicity, we allow multiple contributions until fully funded, but warn.
-    }
-
-    const newContributions: Contribution[] = [
-      ...currentContributions,
-      { userId: user.$id, amount: actualContribution }
-    ];
-
-    setIsUpdating(true);
+    setIsProcessing(true);
     try {
-      await databases.updateDocument(
+      // 1. Update the listing status to "Accepted" (optional, depending on if you want to close it immediately)
+      // For 1-on-1 exchanges, we usually close it. For group, we might keep it open.
+      if (selectedListing.type !== 'group-contribution') {
+        await databases.updateDocument(
+          APPWRITE_DATABASE_ID,
+          APPWRITE_CASH_EXCHANGE_COLLECTION_ID,
+          selectedListing.$id,
+          { status: "Accepted" }
+        );
+      }
+
+      // 2. Create a Transaction Record for the Tracking Page
+      // This ensures the original poster gets a notification in their tracking tab
+      await databases.createDocument(
         APPWRITE_DATABASE_ID,
-        APPWRITE_CASH_EXCHANGE_COLLECTION_ID,
-        request.$id,
-        { contributions: serializeContributions(newContributions) } // Serialize back before updating
+        APPWRITE_TRANSACTIONS_COLLECTION_ID,
+        ID.unique(),
+        {
+          productId: selectedListing.$id, // Link to this exchange ID
+          productTitle: `Cash Exchange: ${selectedListing.type === 'request' ? 'Request' : 'Offer'}`,
+          amount: selectedListing.amount,
+          buyerId: user.$id, // The person accepting (You)
+          buyerName: user.name,
+          sellerId: selectedListing.posterId, // The original poster
+          sellerName: selectedListing.posterName,
+          status: "seller_confirmed_delivery", // Use a status that indicates "Action Required" or "Meeting Scheduled"
+          type: "cash-exchange", // Special type to distinguish in tracking
+          collegeName: selectedListing.collegeName,
+          ambassadorDelivery: false,
+          ambassadorMessage: `Meeting at ${selectedListing.meetingLocation} @ ${selectedListing.meetingTime}`
+        }
       );
-      toast.success(`You contributed ₹${actualContribution} to this request!`);
+
+      toast.success("Exchange accepted! Check your Tracking page for details.");
+      setIsConfirmDialogOpen(false);
     } catch (error: any) {
-      console.error("Error contributing:", error);
-      toast.error(error.message || "Failed to record contribution.");
+      console.error("Error accepting exchange:", error);
+      toast.error("Failed to accept exchange.");
     } finally {
-      setIsUpdating(false);
+      setIsProcessing(false);
     }
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
-        <p className="ml-3 text-muted-foreground">Loading listings...</p>
+      <div className="flex justify-center py-8">
+        <Loader2 className="h-8 w-8 animate-spin text-secondary-neon" />
       </div>
     );
   }
 
   if (listings.length === 0) {
-    return <p className="text-center text-muted-foreground py-4">No {type.replace('-', ' ')} posts yet for your college.</p>;
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        No active {type}s found. Be the first to post!
+      </div>
+    );
   }
 
   return (
     <div className="space-y-4">
-      {listings.map((req) => {
-        const isPoster = req.posterId === user?.$id;
-        const currentContributions = req.contributions || [];
-        const currentContributionTotal = currentContributions.reduce((sum, c) => sum + c.amount, 0) || 0;
-        const remainingAmount = req.amount - currentContributionTotal;
+      {listings.map((listing) => (
+        <Card key={listing.$id} className="bg-background border border-border hover:border-secondary-neon/50 transition-colors">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-start mb-2">
+              <div className="flex items-center gap-2">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${listing.posterName}`} />
+                  <AvatarFallback>{listing.posterName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="text-sm font-medium text-foreground">{listing.posterName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(listing.$createdAt || Date.now()).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+              <Badge variant={listing.type === 'request' ? 'destructive' : 'default'} className="uppercase text-[10px]">
+                {listing.type}
+              </Badge>
+            </div>
 
-        return (
-          <div key={req.$id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border border-border rounded-md bg-background">
-            <div>
-              <p className="font-semibold text-foreground">
-                ₹{req.amount} 
-                <Badge className={cn("ml-2", 
-                  req.type === "request" && "bg-blue-500 text-white",
-                  req.type === "offer" && "bg-green-500 text-white",
-                  req.type === "group-contribution" && "bg-purple-500 text-white"
-                )}>
-                  {req.type === "group-contribution" ? "Group" : req.type.charAt(0).toUpperCase() + req.type.slice(1)}
-                </Badge>
-              </p>
-              <p className="text-sm text-muted-foreground">{req.notes}</p>
-              <p className="text-xs text-muted-foreground">Poster: {isPoster ? "You" : req.posterName}</p>
-              {req.meetingLocation && <p className="text-xs text-muted-foreground">Meet: {req.meetingLocation} at {req.meetingTime}</p>}
-              
-              {req.type === "group-contribution" && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                  <Users className="h-3 w-3" /> Contributed: ₹{currentContributionTotal} / ₹{req.amount}
-                </p>
+            <div className="flex justify-between items-center my-3">
+              <span className="text-2xl font-bold text-foreground">₹{listing.amount}</span>
+              {listing.status === "Open" ? (
+                <Badge variant="outline" className="text-green-500 border-green-500">Open</Badge>
+              ) : (
+                <Badge variant="secondary">{listing.status}</Badge>
               )}
             </div>
-            
-            {/* Action Buttons */}
-            {req.status === "Open" && !isPoster && (
-              <Button size="sm" className="mt-2 sm:mt-0 bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90" onClick={() => handleAcceptDeal(req)} disabled={isUpdating}>
-                Accept Deal
+
+            <p className="text-sm text-muted-foreground mb-4 bg-muted/50 p-2 rounded-md italic">
+              "{listing.notes}"
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground mb-4">
+              <div className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" /> {listing.meetingLocation}
+              </div>
+              <div className="flex items-center gap-1">
+                <Clock className="h-3 w-3" /> {listing.meetingTime}
+              </div>
+            </div>
+
+            {user?.$id !== listing.posterId && listing.status === "Open" && (
+              <Button 
+                className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90"
+                onClick={() => handleActionClick(listing)}
+              >
+                {listing.type === 'request' ? 'I have Cash (Help)' : 'I need Cash (Accept)'} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
-            {req.status === "Group Contribution" && !isPoster && remainingAmount > 0 && (
-              <Button size="sm" className="mt-2 sm:mt-0 bg-blue-500 text-white hover:bg-blue-600" onClick={() => handleContribute(req)} disabled={isUpdating}>
-                Contribute (₹500)
-              </Button>
-            )}
-            {req.status !== "Open" && req.status !== "Group Contribution" && (
-              <Badge className={cn("mt-2 sm:mt-0", req.status === "Accepted" ? "bg-orange-500 text-white" : "bg-green-500 text-white")}>
-                {req.status}
-              </Badge>
-            )}
-          </div>
-        );
-      })}
+          </CardContent>
+        </Card>
+      ))}
+
+      <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+        <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-secondary-neon" /> Confirm Exchange
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground pt-2">
+              <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded-md mb-3 text-yellow-600 dark:text-yellow-400 text-xs">
+                <span className="font-bold flex items-center gap-1 mb-1"><AlertTriangle className="h-3 w-3" /> Important:</span>
+                This is strictly a <strong>Physical-to-Digital</strong> or <strong>Digital-to-Physical</strong> exchange. 
+                <br/>
+                Do NOT lend money. Ensure you meet in a public place.
+              </div>
+              You are agreeing to meet <strong>{selectedListing?.posterName}</strong> at <strong>{selectedListing?.meetingLocation}</strong> around <strong>{selectedListing?.meetingTime}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsConfirmDialogOpen(false)} disabled={isProcessing}>Cancel</Button>
+            <Button onClick={handleConfirmAction} disabled={isProcessing} className="bg-secondary-neon text-primary-foreground">
+              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm & Notify"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
