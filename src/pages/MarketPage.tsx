@@ -6,14 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogHeader } from "@/components/ui/dialog";
 import MarketTabs from "@/components/MarketTabs";
 import MarketListingFormWrapper from "@/components/forms/MarketListingFormWrapper";
-import { Plus, Search, Tag, ShoppingBag, RefreshCw, Zap } from "lucide-react";
+import { Plus, Search, Tag, ShoppingBag, RefreshCw, Zap, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { MadeWithDyad } from "@/components/made-with-dyad";
+import { useMarketListings } from "@/hooks/useMarketListings";
 
 export default function MarketPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // 1. Lifted State: Fetch data here so we can control search & loading
+  const { products, isLoading, error, refetch } = useMarketListings();
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-24 relative">
@@ -33,17 +37,27 @@ export default function MarketPage() {
               </p>
             </div>
             
-            {/* Live Indicator */}
-            <Badge variant="outline" className="animate-pulse border-secondary-neon/50 text-secondary-neon bg-secondary-neon/10 gap-1.5 py-1 px-3">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary-neon opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary-neon"></span>
-              </span>
-              LIVE MARKET
-            </Badge>
+            {/* Live Indicator / Refresh */}
+            <div className="flex items-center gap-2">
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={refetch} 
+                    className="h-8 w-8 text-muted-foreground hover:text-secondary-neon"
+                    disabled={isLoading}
+                >
+                    <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+                </Button>
+                <Badge variant="outline" className="animate-pulse border-secondary-neon/50 text-secondary-neon bg-secondary-neon/10 gap-1.5 py-1 px-3">
+                <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary-neon opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary-neon"></span>
+                </span>
+                LIVE
+                </Badge>
+            </div>
           </div>
 
-          {/* Warning Banner (Collapsible/Dismissible logic could be added to component) */}
           <MarketWarningBanner />
 
           {/* Search Bar */}
@@ -60,7 +74,7 @@ export default function MarketPage() {
             </div>
           </div>
 
-          {/* Quick Stats (Optional Visual Flair) */}
+          {/* Quick Stats */}
           <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
              <div className="flex items-center gap-2 bg-card border border-border px-3 py-1.5 rounded-full shadow-sm min-w-max">
                 <div className="p-1 bg-green-100 dark:bg-green-900/30 rounded-full"><Tag className="h-3 w-3 text-green-600 dark:text-green-400" /></div>
@@ -82,13 +96,18 @@ export default function MarketPage() {
       {/* --- MAIN CONTENT AREA --- */}
       <div className="max-w-5xl mx-auto px-4 mt-6 space-y-6">
         
-        {/* Market Content (Tabs contain the grid) */}
-        {/* Pass search query down if MarketTabs supports it, otherwise keep it for visual consistency */}
-        <MarketTabs initialTab="all" />
+        {/* Pass Data & Search to Tabs */}
+        <MarketTabs 
+            initialTab="all" 
+            products={products}
+            isLoading={isLoading}
+            error={error}
+            searchQuery={searchQuery}
+        />
 
       </div>
 
-      {/* --- FAB (Floating Action Button) for Mobile --- */}
+      {/* --- FAB --- */}
       <div className="fixed bottom-20 right-4 z-50 md:bottom-8 md:right-8">
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
