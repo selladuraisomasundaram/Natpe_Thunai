@@ -12,7 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { Eye, EyeOff, Building2, Image } from "lucide-react";
+import { Eye, EyeOff, Building2, Image, RotateCw, User, Mail, Phone, CreditCard, Calendar, Lock, Upload } from "lucide-react";
 import { APP_HOST_URL } from "@/lib/config";
 import { largeIndianColleges } from "@/lib/largeIndianColleges";
 import CollegeCombobox from "@/components/CollegeCombobox";
@@ -20,6 +20,7 @@ import { generateAvatarUrl, DICEBEAR_AVATAR_STYLES } from "@/utils/avatarGenerat
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import ReportMissingCollegeForm from "@/components/forms/ReportMissingCollegeForm";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 
 // Helper function to generate a random username
 const generateRandomUsername = (): string => {
@@ -55,6 +56,8 @@ const AuthPage = () => {
   
   // Registration Flow States
   const [generatedUsernames, setGeneratedUsernames] = useState<string[]>([]);
+  const [initialUsernames, setInitialUsernames] = useState<string[]>([]); // To store the very first batch
+  const [refreshCount, setRefreshCount] = useState(0); // Track refreshes
   const [selectedUsername, setSelectedUsername] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -64,9 +67,7 @@ const AuthPage = () => {
   const [collegeName, setCollegeName] = useState("");
   const [avatarStyle, setAvatarStyle] = useState("lorelei");
   
-  // --- NEW: Study Year State ---
   const [studyYear, setStudyYear] = useState("1");
-
   const [isReportMissingCollegeDialogOpen, setIsReportMissingCollegeDialogOpen] = useState(false);
 
   const { isAuthenticated, isLoading, login } = useAuth();
@@ -87,9 +88,27 @@ const AuthPage = () => {
   // Generate usernames for registration
   useEffect(() => {
     if (!isLogin && generatedUsernames.length === 0) {
-      setGeneratedUsernames(generateUsernameOptions());
+      const initial = generateUsernameOptions();
+      setGeneratedUsernames(initial);
+      setInitialUsernames(initial);
     }
-  }, [isLogin, generatedUsernames.length]);
+  }, [isLogin]);
+
+  // --- LOGIC: Refresh Usernames with Limit ---
+  const handleRefreshUsernames = () => {
+    if (refreshCount < 5) {
+      // Generate new names
+      setGeneratedUsernames(generateUsernameOptions());
+      setRefreshCount(prev => prev + 1);
+      toast.info(`Suggestions refreshed (${refreshCount + 1}/5)`);
+    } else {
+      // Reset to initial batch
+      setGeneratedUsernames(initialUsernames);
+      setRefreshCount(0);
+      toast.info("Back to original suggestions.");
+    }
+    setSelectedUsername(""); // Clear selection on refresh
+  };
 
   const handleCollegeIdPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files ? e.target.files[0] : null;
@@ -175,7 +194,6 @@ const AuthPage = () => {
               gender,
               userType,
               collegeName,
-              // --- NEW: Save Graduation Date ---
               graduationDate: calculateGradDate(), 
               level: 1,
               currentXp: 0,
@@ -216,7 +234,7 @@ const AuthPage = () => {
         setUserType("student");
         setCollegeName("");
         setAvatarStyle("lorelei");
-        setStudyYear("1"); // Reset year
+        setStudyYear("1"); 
       }
     } catch (error: any) {
       toast.error(error.message || "An error occurred during authentication.");
@@ -227,187 +245,273 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary to-background-dark p-4">
-      <Card className="w-full max-w-md bg-card text-foreground shadow-lg rounded-lg border-border animate-fade-in">
-        <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold text-foreground">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary to-background-dark p-4 animate-in fade-in duration-500">
+      <Card className="w-full max-w-lg bg-card text-foreground shadow-2xl rounded-xl border-border/50 backdrop-blur-sm">
+        <CardHeader className="text-center pb-6">
+          <CardTitle className="text-3xl font-extrabold text-foreground tracking-tight">
             {isLogin ? "Welcome Back!" : "Join the Community"}
           </CardTitle>
-          <CardDescription className="text-foreground">
+          <CardDescription className="text-muted-foreground text-base">
             {isLogin ? "Log in to connect and thrive." : "Sign up and unlock campus potential."}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleAuth} className="space-y-4">
+          <form onSubmit={handleAuth} className="space-y-5">
             {!isLogin && (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="firstName" className="text-foreground">First Name</Label>
-                    <Input id="firstName" type="text" placeholder="John" value={firstName} onChange={(e) => setFirstName(e.target.value)} required className="bg-input text-foreground border-border focus:ring-ring focus:border-ring" />
+              <div className="space-y-6">
+                
+                {/* SECTION 1: PERSONAL INFO */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-secondary-neon uppercase tracking-wider flex items-center gap-2">
+                    <User className="h-4 w-4" /> Personal Details
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="firstName" className="text-foreground/90">First Name</Label>
+                      <Input id="firstName" type="text" placeholder="John" value={firstName} onChange={(e) => setFirstName(e.target.value)} required className="mt-1.5 bg-input/50" />
+                    </div>
+                    <div>
+                      <Label htmlFor="lastName" className="text-foreground/90">Last Name</Label>
+                      <Input id="lastName" type="text" placeholder="Doe" value={lastName} onChange={(e) => setLastName(e.target.value)} required className="mt-1.5 bg-input/50" />
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="lastName" className="text-foreground">Last Name</Label>
-                    <Input id="lastName" type="text" placeholder="Doe" value={lastName} onChange={(e) => setLastName(e.target.value)} required className="bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring" />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="age" className="text-foreground/90">Age</Label>
+                      <Input id="age" type="number" placeholder="18" value={age} onChange={(e) => setAge(e.target.value)} required min="16" className="mt-1.5 bg-input/50" />
+                    </div>
+                    <div>
+                      <Label className="block text-foreground/90 mb-2">Gender</Label>
+                      <RadioGroup value={gender} onValueChange={(value: any) => setGender(value)} className="flex gap-4">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="male" id="m" />
+                          <Label htmlFor="m">M</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="female" id="f" />
+                          <Label htmlFor="f">F</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
                   </div>
                 </div>
-                
-                <div>
-                  <Label htmlFor="age" className="text-foreground">Age</Label>
-                  <Input id="age" type="number" placeholder="18" value={age} onChange={(e) => setAge(e.target.value)} required min="16" className="bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring" />
-                </div>
-                
-                <div>
-                  <Label htmlFor="mobileNumber" className="text-foreground">Mobile Number</Label>
-                  <Input id="mobileNumber" type="tel" placeholder="9876543210" value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} required className="bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring" />
-                </div>
-                
-                <div>
-                  <Label htmlFor="upiId" className="text-foreground">UPI ID</Label>
-                  <Input id="upiId" type="text" placeholder="yourname@upi" value={upiId} onChange={(e) => setUpiId(e.target.value)} required className="bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring" />
-                </div>
-                
-                {/* COLLEGE SELECTION */}
-                <div>
-                  <Label htmlFor="collegeName" className="text-foreground">Your College</Label>
-                  <CollegeCombobox collegeList={largeIndianColleges} value={collegeName} onValueChange={setCollegeName} placeholder="Select your college" disabled={loading} />
-                  <Dialog open={isReportMissingCollegeDialogOpen} onOpenChange={setIsReportMissingCollegeDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button variant="link" className="p-0 h-auto text-secondary-neon hover:underline mt-2 flex items-center gap-1">
-                        <Building2 className="h-3 w-3" /> Cannot find my college
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
-                      <DialogHeader>
-                        <DialogTitle className="text-foreground">Report Missing College</DialogTitle>
-                      </DialogHeader>
-                      <ReportMissingCollegeForm onReportSubmitted={() => setIsReportMissingCollegeDialogOpen(false)} onCancel={() => setIsReportMissingCollegeDialogOpen(false)} />
-                    </DialogContent>
-                  </Dialog>
-                </div>
 
-                {/* --- NEW: YEAR OF STUDY SELECTION --- */}
-                <div>
-                   <Label htmlFor="year" className="text-foreground mb-1 block">Current Year of Study</Label>
-                   <select
-                     id="year"
-                     value={studyYear}
-                     onChange={(e) => setStudyYear(e.target.value)}
-                     className="flex h-10 w-full rounded-md border border-input bg-input px-3 py-2 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                   >
-                     <option value="1">I - First Year (4 years left)</option>
-                     <option value="2">II - Second Year (3 years left)</option>
-                     <option value="3">III - Third Year (2 years left)</option>
-                     <option value="4">IV - Fourth Year (1 year left)</option>
-                     <option value="5">V - Fifth Year (1 year left)</option>
-                     <option value="other">Other</option>
-                   </select>
-                   <p className="text-xs text-muted-foreground mt-1">This calibrates your Graduation Meter.</p>
-                </div>
+                <Separator className="bg-border/60" />
 
-                <div>
-                  <Label htmlFor="collegeIdPhoto" className="text-foreground">College ID Card Photo (Max 1MB)</Label>
-                  <Input id="collegeIdPhoto" type="file" accept="image/*" onChange={handleCollegeIdPhotoChange} required className="bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring file:text-primary-foreground file:bg-primary-blue-light file:border-0 file:mr-4 file:py-2 file:px-4 file:rounded-md" />
-                  {collegeIdPhoto && <p className="text-xs text-muted-foreground mt-1">File selected: {collegeIdPhoto.name}</p>}
-                  <a href="https://tinypng.com" target="_blank" rel="noopener noreferrer" className="text-xs text-secondary-neon hover:underline flex items-center gap-1 mt-1">
-                    <Image className="h-3 w-3" /> Click here to compress your image
-                  </a>
-                </div>
-
-                <div>
-                  <Label className="mb-2 block text-foreground">Gender</Label>
-                  <RadioGroup value={gender} onValueChange={(value: any) => setGender(value)} className="flex flex-wrap gap-4">
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="male" id="gender-male" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
-                      <Label htmlFor="gender-male" className="text-foreground">Male</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="female" id="gender-female" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
-                      <Label htmlFor="gender-female" className="text-foreground">Female</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="prefer-not-to-say" id="gender-prefer-not-to-say" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
-                      <Label htmlFor="gender-prefer-not-to-say" className="text-foreground">Prefer not to say</Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-
-                <div>
-                  <Label className="mb-2 block text-foreground">Are you a?</Label>
-                  <RadioGroup value={userType} onValueChange={(value: any) => setUserType(value)} className="flex flex-wrap gap-4">
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="student" id="user-type-student" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
-                      <Label htmlFor="user-type-student" className="text-foreground">Student</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="staff" id="user-type-staff" className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
-                      <Label htmlFor="user-type-staff" className="text-foreground">Staff</Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-
-                <div>
-                  <Label className="mb-2 block text-foreground">Choose Your Username (Public)</Label>
-                  <RadioGroup value={selectedUsername} onValueChange={setSelectedUsername} className="grid grid-cols-1 gap-2">
-                    {generatedUsernames.map((username) => (
-                      <div key={username} className="flex items-center space-x-2">
-                        <RadioGroupItem value={username} id={username} className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
-                        <Label htmlFor={username} className="text-foreground">{username}</Label>
+                {/* SECTION 2: CONTACT & PAYMENT */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-secondary-neon uppercase tracking-wider flex items-center gap-2">
+                    <Phone className="h-4 w-4" /> Contact & Pay
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="mobileNumber" className="text-foreground/90">Mobile Number</Label>
+                      <div className="relative mt-1.5">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input id="mobileNumber" type="tel" placeholder="9876543210" value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} required className="pl-9 bg-input/50" />
                       </div>
-                    ))}
-                  </RadioGroup>
-                  <p className="text-xs text-muted-foreground mt-2">This is the only identifier visible to other users.</p>
+                    </div>
+                    <div>
+                      <Label htmlFor="upiId" className="text-foreground/90">UPI ID</Label>
+                      <div className="relative mt-1.5">
+                        <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input id="upiId" type="text" placeholder="user@upi" value={upiId} onChange={(e) => setUpiId(e.target.value)} required className="pl-9 bg-input/50" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <Label htmlFor="avatarStyle" className="text-foreground">Choose Your Avatar Style</Label>
-                  <Select value={avatarStyle} onValueChange={setAvatarStyle} required disabled={loading}>
-                    <SelectTrigger className="w-full bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring">
-                      <SelectValue placeholder="Select avatar style" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover text-popover-foreground border-border max-h-60 overflow-y-auto">
-                      {DICEBEAR_AVATAR_STYLES.map((style) => (
-                        <SelectItem key={style} value={style}>{style.replace(/-/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</SelectItem>
+                <Separator className="bg-border/60" />
+
+                {/* SECTION 3: ACADEMIC INFO */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-secondary-neon uppercase tracking-wider flex items-center gap-2">
+                    <Building2 className="h-4 w-4" /> Academic Info
+                  </h3>
+                  
+                  <div>
+                    <Label className="block text-foreground/90 mb-2">Role</Label>
+                    <RadioGroup value={userType} onValueChange={(value: any) => setUserType(value)} className="flex gap-6">
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="student" id="role-s" />
+                        <Label htmlFor="role-s" className="cursor-pointer">Student</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="staff" id="role-st" />
+                        <Label htmlFor="role-st" className="cursor-pointer">Staff</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="collegeName" className="text-foreground/90">Your College</Label>
+                    <div className="mt-1.5">
+                      <CollegeCombobox collegeList={largeIndianColleges} value={collegeName} onValueChange={setCollegeName} placeholder="Select your college" disabled={loading} />
+                    </div>
+                    <Dialog open={isReportMissingCollegeDialogOpen} onOpenChange={setIsReportMissingCollegeDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="link" className="p-0 h-auto text-xs text-muted-foreground hover:text-secondary-neon mt-1.5 flex items-center gap-1">
+                          <Building2 className="h-3 w-3" /> Cannot find my college?
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[425px] bg-card border-border">
+                        <DialogHeader>
+                          <DialogTitle>Report Missing College</DialogTitle>
+                        </DialogHeader>
+                        <ReportMissingCollegeForm onReportSubmitted={() => setIsReportMissingCollegeDialogOpen(false)} onCancel={() => setIsReportMissingCollegeDialogOpen(false)} />
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="year" className="text-foreground/90">Current Year</Label>
+                    <div className="relative mt-1.5">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                      <Select value={studyYear} onValueChange={setStudyYear} disabled={loading}>
+                        <SelectTrigger className="w-full pl-9 bg-input/50">
+                          <SelectValue placeholder="Select Year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">I - First Year</SelectItem>
+                          <SelectItem value="2">II - Second Year</SelectItem>
+                          <SelectItem value="3">III - Third Year</SelectItem>
+                          <SelectItem value="4">IV - Fourth Year</SelectItem>
+                          <SelectItem value="5">V - Fifth Year</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="collegeIdPhoto" className="text-foreground/90">College ID Photo</Label>
+                    <div className="mt-1.5 relative group">
+                        <div className="flex items-center justify-center w-full">
+                            <label htmlFor="collegeIdPhoto" className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-input rounded-lg cursor-pointer bg-input/20 hover:bg-input/40 transition-colors">
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <Upload className="w-6 h-6 text-muted-foreground mb-1" />
+                                    <p className="text-xs text-muted-foreground"><span className="font-semibold">Click to upload</span> (Max 1MB)</p>
+                                </div>
+                                <Input id="collegeIdPhoto" type="file" accept="image/*" onChange={handleCollegeIdPhotoChange} required className="hidden" />
+                            </label>
+                        </div>
+                    </div>
+                    {collegeIdPhoto && <p className="text-xs text-secondary-neon mt-1 font-medium truncate">Selected: {collegeIdPhoto.name}</p>}
+                    <a href="https://tinypng.com" target="_blank" rel="noopener noreferrer" className="text-[10px] text-muted-foreground hover:text-secondary-neon flex items-center gap-1 mt-1 justify-end">
+                      <Image className="h-3 w-3" /> Compress Image
+                    </a>
+                  </div>
+                </div>
+
+                <Separator className="bg-border/60" />
+
+                {/* SECTION 4: ACCOUNT SETUP */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-secondary-neon uppercase tracking-wider flex items-center gap-2">
+                    <User className="h-4 w-4" /> Account Identity
+                  </h3>
+                  
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                        <Label className="text-foreground/90">Public Username</Label>
+                        <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={handleRefreshUsernames}
+                            className="h-6 text-xs text-secondary-neon hover:bg-secondary-neon/10 gap-1 px-2"
+                        >
+                            <RotateCw className={`h-3 w-3 ${refreshCount > 0 ? 'animate-spin-once' : ''}`} /> 
+                            {refreshCount === 5 ? "Reset" : "Refresh"}
+                        </Button>
+                    </div>
+                    <RadioGroup value={selectedUsername} onValueChange={setSelectedUsername} className="grid grid-cols-1 gap-2">
+                      {generatedUsernames.map((username) => (
+                        <div key={username} className={`flex items-center space-x-2 p-2 rounded-md border transition-all ${selectedUsername === username ? 'border-secondary-neon bg-secondary-neon/10' : 'border-input hover:bg-accent'}`}>
+                          <RadioGroupItem value={username} id={username} className="border-border text-secondary-neon" />
+                          <Label htmlFor={username} className="text-foreground cursor-pointer flex-1 font-mono text-sm">{username}</Label>
+                        </div>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </RadioGroup>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="avatarStyle" className="text-foreground/90">Avatar Style</Label>
+                    <Select value={avatarStyle} onValueChange={setAvatarStyle} required disabled={loading}>
+                      <SelectTrigger className="w-full mt-1.5 bg-input/50">
+                        <SelectValue placeholder="Select style" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {DICEBEAR_AVATAR_STYLES.map((style) => (
+                          <SelectItem key={style} value={style}>
+                            {style.replace(/-/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="terms" checked={termsAccepted} onCheckedChange={(checked) => setTermsAccepted(checked as boolean)} className="border-border data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground" />
-                  <Label htmlFor="terms" className="text-sm text-muted-foreground">I agree to the <Link to="/profile/policies" className="text-secondary-neon hover:underline">terms and conditions</Link></Label>
+                {/* Privacy Note */}
+                <div className="bg-destructive/10 border border-destructive/20 p-3 rounded-md">
+                    <p className="text-xs text-destructive text-center font-medium leading-relaxed">
+                        Note: Your Name, Age, Mobile, and College ID are collected for verification safety only. 
+                        Only your <span className="font-bold underline">Username</span> and <span className="font-bold underline">Avatar</span> will be public.
+                    </p>
                 </div>
-                <p className="text-xs text-destructive text-center font-medium">Your Name, Age, Mobile Number, UPI ID, and College ID Photo are collected for developer safety assurance only and will NOT be shared publicly. Only your chosen username will be visible.</p>
-              </>
+
+                <div className="flex items-center space-x-2 bg-secondary/10 p-3 rounded-md">
+                  <Checkbox id="terms" checked={termsAccepted} onCheckedChange={(checked) => setTermsAccepted(checked as boolean)} />
+                  <Label htmlFor="terms" className="text-xs text-muted-foreground leading-tight">
+                    I agree to the <Link to="/profile/policies" className="text-secondary-neon hover:underline font-medium">Terms & Conditions</Link> and Privacy Policy.
+                  </Label>
+                </div>
+              </div>
             )}
 
-            <div>
-              <Label htmlFor="email" className="text-foreground">Email</Label>
-              <Input id="email" type="email" placeholder="m@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring" />
-            </div>
-            <div>
-              <Label htmlFor="password" className="text-foreground">Password</Label>
-              <div className="relative">
-                <Input id="password" type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="bg-input text-foreground border-border focus:ring-ring focus:focus:border-ring pr-10" />
-                <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-1 text-muted-foreground hover:bg-transparent" onClick={() => setShowPassword((prev) => !prev)}>
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
+            {/* LOGIN / EMAIL FIELDS (Always Visible) */}
+            <div className="space-y-4 pt-2">
+              <div>
+                <Label htmlFor="email" className="text-foreground/90">Email Address</Label>
+                <div className="relative mt-1.5">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input id="email" type="email" placeholder="m@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="pl-9 bg-input/50" />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="password" className="text-foreground/90">Password</Label>
+                <div className="relative mt-1.5">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input id="password" type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="pl-9 pr-10 bg-input/50" />
+                  <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword((prev) => !prev)}>
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
             </div>
 
             {isLogin && (
-              <div className="text-right text-sm">
-                <Link to="/forgot-password" className="text-secondary-neon hover:underline">Forgot Password?</Link>
+              <div className="flex justify-end">
+                <Link to="/forgot-password" className="text-xs font-medium text-secondary-neon hover:underline">
+                  Forgot Password?
+                </Link>
               </div>
             )}
-            <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-200" disabled={loading}>
-              {loading ? "Processing..." : (isLogin ? "Log In" : "Sign Up")}
+
+            <Button type="submit" className="w-full bg-primary text-primary-foreground font-bold shadow-lg hover:bg-primary/90 h-11" disabled={loading}>
+              {loading ? (
+                  <span className="flex items-center gap-2"><div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Processing...</span>
+              ) : (
+                  isLogin ? "Log In" : "Create Account"
+              )}
             </Button>
           </form>
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            {isLogin ? "New here? " : "Already a member? "}
-            <Button variant="link" onClick={() => setIsLogin(!isLogin)} className="p-0 h-auto text-secondary-neon hover:text-secondary-neon/80" disabled={loading}>
-              {isLogin ? "Create an Account" : "Log In"}
+
+          <div className="mt-6 text-center text-sm">
+            <span className="text-muted-foreground">{isLogin ? "New to Natpe Thunai? " : "Already have an account? "}</span>
+            <Button variant="link" onClick={() => setIsLogin(!isLogin)} className="p-0 h-auto font-bold text-secondary-neon hover:text-secondary-neon/80" disabled={loading}>
+              {isLogin ? "Sign Up Now" : "Log In"}
             </Button>
           </div>
         </CardContent>
