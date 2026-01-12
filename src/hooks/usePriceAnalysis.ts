@@ -1,16 +1,60 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { toast } from "sonner";
+
+// --- Types & Configurations ---
+
+interface PriceRange {
+  min: number;
+  max: number;
+  label: string;
+}
 
 interface PriceAnalysisResult {
   isPriceAnalyzed: boolean;
   isPriceReasonable: boolean;
   aiSuggestion: string;
   aiLoading: boolean;
-  analyzePrice: (title: string, priceValue: string, categoryOrCondition?: string, rentUnit?: "day" | "hour") => void;
+  analyzePrice: (
+    title: string,
+    priceValue: string,
+    categoryOrCondition?: string, // Can be category (Sell) or condition (Sports)
+    rentUnit?: "day" | "hour"
+  ) => void;
   resetAnalysis: () => void;
 }
+
+// Configuration for "Smart" Price Ranges
+// We use regex for title matching to handle plurals and variations easily.
+const PRICE_CONFIG: Record<string, PriceRange> = {
+  // Electronics
+  laptop: { min: 8000, max: 80000, label: "used laptop" },
+  macbook: { min: 25000, max: 150000, label: "used MacBook" }, // Premium item
+  phone: { min: 2000, max: 30000, label: "used smartphone" },
+  iphone: { min: 8000, max: 80000, label: "used iPhone" }, // Premium item
+  tablet: { min: 3000, max: 40000, label: "used tablet" },
+  ipad: { min: 10000, max: 60000, label: "used iPad" }, // Premium item
+  calculator: { min: 100, max: 1000, label: "scientific calculator" },
+  headphones: { min: 300, max: 15000, label: "headphones" },
+
+  // Books
+  textbook: { min: 100, max: 1500, label: "used textbook" },
+  novel: { min: 50, max: 500, label: "used novel" },
+  notes: { min: 0, max: 500, label: "study notes" }, // 0 allows free
+
+  // Sports (Generic baselines)
+  cricket: { min: 300, max: 5000, label: "cricket gear" },
+  football: { min: 200, max: 2000, label: "football" },
+  badminton: { min: 300, max: 3000, label: "badminton racket" },
+  cycle: { min: 2000, max: 15000, label: "bicycle" },
+};
+
+// Rental Multipliers (vs Sell Price) - Rough estimates for logic
+const RENT_CONFIG = {
+  hour: { min: 10, max: 200, label: "hourly rent" },
+  day: { min: 50, max: 1000, label: "daily rent" },
+};
 
 export const usePriceAnalysis = (): PriceAnalysisResult => {
   const [isPriceAnalyzed, setIsPriceAnalyzed] = useState(false);
@@ -25,136 +69,174 @@ export const usePriceAnalysis = (): PriceAnalysisResult => {
     setAiLoading(false);
   }, []);
 
-  const analyzePrice = useCallback((title: string, priceValue: string, categoryOrCondition?: string, rentUnit?: "day" | "hour") => {
-    setAiLoading(true);
-    setIsPriceAnalyzed(false);
-    setIsPriceReasonable(false);
-    setAiSuggestion("");
+  const analyzePrice = useCallback(
+    (
+      title: string,
+      priceValue: string,
+      categoryOrCondition?: string,
+      rentUnit?: "day" | "hour"
+    ) => {
+      // 1. Reset State
+      setAiLoading(true);
+      setIsPriceAnalyzed(false);
+      setIsPriceReasonable(false);
+      setAiSuggestion("");
 
-    setTimeout(() => {
-      const price = parseFloat(priceValue);
-      const lowerTitle = title.toLowerCase();
-      let reasonable = true;
-      let suggestion = "";
+      // 2. Simulate "Thinking" (Reduced to 800ms for snappier feel)
+      setTimeout(() => {
+        // --- INPUT CLEANING ---
+        // Remove commas and spaces (e.g., "1,500" -> "1500")
+        const cleanPriceString = priceValue.toString().replace(/,/g, "").trim();
+        const price = parseFloat(cleanPriceString);
+        const lowerTitle = title.toLowerCase();
+        
+        let reasonable = true;
+        let suggestion = "";
+        let matchedCategoryKey: string | null = null;
 
-      if (isNaN(price) || price <= 0) {
-        reasonable = false;
-        suggestion = "Price must be a valid number greater than zero.";
-      } else {
-        // Logic for SellListingForm (category)
-        if (categoryOrCondition === "electronics") {
-          if (lowerTitle.includes("laptop")) {
-            if (price < 10000 || price > 80000) {
-              reasonable = false;
-              suggestion = "For a used laptop, a typical selling price is between ₹10,000 and ₹80,000, depending on specifications and condition.";
-            }
-          } else if (lowerTitle.includes("phone") || lowerTitle.includes("smartphone")) {
-            if (price < 2000 || price > 30000) {
-              reasonable = false;
-              suggestion = "For a used smartphone, a typical selling price is between ₹2,000 and ₹30,000.";
-            }
-          } else {
-            suggestion = "Consider market rates for similar used electronics.";
-          }
-        } else if (categoryOrCondition === "books") {
-          if (lowerTitle.includes("textbook")) {
-            if (price < 100 || price > 1500) {
-              reasonable = false;
-              suggestion = "For a used textbook, a typical selling price is between ₹100 and ₹1,500, depending on edition and condition.";
-            }
-          } else if (lowerTitle.includes("novel")) {
-            if (price < 50 || price > 500) {
-              reasonable = false;
-              suggestion = "For a used novel, a typical selling price is between ₹50 and ₹500.";
-            }
-          } else {
-            suggestion = "Consider market rates for similar used books.";
-          }
+        // --- VALIDATION ---
+        if (isNaN(price)) {
+          setAiLoading(false); // Stop if empty/invalid
+          return;
         }
-        // Logic for RentListingForm (rentUnit)
-        else if (rentUnit) {
-          if (lowerTitle.includes("laptop") || lowerTitle.includes("computer") || lowerTitle.includes("macbook")) {
-            if (rentUnit === "hour") {
-              if (price < 30 || price > 150) {
-                reasonable = false;
-                suggestion = "For a laptop, a reasonable hourly rent is typically between ₹30-₹150.";
-              }
-            } else if (rentUnit === "day") {
-              if (price < 200 || price > 800) {
-                reasonable = false;
-                suggestion = "For a laptop, a reasonable daily rent is typically between ₹200-₹800.";
+
+        if (price <= 0 && !lowerTitle.includes("free")) {
+          // Allow 0 only if title says "free", otherwise flag it
+          reasonable = false;
+          suggestion = "Price is zero. Did you mean to list this as free?";
+        } else {
+          // --- SMART DETECTION LOGIC ---
+          
+          // 1. Identify Item Type from Title
+          // We check specific premium keywords first (e.g., "macbook" before "laptop")
+          const keys = Object.keys(PRICE_CONFIG);
+          for (const key of keys) {
+            if (lowerTitle.includes(key)) {
+              // If we found a match, check if we already have a more specific match
+              // (Simple heuristic: longer keys are usually more specific, e.g. "iphone" > "phone")
+              if (!matchedCategoryKey || key.length > matchedCategoryKey.length) {
+                matchedCategoryKey = key;
               }
             }
-          } else if (lowerTitle.includes("bicycle") || lowerTitle.includes("bike")) {
-            if (rentUnit === "hour") {
-              if (price < 10 || price > 50) {
-                reasonable = false;
-                suggestion = "For a bicycle, a reasonable hourly rent is typically between ₹10-₹50.";
-              }
-            } else if (rentUnit === "day") {
-              if (price < 50 || price > 250) {
-                reasonable = false;
-                suggestion = "For a bicycle, a reasonable daily rent is typically between ₹50-₹250.";
-              }
-            }
-          } else {
-            suggestion = "Price seems generally acceptable, but consider market rates for similar items.";
           }
-        }
-        // Logic for GiftCraftListingForm (no specific category/condition, just price range)
-        else if (!categoryOrCondition && !rentUnit) {
-          if (price < 50 || price > 1500) {
-            reasonable = false;
-            suggestion = "For handmade gifts and crafts, a typical price range is between ₹50 and ₹1500, depending on complexity and materials.";
-          } else {
-            suggestion = "Price seems generally acceptable for a gift/craft item.";
-          }
-        }
-        // Logic for SportsGearListingForm (condition)
-        else if (categoryOrCondition) { // Here categoryOrCondition is actually 'condition'
-          const condition = categoryOrCondition.toLowerCase();
-          if (lowerTitle.includes("cricket bat")) {
-            if (condition === "new" && (price < 1000 || price > 10000)) {
-              reasonable = false;
-              suggestion = "New cricket bats typically range from ₹1,000 to ₹10,000.";
-            } else if (condition.includes("used") && (price < 300 || price > 5000)) {
-              reasonable = false;
-              suggestion = "Used cricket bats typically range from ₹300 to ₹5,000, depending on condition.";
-            }
-          } else if (lowerTitle.includes("football") || lowerTitle.includes("soccer ball")) {
-            if (condition === "new" && (price < 300 || price > 2000)) {
-              reasonable = false;
-              suggestion = "New footballs typically range from ₹300 to ₹2,000.";
-            } else if (condition.includes("used") && (price < 100 || price > 1000)) {
-              reasonable = false;
-              suggestion = "Used footballs typically range from ₹100 to ₹1,000.";
-            }
-          } else if (lowerTitle.includes("badminton racket")) {
-            if (condition === "new" && (price < 200 || price > 3000)) {
-              reasonable = false;
-              suggestion = "New badminton rackets typically range from ₹200 to ₹3,000.";
-            } else if (condition.includes("used") && (price < 50 || price > 1500)) {
-              reasonable = false;
-              suggestion = "Used badminton rackets typically range from ₹50 to ₹1,500.";
-            }
-          } else {
-            suggestion = "Price seems generally acceptable, but consider market rates for similar sports gear.";
-          }
-        }
-      }
 
-      setIsPriceAnalyzed(true);
-      setIsPriceReasonable(reasonable);
-      setAiSuggestion(suggestion);
-      setAiLoading(false);
+          // 2. Logic Branching
+          if (rentUnit) {
+            // --- RENTAL LOGIC ---
+            // If we identified the item (e.g. "cycle"), we can try to be specific,
+            // otherwise use generic rental limits.
+            const genericRent = RENT_CONFIG[rentUnit];
+            
+            if (matchedCategoryKey === "cycle" || lowerTitle.includes("bike")) {
+               // Cycles rent for more than generic items
+               const cycleMin = rentUnit === 'hour' ? 20 : 100;
+               const cycleMax = rentUnit === 'hour' ? 100 : 500;
+               
+               if (price < cycleMin || price > cycleMax) {
+                 reasonable = false;
+                 suggestion = `For a bicycle, reasonable rent is usually ₹${cycleMin}-₹${cycleMax} per ${rentUnit}.`;
+               }
+            } else if (matchedCategoryKey && (matchedCategoryKey.includes("laptop") || matchedCategoryKey.includes("macbook"))) {
+                // Laptops rent higher
+               const lapMin = rentUnit === 'hour' ? 50 : 300;
+               const lapMax = rentUnit === 'hour' ? 200 : 1500;
 
-      if (reasonable) {
-        toast.success("Price analysis complete: Price seems reasonable!");
-      } else {
-        toast.warning(`Price analysis complete: Price might be unreasonable. ${suggestion}`);
-      }
-    }, 1500); // 1.5 second delay for AI simulation
-  }, []);
+               if (price < lapMin || price > lapMax) {
+                 reasonable = false;
+                 suggestion = `For a laptop, reasonable rent is usually ₹${lapMin}-₹${lapMax} per ${rentUnit}.`;
+               }
+            } else {
+               // Fallback Generic Rent
+               if (price < genericRent.min || price > genericRent.max) {
+                 reasonable = false;
+                 suggestion = `Typical ${genericRent.label} rates are between ₹${genericRent.min} and ₹${genericRent.max}.`;
+               } else {
+                 suggestion = "Rental price looks standard for student exchanges.";
+               }
+            }
+
+          } else {
+            // --- SELLING LOGIC ---
+            
+            if (matchedCategoryKey) {
+              const range = PRICE_CONFIG[matchedCategoryKey];
+              let min = range.min;
+              let max = range.max;
+
+              // Apply Condition Modifiers (if provided)
+              if (categoryOrCondition) {
+                const cond = categoryOrCondition.toLowerCase();
+                if (cond === "new" || cond === "like new" || cond === "open box") {
+                  max *= 1.5; // Allow higher price for new items
+                  min *= 1.2;
+                } else if (cond === "heavily used" || cond === "damaged") {
+                  max *= 0.6; // Expect lower price
+                  min *= 0.5;
+                }
+              }
+
+              // Evaluate Price
+              if (price > max) {
+                reasonable = false;
+                suggestion = `This price seems high for a ${range.label}. Market average is ₹${range.min} - ₹${range.max}.`;
+              } else if (price < min) {
+                // Determine if "Good Deal" or "Suspicious"
+                if (price < min * 0.3) {
+                   reasonable = false; // Flag if it's < 30% of min value (Scam risk)
+                   suggestion = `This price is suspiciously low for a ${range.label}. Ensure it's not a mistake.`;
+                } else {
+                   reasonable = true; // It's just a good deal
+                   suggestion = `Great price! This is a very competitive deal for a ${range.label}.`;
+                }
+              } else {
+                suggestion = `Price is within the fair market range for a ${range.label}.`;
+              }
+
+            } else {
+              // --- FALLBACK (No keyword match) ---
+              // Use categoryOrCondition as a hint if it's a broad category
+              if (categoryOrCondition === "electronics" && price > 50000) {
+                 suggestion = "High-value electronics. Ensure you verify the buyer/seller reputation.";
+              } else if (categoryOrCondition === "books" && price > 2000) {
+                 reasonable = false;
+                 suggestion = "This seems very expensive for a used book unless it's a rare edition.";
+              } else if (!categoryOrCondition) {
+                 // Likely Gift/Craft or Misc
+                 if (price > 2000) {
+                   suggestion = "For custom/handmade items, pricing is subjective. Ensure description justifies the cost.";
+                 } else {
+                   suggestion = "Price seems acceptable.";
+                 }
+              } else {
+                 suggestion = "Price looks okay based on general category standards.";
+              }
+            }
+          }
+        }
+
+        // 3. Update State
+        setIsPriceAnalyzed(true);
+        setIsPriceReasonable(reasonable);
+        setAiSuggestion(suggestion);
+        setAiLoading(false);
+
+        // 4. Feedback Toast
+        if (reasonable) {
+          // Don't show toast for "default" reasonable to avoid spam, 
+          // only show if we have a specific positive comment (Great Deal) 
+          // or just a generic success.
+          if (suggestion.includes("Great price")) {
+             toast.success(suggestion);
+          } else {
+             toast.success("Price analysis complete: Looks reasonable!");
+          }
+        } else {
+          toast.warning(`Price Alert: ${suggestion}`);
+        }
+      }, 800);
+    },
+    []
+  );
 
   return {
     isPriceAnalyzed,
