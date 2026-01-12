@@ -5,7 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, MessageSquareText, Send, ArrowLeft } from "lucide-react";
+import { Loader2, MessageSquareText, Send, ArrowLeft, User } from "lucide-react";
 import { toast } from "sonner";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_CHAT_ROOMS_COLLECTION_ID, APPWRITE_CHAT_MESSAGES_COLLECTION_ID } from "@/lib/appwrite";
 import { Models, ID, Query } from "appwrite";
@@ -22,7 +22,6 @@ interface ChatRoom extends Models.Document {
   buyerUsername: string;
   providerUsername: string;
   status: "active" | "closed";
-  collegeName: string;
 }
 
 interface ChatMessage extends Models.Document {
@@ -54,8 +53,7 @@ const ChatPage = () => {
     const setupChat = async () => {
       setIsLoadingChat(true);
       try {
-        // A. Fetch Room Details (Security Check)
-        // Note: Ensure users have 'read' permissions on chat_rooms collection
+        // A. Fetch Room Details
         const roomDoc = await databases.getDocument(
           APPWRITE_DATABASE_ID,
           APPWRITE_CHAT_ROOMS_COLLECTION_ID,
@@ -65,7 +63,7 @@ const ChatPage = () => {
         // Security: Ensure user is part of the room
         if (roomDoc.buyerId !== user.$id && roomDoc.providerId !== user.$id) {
           toast.error("Access denied.");
-          navigate("/services");
+          navigate("/tracking");
           return;
         }
         setChatRoom(roomDoc);
@@ -77,7 +75,7 @@ const ChatPage = () => {
           [
             Query.equal('chatRoomId', chatRoomId),
             Query.orderAsc('$createdAt'),
-            Query.limit(100) // Adjust limit as needed
+            Query.limit(100)
           ]
         );
         setMessages(messagesResponse.documents as unknown as ChatMessage[]);
@@ -88,10 +86,9 @@ const ChatPage = () => {
           (response) => {
             if (response.events.includes("databases.*.collections.*.documents.*.create")) {
               const payload = response.payload as unknown as ChatMessage;
-              // Only add if it belongs to this room
               if (payload.chatRoomId === chatRoomId) {
                 setMessages((prev) => {
-                    // Prevent duplicate messages if we added it optimistically
+                    // Prevent duplicates
                     if (prev.some(m => m.$id === payload.$id)) return prev;
                     return [...prev, payload];
                 });
@@ -102,7 +99,8 @@ const ChatPage = () => {
 
       } catch (error: any) {
         console.error("Chat Error:", error);
-        toast.error("Could not load chat. " + (error.message || ""));
+        toast.error("Could not load chat.");
+        navigate("/tracking");
       } finally {
         setIsLoadingChat(false);
       }
@@ -115,7 +113,7 @@ const ChatPage = () => {
     };
   }, [user, chatRoomId, isAuthLoading, navigate]);
 
-  // --- 2. AUTO-SCROLL TO BOTTOM ---
+  // --- 2. AUTO-SCROLL ---
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -131,7 +129,7 @@ const ChatPage = () => {
 
     setIsSendingMessage(true);
     try {
-      // Direct Appwrite Create
+      // Create Message Directly in Appwrite
       await databases.createDocument(
         APPWRITE_DATABASE_ID,
         APPWRITE_CHAT_MESSAGES_COLLECTION_ID,
@@ -143,29 +141,24 @@ const ChatPage = () => {
           content: trimmedMessage,
         }
       );
-      
-      // Clear input immediately (UI updates via Realtime subscription)
-      setNewMessage(""); 
-      
+      setNewMessage(""); // Clear input
     } catch (error: any) {
       console.error("Send Error:", error);
-      toast.error(`Failed to send: ${error.message || "Unknown error"}`);
+      toast.error("Failed to send message.");
     } finally {
       setIsSendingMessage(false);
     }
   };
 
-  // --- RENDER STATES ---
   if (isLoadingChat || isAuthLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
         <Loader2 className="h-10 w-10 animate-spin text-secondary-neon" />
-        <p className="ml-3 text-lg text-muted-foreground">Connecting securely...</p>
       </div>
     );
   }
 
-  if (!chatRoom || !user) return null; // Or redirect handled in useEffect
+  if (!chatRoom || !user) return null;
 
   const isBuyer = user.$id === chatRoom.buyerId;
   const otherParticipantName = isBuyer ? chatRoom.providerUsername : chatRoom.buyerUsername;
@@ -173,8 +166,6 @@ const ChatPage = () => {
   return (
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
       <div className="max-w-md mx-auto space-y-4">
-        
-        {/* Header Navigation */}
         <Button variant="ghost" onClick={() => navigate(-1)} className="text-muted-foreground hover:text-secondary-neon pl-0">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
@@ -182,39 +173,25 @@ const ChatPage = () => {
         <Card className="bg-card text-card-foreground shadow-xl border-border h-[80vh] flex flex-col">
           <CardHeader className="p-4 border-b border-border/50 bg-secondary/5">
             <CardTitle className="text-lg font-semibold text-card-foreground flex items-center gap-2">
-              <div className="relative">
-                <div className="h-2 w-2 rounded-full bg-green-500 absolute top-0 right-0 animate-pulse"></div>
-                <MessageSquareText className="h-6 w-6 text-secondary-neon" />
-              </div>
-              {otherParticipantName}
+              <User className="h-5 w-5 text-secondary-neon" /> {otherParticipantName}
             </CardTitle>
-            <p className="text-xs text-muted-foreground">Order ID: {chatRoom.transactionId.substring(0, 8)}...</p>
           </CardHeader>
           
           <CardContent className="flex-1 p-0 flex flex-col overflow-hidden">
-            {/* Messages Area */}
             <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
                     <MessageSquareText className="h-12 w-12 mb-2" />
-                    <p>No messages yet. Say hi!</p>
+                    <p>Start the conversation!</p>
                 </div>
               ) : (
                 messages.map((msg) => {
                   const isMe = msg.senderId === user.$id;
                   return (
                     <div key={msg.$id} className={cn("flex w-full", isMe ? "justify-end" : "justify-start")}>
-                      <div className={cn(
-                        "max-w-[75%] px-4 py-2 rounded-2xl text-sm shadow-sm",
-                        isMe 
-                          ? "bg-secondary-neon text-primary-foreground rounded-br-sm" 
-                          : "bg-muted text-foreground rounded-bl-sm"
-                      )}>
-                        {!isMe && <p className="text-[10px] font-bold opacity-70 mb-0.5">{msg.senderUsername}</p>}
-                        <p className="leading-relaxed">{msg.content}</p>
-                        <p className="text-[9px] text-right mt-1 opacity-60">
-                          {new Date(msg.$createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </p>
+                      <div className={cn("max-w-[75%] px-4 py-2 rounded-2xl text-sm shadow-sm", isMe ? "bg-secondary-neon text-primary-foreground rounded-br-sm" : "bg-muted text-foreground rounded-bl-sm")}>
+                        <p>{msg.content}</p>
+                        <p className="text-[9px] text-right mt-1 opacity-60">{new Date(msg.$createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                     </div>
                   );
@@ -222,23 +199,17 @@ const ChatPage = () => {
               )}
             </div>
             
-            {/* Input Area */}
             <div className="p-3 bg-background border-t border-border">
                 <form onSubmit={handleSendMessage} className="flex gap-2">
                 <Input
                     autoFocus
-                    placeholder="Type your message..."
+                    placeholder="Type a message..."
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    className="flex-grow bg-input text-foreground border-border focus:ring-secondary-neon"
+                    className="flex-grow"
                     disabled={isSendingMessage}
                 />
-                <Button 
-                    type="submit" 
-                    size="icon" 
-                    className="bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 transition-transform active:scale-95" 
-                    disabled={isSendingMessage || !newMessage.trim()}
-                >
+                <Button type="submit" size="icon" className="bg-secondary-neon" disabled={isSendingMessage || !newMessage.trim()}>
                     {isSendingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </Button>
                 </form>
