@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react"; // NEW: Import useState
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -9,24 +9,27 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, X } from "lucide-react"; // NEW: Import X icon
-import { toast } from "sonner";
+import { Loader2, Briefcase, Clock, RefreshCcw, Link as LinkIcon, IndianRupee, LayoutGrid, Zap } from "lucide-react";
+import AmbassadorDeliveryOption from "@/components/AmbassadorDeliveryOption";
 import DeletionInfoMessage from "@/components/DeletionInfoMessage";
-import { Alert, AlertDescription } from "@/components/ui/alert"; // NEW: Import Alert components
+import { cn } from "@/lib/utils";
 
-// Define the Zod schema for the form
+// Enhanced Schema
 const ServiceFormSchema = z.object({
-  title: z.string().min(2, { message: "Title must be at least 2 characters." }),
-  description: z.string().min(10, { message: "Description must be at least 10 characters." }),
-  category: z.string().min(1, { message: "Please select a category." }),
-  otherCategoryDescription: z.string().optional(), // For 'other' category
-  price: z.string().min(1, { message: "Price is required." }),
-  contact: z.string().min(5, { message: "Contact information is required." }),
+  title: z.string().min(2, { message: "Brief title required." }),
+  description: z.string().min(10, { message: "Describe what you offer/need." }),
+  category: z.string().min(1, { message: "Select a category." }),
+  otherCategoryDescription: z.string().optional(),
+  price: z.string().min(1, { message: "Price required." }),
+  pricingModel: z.enum(["fixed", "hourly"]), // NEW
+  deliveryTime: z.string().min(1, { message: "Timeframe required." }), // NEW
+  revisions: z.string().optional(), // NEW
+  portfolioUrl: z.string().url().optional().or(z.literal("")), // NEW
+  contact: z.string().min(5, { message: "Contact info required." }),
   isCustomOrder: z.boolean().default(false),
-  customOrderDescription: z.string().optional(), // NEW: Added customOrderDescription to schema
-  ambassadorDelivery: z.boolean().default(false), // NEW: Added ambassadorDelivery to schema
-  ambassadorMessage: z.string().optional(), // NEW: Added ambassadorMessage to schema
+  customOrderDescription: z.string().optional(),
+  ambassadorDelivery: z.boolean().default(false),
+  ambassadorMessage: z.string().optional(),
 });
 
 interface PostServiceFormProps {
@@ -34,13 +37,7 @@ interface PostServiceFormProps {
   onCancel: () => void;
   categoryOptions: { value: string; label: string }[];
   initialCategory?: string;
-  isCustomOrder?: boolean; // NEW: Add isCustomOrder prop
-  titlePlaceholder?: string; // NEW: Add titlePlaceholder prop
-  descriptionPlaceholder?: string; // NEW: Add descriptionPlaceholder prop
-  customOrderDescriptionPlaceholder?: string; // NEW: Add customOrderDescriptionPlaceholder prop
-  pricePlaceholder?: string; // NEW: Add pricePlaceholder prop
-  contactPlaceholder?: string; // NEW: Add contactPlaceholder prop
-  ambassadorMessagePlaceholder?: string; // NEW: Add ambassadorMessagePlaceholder prop
+  isCustomOrder?: boolean;
 }
 
 const PostServiceForm: React.FC<PostServiceFormProps> = ({
@@ -48,13 +45,7 @@ const PostServiceForm: React.FC<PostServiceFormProps> = ({
   onCancel,
   categoryOptions,
   initialCategory,
-  isCustomOrder = false, // NEW: Default to false
-  titlePlaceholder = "e.g., Math Tutoring, Graphic Design", // NEW: Default placeholder
-  descriptionPlaceholder = "Describe your service in detail...", // NEW: Default placeholder
-  customOrderDescriptionPlaceholder = "Specify details like ingredients, dietary restrictions, quantity, preferred time.", // NEW: Default placeholder
-  pricePlaceholder = "e.g., ₹500/hour, Negotiable", // NEW: Default placeholder
-  contactPlaceholder = "e.g., WhatsApp number, Email", // NEW: Default placeholder
-  ambassadorMessagePlaceholder = "e.g., Deliver to Block A, Room 101 by 7 PM", // NEW: Default placeholder
+  isCustomOrder = false,
 }) => {
   const form = useForm<z.infer<typeof ServiceFormSchema>>({
     resolver: zodResolver(ServiceFormSchema),
@@ -64,190 +55,270 @@ const PostServiceForm: React.FC<PostServiceFormProps> = ({
       category: initialCategory || "",
       otherCategoryDescription: "",
       price: "",
+      pricingModel: "fixed",
+      deliveryTime: "",
+      revisions: "1",
+      portfolioUrl: "",
       contact: "",
-      isCustomOrder: isCustomOrder, // NEW: Use prop for default value
-      customOrderDescription: "", // Initialize
-      ambassadorDelivery: false, // Initialize
-      ambassadorMessage: "", // Initialize
+      isCustomOrder: isCustomOrder,
+      customOrderDescription: "",
+      ambassadorDelivery: false,
+      ambassadorMessage: "",
     },
   });
 
-  const [showFormInfoAlert, setShowFormInfoAlert] = useState(true); // NEW: State for dismissible alert
+  const { isSubmitting } = form.formState;
 
+  // Handle Logic for "Other" category and Custom Order defaults
   useEffect(() => {
-    if (initialCategory) {
-      form.reset({ ...form.getValues(), category: initialCategory });
-    }
-    // Also update isCustomOrder if the prop changes
+    if (initialCategory) form.setValue("category", initialCategory);
     form.setValue("isCustomOrder", isCustomOrder);
   }, [initialCategory, isCustomOrder, form]);
 
-  const { isSubmitting } = form.formState;
-
-  const handleFormSubmit = async (data: z.infer<typeof ServiceFormSchema>) => {
-    try {
-      await onSubmit(data);
-      form.reset();
-    } catch (error) {
-      // Error handling is done in the parent component's onSubmit
+  const handleSubmit = async (data: z.infer<typeof ServiceFormSchema>) => {
+    // If custom order, map description fields appropriately before sending
+    if (data.isCustomOrder && data.customOrderDescription) {
+        data.description = `${data.description}\n\nSpecifics: ${data.customOrderDescription}`;
     }
+    await onSubmit(data);
   };
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4 p-4">
-        {showFormInfoAlert && ( // NEW: Conditionally render dismissible alert
-          <Alert className="bg-blue-50 border-blue-200 text-blue-800 flex items-center justify-between">
-            <AlertDescription>
-              Please fill out the details below to post your service or custom order request.
-            </AlertDescription>
-            <Button variant="ghost" size="icon" onClick={() => setShowFormInfoAlert(false)} className="text-blue-800 hover:bg-blue-100">
-              <X className="h-4 w-4" />
-            </Button>
-          </Alert>
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <DeletionInfoMessage />
+
+        {/* --- HEADER SECTION --- */}
+        <FormField
+          control={form.control}
+          name="title"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground font-semibold flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-secondary-neon" /> 
+                {isCustomOrder ? "Request Title" : "Gig Title"}
+              </FormLabel>
+              <FormControl>
+                <Input 
+                    placeholder={isCustomOrder ? "e.g. Need a Python Tutor" : "e.g. I will design your event posters"} 
+                    {...field} 
+                    className="h-12 bg-secondary/5 border-border focus:ring-secondary-neon text-lg"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* --- DETAILS GRID --- */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Category */}
+            <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                <FormItem>
+                    <FormLabel className="text-foreground font-semibold">Category</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                        <SelectTrigger className="h-11 bg-secondary/5 border-border">
+                        <SelectValue placeholder="Select Category" />
+                        </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                        {categoryOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                    </SelectContent>
+                    </Select>
+                    <FormMessage />
+                </FormItem>
+                )}
+            />
+
+            {/* Other Category Input */}
+            {form.watch("category") === "other" && (
+                <FormField
+                control={form.control}
+                name="otherCategoryDescription"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel className="text-foreground font-semibold">Specify Category</FormLabel>
+                    <FormControl>
+                        <Input placeholder="e.g. Video Editing" {...field} className="h-11 bg-secondary/5 border-border" />
+                    </FormControl>
+                    </FormItem>
+                )}
+                />
+            )}
+        </div>
+
+        {/* --- PRICING SECTION --- */}
+        <div className="grid grid-cols-5 gap-3">
+            <FormField
+                control={form.control}
+                name="price"
+                render={({ field }) => (
+                <FormItem className="col-span-3">
+                    <FormLabel className="text-foreground font-semibold">Rate</FormLabel>
+                    <div className="relative">
+                        <IndianRupee className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                            type="number" 
+                            placeholder="500" 
+                            {...field} 
+                            className="pl-9 h-11 bg-secondary/5 border-border" 
+                        />
+                    </div>
+                    <FormMessage />
+                </FormItem>
+                )}
+            />
+            <FormField
+                control={form.control}
+                name="pricingModel"
+                render={({ field }) => (
+                <FormItem className="col-span-2">
+                    <FormLabel className="text-foreground font-semibold">Model</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                        <SelectTrigger className="h-11 bg-secondary/5 border-border">
+                        <SelectValue />
+                        </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                        <SelectItem value="fixed">Fixed Price</SelectItem>
+                        <SelectItem value="hourly">Per Hour</SelectItem>
+                    </SelectContent>
+                    </Select>
+                </FormItem>
+                )}
+            />
+        </div>
+
+        {/* --- LOGISTICS (Time & Revisions) --- */}
+        {!isCustomOrder && (
+            <div className="grid grid-cols-2 gap-4">
+                <FormField
+                    control={form.control}
+                    name="deliveryTime"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="text-foreground font-semibold flex items-center gap-2">
+                            <Clock className="h-3.5 w-3.5 text-blue-500" /> Timeframe
+                        </FormLabel>
+                        <FormControl>
+                            <Input placeholder="e.g. 2 Days" {...field} className="h-11 bg-secondary/5 border-border" />
+                        </FormControl>
+                    </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="revisions"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="text-foreground font-semibold flex items-center gap-2">
+                            <RefreshCcw className="h-3.5 w-3.5 text-green-500" /> Revisions
+                        </FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                            <SelectTrigger className="h-11 bg-secondary/5 border-border">
+                            <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            <SelectItem value="0">No Revisions</SelectItem>
+                            <SelectItem value="1">1 Revision</SelectItem>
+                            <SelectItem value="2">2 Revisions</SelectItem>
+                            <SelectItem value="unlimited">Unlimited</SelectItem>
+                        </SelectContent>
+                        </Select>
+                    </FormItem>
+                    )}
+                />
+            </div>
         )}
 
-        {/* NEW: Scroll pane for form fields */}
-        <div className="max-h-[calc(100vh-250px)] overflow-y-auto pr-2"> {/* Adjust height as needed */}
-          <DeletionInfoMessage /> {/* NEW: Deletion Info Message */}
-          <FormField
-            control={form.control}
-            name="title"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-foreground">Service Title</FormLabel>
-                <FormControl>
-                  <Input placeholder={titlePlaceholder} {...field} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="description"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-foreground">Description</FormLabel>
-                <FormControl>
-                  <Textarea placeholder={descriptionPlaceholder} {...field} rows={4} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="category"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-foreground">Category</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon">
-                      <SelectValue placeholder="Select a category" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent className="bg-card text-card-foreground border-border">
-                    {categoryOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          {form.watch("category") === "other" && (
-            <FormField
-              control={form.control}
-              name="otherCategoryDescription"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-foreground">Specify Other Category</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Language Translation" {...field} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        {/* --- DESCRIPTION --- */}
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground font-semibold flex items-center gap-2">
+                <LayoutGrid className="h-4 w-4 text-muted-foreground" /> Details
+              </FormLabel>
+              <FormControl>
+                <Textarea 
+                    placeholder="Describe your skills, what tools you use, or exactly what you need help with." 
+                    {...field} 
+                    className="bg-secondary/5 border-border min-h-[100px] resize-none" 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
           )}
-          {isCustomOrder && ( // Only show custom order description if it's a custom order form
+        />
+
+        {/* --- PORTFOLIO & CONTACT --- */}
+        {!isCustomOrder && (
             <FormField
-              control={form.control}
-              name="customOrderDescription"
-              render={({ field }) => (
+            control={form.control}
+            name="portfolioUrl"
+            render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-foreground">Custom Order Details</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder={customOrderDescriptionPlaceholder} {...field} rows={3} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
-          <FormField
-            control={form.control}
-            name="price"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-foreground">Price/Compensation</FormLabel>
+                <FormLabel className="text-foreground font-semibold flex items-center gap-2">
+                    <LinkIcon className="h-3.5 w-3.5 text-secondary-neon" /> Sample Work (Optional)
+                </FormLabel>
                 <FormControl>
-                  <Input placeholder={pricePlaceholder} {...field} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="contact"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-foreground">Contact Information</FormLabel>
-                <FormControl>
-                  <Input placeholder={contactPlaceholder} {...field} className="bg-input text-input-foreground border-border focus-visible:ring-secondary-neon" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          {!isCustomOrder && ( // Only show this checkbox if it's not a custom order form
-            <FormField
-              control={form.control}
-              name="isCustomOrder"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 bg-card text-card-foreground border-border">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      className="border-secondary-neon data-[state=checked]:bg-secondary-neon data-[state=checked]:text-primary-foreground"
+                    <Input 
+                        placeholder="Link to Drive / Behance / Github" 
+                        {...field} 
+                        className="h-11 bg-secondary/5 border-border" 
                     />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel className="text-foreground">
-                      Offer Custom Orders
-                    </FormLabel>
-                    <p className="text-sm text-muted-foreground">
-                      Allow users to request custom services based on your skills.
-                    </p>
-                  </div>
+                </FormControl>
+                <p className="text-[10px] text-muted-foreground">Show students what you can do!</p>
                 </FormItem>
-              )}
+            )}
             />
+        )}
+
+        <FormField
+          control={form.control}
+          name="contact"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-foreground font-semibold">Contact Method</FormLabel>
+              <FormControl>
+                <Input 
+                    placeholder="WhatsApp / Telegram / Phone" 
+                    {...field} 
+                    className="h-11 bg-secondary/5 border-border" 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
           )}
-        </div> {/* END: Scroll pane */}
-        <div className="flex justify-end space-x-2 pt-4">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting} className="border-border text-primary-foreground hover:bg-muted">
+        />
+
+        {/* --- OPTIONAL DELIVERY (Hidden for purely digital, but kept for hybrid) --- */}
+        <div className="opacity-80 hover:opacity-100 transition-opacity">
+            <AmbassadorDeliveryOption
+                ambassadorDelivery={form.watch('ambassadorDelivery')}
+                setAmbassadorDelivery={(val) => form.setValue('ambassadorDelivery', val)}
+                ambassadorMessage={form.watch('ambassadorMessage') || ''}
+                setAmbassadorMessage={(val) => form.setValue('ambassadorMessage', val)}
+            />
+        </div>
+
+        {/* --- ACTIONS --- */}
+        <div className="flex gap-3 pt-4 border-t border-border/50">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting} className="flex-1 h-12 border-border hover:bg-background">
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting} className="bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Post Service"}
+          <Button type="submit" disabled={isSubmitting} className="flex-[2] h-12 bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 font-bold shadow-md">
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isCustomOrder ? "Post Request" : "Launch Gig")}
           </Button>
         </div>
       </form>
