@@ -9,14 +9,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { 
-  Truck, DollarSign, Loader2, Utensils, CheckCircle, 
+  Truck, IndianRupee, Loader2, Utensils, CheckCircle, 
   Handshake, Clock, ShoppingBag, Activity, Camera, 
   AlertTriangle, Eye, ShieldCheck, XCircle, PackageCheck,
-  MessageCircle, Send, Briefcase, User
+  MessageCircle, Send, Briefcase, User, Wallet
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, APPWRITE_PRODUCTS_COLLECTION_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID } from "@/lib/appwrite";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID } from "@/lib/appwrite";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { Query, ID } from "appwrite";
@@ -24,7 +25,7 @@ import { useFoodOrders, FoodOrder } from "@/hooks/useFoodOrders";
 import { DEVELOPER_UPI_ID } from "@/lib/config";
 
 // --- CONSTANTS ---
-const CHAT_COLLECTION_ID = "chat_messages"; // Ensure this collection exists in Appwrite
+const CHAT_COLLECTION_ID = "chat_messages";
 const CLOUD_NAME = "dpusuqjvo";
 const UPLOAD_PRESET = "natpe_thunai_preset";
 
@@ -54,7 +55,7 @@ export interface BaseTrackingItem {
   id: string;
   description: string;
   date: string;
-  status: string; // Unified status
+  status: string;
   isUserProvider: boolean;
   timestamp: number;
   ambassadorDelivery?: boolean;
@@ -71,6 +72,7 @@ export interface MarketTransactionItem extends BaseTrackingItem {
   sellerId: string;
   buyerId: string;
   appwriteStatus: string;
+  transactionId?: string; // UTR Number
   
   // Handshake Props
   handoverEvidenceUrl?: string;
@@ -108,7 +110,7 @@ const mapAppwriteStatusToTrackingStatus = (status: string): string => {
   const map: Record<string, string> = {
     "negotiating": "Negotiating",
     "initiated": "Payment Pending",
-    "payment_confirmed_to_developer": "Processing",
+    "payment_confirmed_to_developer": "Verifying Payment",
     "commission_deducted": "Active / Handover",
     "active": "Active / In Progress",
     "seller_confirmed_delivery": "Delivered / Done",
@@ -151,6 +153,38 @@ const EvidenceModal = ({ isOpen, onClose, title, onUpload, isUploading, viewOnly
       </DialogContent>
     </Dialog>
   );
+};
+
+// --- COMPONENT: PAYMENT VERIFICATION MODAL ---
+const PaymentVerificationModal = ({ isOpen, onClose, onVerify, amount }: { isOpen: boolean, onClose: () => void, onVerify: (tid: string) => void, amount: number }) => {
+    const [utr, setUtr] = useState("");
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Verify Payment</DialogTitle>
+                    <DialogDescription>
+                        You successfully initiated a payment of <b className="text-foreground">₹{amount}</b>. 
+                        Please enter the UPI Transaction ID (UTR) below to confirm.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-2 py-4">
+                    <Label>Transaction ID / UTR</Label>
+                    <Input 
+                        placeholder="e.g. 329183920192" 
+                        value={utr} 
+                        onChange={(e) => setUtr(e.target.value)} 
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose}>Cancel</Button>
+                    <Button onClick={() => onVerify(utr)} disabled={utr.length < 4} className="bg-green-600 text-white hover:bg-green-700">
+                        <CheckCircle className="h-4 w-4 mr-2" /> Verify Payment
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
 };
 
 // --- COMPONENT: CHAT SHEET ---
@@ -196,8 +230,8 @@ const ChatSheet = ({ item, currentUser }: { item: TrackingItem, currentUser: any
     return (
         <Sheet>
             <SheetTrigger asChild>
-                <Button size="sm" variant="outline" className="h-8 gap-2 border-secondary-neon/50 text-secondary-neon hover:bg-secondary-neon/10">
-                    <MessageCircle className="h-4 w-4" /> Chat
+                <Button size="sm" variant="outline" className="h-8 gap-2 border-secondary-neon/50 text-secondary-neon hover:bg-secondary-neon/10 w-full sm:w-auto">
+                    <MessageCircle className="h-4 w-4" /> Chat with {partnerName.split(' ')[0]}
                 </Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-full sm:w-[400px] flex flex-col p-0">
@@ -205,12 +239,19 @@ const ChatSheet = ({ item, currentUser }: { item: TrackingItem, currentUser: any
                     <SheetTitle className="text-base flex items-center gap-2"><User className="h-4 w-4"/> {partnerName}</SheetTitle>
                 </SheetHeader>
                 <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-background">
-                    {messages.map(msg => (
-                        <div key={msg.$id} className={cn("flex flex-col max-w-[80%]", msg.senderId === currentUser.$id ? "ml-auto items-end" : "mr-auto items-start")}>
-                            <div className={cn("px-3 py-2 rounded-lg text-sm", msg.senderId === currentUser.$id ? "bg-secondary-neon text-primary-foreground" : "bg-muted")}>{msg.text}</div>
-                            <span className="text-[9px] opacity-50 mt-1">{new Date(msg.$createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                    {messages.length === 0 ? (
+                        <div className="text-center py-10 text-muted-foreground opacity-50 text-sm">
+                            <p>No messages yet.</p>
+                            <p>Discuss the {item.type} details here.</p>
                         </div>
-                    ))}
+                    ) : (
+                        messages.map(msg => (
+                            <div key={msg.$id} className={cn("flex flex-col max-w-[80%]", msg.senderId === currentUser.$id ? "ml-auto items-end" : "mr-auto items-start")}>
+                                <div className={cn("px-3 py-2 rounded-lg text-sm", msg.senderId === currentUser.$id ? "bg-secondary-neon text-primary-foreground" : "bg-muted")}>{msg.text}</div>
+                                <span className="text-[9px] opacity-50 mt-1">{new Date(msg.$createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                            </div>
+                        ))
+                    )}
                 </div>
                 <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="p-3 border-t flex gap-2">
                     <Input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1" />
@@ -224,6 +265,7 @@ const ChatSheet = ({ item, currentUser }: { item: TrackingItem, currentUser: any
 // --- COMPONENT: TRACKING CARD ---
 const TrackingCard = ({ item, onAction, currentUser }: { item: TrackingItem, onAction: (action: string, id: string, payload?: any) => void, currentUser: any }) => {
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [evidenceMode, setEvidenceMode] = useState<"upload_handover" | "upload_return" | "view_handover">("view_handover");
   const [isUploading, setIsUploading] = useState(false);
 
@@ -240,9 +282,8 @@ const TrackingCard = ({ item, onAction, currentUser }: { item: TrackingItem, onA
 
   const isMarket = item.type !== "Food Order";
   const marketItem = isMarket ? (item as MarketTransactionItem) : null;
-  const isRental = item.type === "Rental";
-  
-  // Icon Logic
+  const isRental = item.type === "Rental"; 
+
   const getIcon = () => {
     switch (item.type) {
       case "Rental": return <Clock className="h-5 w-5 text-purple-500" />;
@@ -253,11 +294,14 @@ const TrackingCard = ({ item, onAction, currentUser }: { item: TrackingItem, onA
     }
   };
 
-  const handlePayment = () => {
+  const initiatePayment = () => {
       if(!marketItem) return;
+      // 1. Open UPI App
       const upiLink = `upi://pay?pa=${DEVELOPER_UPI_ID}&pn=NatpeThunaiEscrow&am=${marketItem.amount}&tn=Payment for ${marketItem.productTitle}`;
       window.open(upiLink, '_blank');
-      onAction("mark_paid_by_buyer", item.id);
+      
+      // 2. Open Verification Modal
+      setShowPaymentModal(true);
   };
 
   return (
@@ -282,20 +326,17 @@ const TrackingCard = ({ item, onAction, currentUser }: { item: TrackingItem, onA
           </Badge>
         </div>
 
-        {/* --- CHAT BAR (For All) --- */}
-        {!item.status.includes("Completed") && !item.status.includes("Cancelled") && (
-            <div className="mb-3 flex justify-end">
-                <ChatSheet item={item} currentUser={currentUser} />
-            </div>
-        )}
+        {/* --- ALWAYS VISIBLE CHAT --- */}
+        <div className="mb-3 w-full">
+            <ChatSheet item={item} currentUser={currentUser} />
+        </div>
 
         {/* --- MARKET / SERVICE / RENTAL LOGIC --- */}
         {marketItem && (
           <div className="bg-muted/20 p-3 rounded-lg border border-border/50 mb-3 space-y-3 animate-in fade-in">
             
-            {/* Status Flow */}
             <div className="flex justify-between items-center text-xs">
-                <span className="text-muted-foreground">Amount: <b className="text-foreground">₹{marketItem.amount}</b></span>
+                <span className="text-muted-foreground">Amount: <b className="text-foreground"><IndianRupee className="inline h-3 w-3"/>{marketItem.amount}</b></span>
                 {marketItem.appwriteStatus === 'negotiating' && <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-[4px] text-[10px] font-bold">Negotiating</span>}
             </div>
 
@@ -304,8 +345,8 @@ const TrackingCard = ({ item, onAction, currentUser }: { item: TrackingItem, onA
                 
                 {/* 1. Payment (Buyer) */}
                 {!item.isUserProvider && (marketItem.appwriteStatus === 'negotiating' || marketItem.appwriteStatus === 'initiated') && (
-                    <Button className="w-full bg-green-600 hover:bg-green-700 text-white h-9 text-xs" onClick={handlePayment}>
-                        <DollarSign className="h-3 w-3 mr-2" /> Pay to Start
+                    <Button className="w-full bg-green-600 hover:bg-green-700 text-white h-9 text-xs" onClick={initiatePayment}>
+                        <Wallet className="h-3 w-3 mr-2" /> Pay to Start
                     </Button>
                 )}
 
@@ -313,7 +354,7 @@ const TrackingCard = ({ item, onAction, currentUser }: { item: TrackingItem, onA
                 {isRental && (
                     <>
                         {item.isUserProvider && !marketItem.handoverEvidenceUrl && marketItem.appwriteStatus === 'commission_deducted' && (
-                            <Button className="w-full bg-blue-600 text-white h-9 text-xs" onClick={() => { setEvidenceMode("upload_handover"); setShowEvidenceModal(true); }}>
+                            <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white h-9 text-xs" onClick={() => { setEvidenceMode("upload_handover"); setShowEvidenceModal(true); }}>
                                 <Camera className="h-3 w-3 mr-2" /> Upload Handover Proof
                             </Button>
                         )}
@@ -375,7 +416,7 @@ const TrackingCard = ({ item, onAction, currentUser }: { item: TrackingItem, onA
              </div>
         )}
 
-        {/* Evidence Modal */}
+        {/* Modals */}
         {showEvidenceModal && marketItem && (
             <EvidenceModal
                 isOpen={showEvidenceModal}
@@ -387,8 +428,20 @@ const TrackingCard = ({ item, onAction, currentUser }: { item: TrackingItem, onA
             />
         )}
 
+        {showPaymentModal && marketItem && (
+            <PaymentVerificationModal
+                isOpen={showPaymentModal}
+                onClose={() => setShowPaymentModal(false)}
+                onVerify={(utr) => {
+                    onAction("verify_payment", item.id, { utr });
+                    setShowPaymentModal(false);
+                }}
+                amount={marketItem.amount}
+            />
+        )}
+
         <div className="flex justify-between items-center text-[10px] text-muted-foreground/70 mt-3 pt-2 border-t border-border/30">
-           <span>Role: {item.isUserProvider ? "Provider/Seller" : "Client/Buyer"}</span>
+           <span>Role: {item.isUserProvider ? "Provider" : "Client"}</span>
            <span className="font-mono opacity-50">ID: {item.id.substring(0, 6)}</span>
         </div>
       </CardContent>
@@ -464,9 +517,25 @@ const TrackingPage = () => {
   // --- ACTIONS ---
   const handleAction = async (action: string, id: string, payload?: any) => {
     try {
-        if (action === "mark_paid_by_buyer") {
-            await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "payment_confirmed_to_developer" });
-            toast.success("Payment initiated.");
+        if (action === "verify_payment") {
+            // Buyer sends UTR -> Status: Verified
+            await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { 
+                status: "payment_confirmed_to_developer",
+                transactionId: payload.utr // Store UTR
+            });
+            toast.success("Payment verified! Work can begin.");
+        }
+        else if (action === "upload_handover_evidence") {
+            await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { handoverEvidenceUrl: payload.url });
+            toast.success("Proof uploaded. Ask buyer to accept.");
+        }
+        else if (action === "accept_handover") {
+            await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "active" });
+            toast.success("Rental Started");
+        }
+        else if (action === "report_damage_with_evidence") {
+            await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "disputed", isDisputed: true, returnEvidenceUrl: payload.url });
+            toast.error("Dispute reported.");
         }
         else if (action === "start_work") {
             await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "active" });
@@ -482,14 +551,6 @@ const TrackingPage = () => {
                 try { await databases.deleteDocument(APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID, payload.productId); } catch {}
             }
             toast.success("Completed!");
-        }
-        else if (action === "upload_handover_evidence") {
-            await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { handoverEvidenceUrl: payload.url });
-            toast.success("Evidence Uploaded");
-        }
-        else if (action === "accept_handover") {
-            await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "active" });
-            toast.success("Rental Started");
         }
         else if (action === "confirm_completion") {
             await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "completed" });
