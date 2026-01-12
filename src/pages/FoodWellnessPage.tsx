@@ -1,12 +1,20 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Soup, ShieldCheck, PlusCircle, Utensils, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { 
+  Soup, ShieldCheck, PlusCircle, Utensils, Loader2, 
+  MapPin, Clock, Star, ChefHat, Minus, Plus, ShoppingBag 
+} from "lucide-react";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import PostServiceForm from "@/components/forms/PostServiceForm";
 import { useServiceListings } from "@/hooks/useServiceListings";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID } from "@/lib/appwrite";
@@ -14,214 +22,399 @@ import { ID } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
 import FoodCustomRequestsList from "@/components/FoodCustomRequestsList";
 
-// Service categories specific to this page
+// --- CONFIGURATION ---
 const OFFERING_CATEGORIES = ["homemade-meals", "wellness-remedies"];
 
-// Define category options for Offerings
 const OFFERING_OPTIONS = [
   { value: "homemade-meals", label: "Food" },
   { value: "wellness-remedies", label: "Remedy" },
   { value: "other", label: "Other" },
 ];
 
-// Define category options for Custom Requests
 const CUSTOM_REQUEST_OPTIONS = [
   { value: "homemade-meals", label: "Custom Food" },
   { value: "wellness-remedies", label: "Custom Remedy" },
   { value: "other", label: "Other" },
 ];
 
+// --- FOOD ITEM CARD COMPONENT ---
+const FoodItemCard = ({ item, onOrder }: { item: any, onOrder: (item: any) => void }) => {
+  // Generate a random food image if none provided (using Unsplash source for realism)
+  const seed = item.$id; 
+  const imageUrl = `https://source.unsplash.com/400x300/?food,${item.category === 'homemade-meals' ? 'meal' : 'tea'}&sig=${seed}`;
+
+  return (
+    <Card className="group overflow-hidden border-border/60 hover:shadow-lg transition-all duration-300 bg-card flex flex-col h-full">
+      {/* Image Header */}
+      <div className="relative h-40 w-full bg-muted overflow-hidden">
+        <img 
+          src={imageUrl} 
+          alt={item.title}
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'; }}
+        />
+        <div className="absolute top-2 left-2 bg-background/90 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider text-foreground shadow-sm">
+          {item.category === 'homemade-meals' ? 'Home Cooked' : 'Wellness'}
+        </div>
+        {/* Rating Badge (Mock) */}
+        <div className="absolute bottom-2 right-2 bg-green-600 text-white px-1.5 py-0.5 rounded flex items-center gap-1 text-xs font-bold shadow-sm">
+          4.5 <Star className="h-3 w-3 fill-white" />
+        </div>
+      </div>
+
+      <CardContent className="p-4 flex-grow space-y-2">
+        <div className="flex justify-between items-start gap-2">
+          <h3 className="font-bold text-lg leading-tight line-clamp-1">{item.title}</h3>
+          {/* Veg/Non-Veg Indicator (Mock logic based on title) */}
+          <div className={`h-4 w-4 border-[1px] flex items-center justify-center ${item.title.toLowerCase().includes('chicken') ? 'border-red-500' : 'border-green-500'}`}>
+             <div className={`h-2 w-2 rounded-full ${item.title.toLowerCase().includes('chicken') ? 'bg-red-500' : 'bg-green-500'}`} />
+          </div>
+        </div>
+        
+        <p className="text-xs text-muted-foreground line-clamp-2">
+          {item.description}
+        </p>
+
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+          <Avatar className="h-5 w-5">
+            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${item.posterName}`} />
+            <AvatarFallback>CH</AvatarFallback>
+          </Avatar>
+          <span className="truncate">Chef {item.posterName}</span>
+        </div>
+      </CardContent>
+
+      <CardFooter className="p-4 pt-0 flex items-center justify-between mt-auto">
+        <div>
+          <p className="text-lg font-bold text-foreground">₹{item.price}</p>
+          <p className="text-[10px] text-muted-foreground">per serving</p>
+        </div>
+        <Button 
+          onClick={() => onOrder(item)} 
+          className="bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 h-9 px-6 font-semibold shadow-md"
+        >
+          Add
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+};
+
+// --- MAIN PAGE COMPONENT ---
 const FoodWellnessPage = () => {
   const { user, userProfile } = useAuth();
   const [isPostServiceDialogOpen, setIsPostServiceDialogOpen] = useState(false);
   const [isPostCustomOrderDialogOpen, setIsPostCustomOrderDialogOpen] = useState(false);
   
-  // Fetch all food/wellness related posts for the user's college
-  const { services: allPosts, isLoading, error } = useServiceListings(undefined); 
+  // Order Flow States
+  const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [isOrderDialogOpen, setIsOrderDialogOpen] = useState(false);
+  const [orderQuantity, setOrderQuantity] = useState(1);
+  const [orderLocation, setOrderLocation] = useState("");
+  const [orderNotes, setOrderNotes] = useState("");
+  const [isOrdering, setIsOrdering] = useState(false);
 
+  // Fetch Data
+  const { services: allPosts, isLoading, error } = useServiceListings(undefined); 
   const postedOfferings = allPosts.filter(p => !p.isCustomOrder && OFFERING_CATEGORIES.includes(p.category));
   const postedCustomRequests = allPosts.filter(p => p.isCustomOrder);
 
-  const handlePostService = async (data: {
-    title: string;
-    description: string;
-    category: string;
-    price: string;
-    contact: string;
-    customOrderDescription?: string;
-    ambassadorDelivery: boolean;
-    ambassadorMessage: string;
-  }) => {
-    if (!user || !userProfile) {
-      toast.error("You must be logged in to post.");
+  // --- HANDLERS ---
+
+  const handleOpenOrderDialog = (item: any) => {
+    if (!user) {
+      toast.error("Please login to order food.");
+      return;
+    }
+    if (user.$id === item.posterId) {
+      toast.error("You cannot order your own item.");
+      return;
+    }
+    setSelectedItem(item);
+    setOrderQuantity(1);
+    setOrderLocation(""); 
+    setOrderNotes("");
+    setIsOrderDialogOpen(true);
+  };
+
+  const handleConfirmOrder = async () => {
+    if (!orderLocation.trim()) {
+      toast.error("Please enter a delivery location.");
       return;
     }
 
+    setIsOrdering(true);
     try {
-      const newPostData = {
-        ...data,
-        posterId: user.$id,
-        posterName: user.name,
-        isCustomOrder: false,
-        collegeName: userProfile.collegeName,
-      };
+      // Create Order in 'food_orders' collection (Not transactions, keep it separate for detailed tracking)
+      // NOTE: Ensure you have a 'food_orders' collection with these attributes:
+      // providerId, providerName, buyerId, buyerName, offeringTitle, quantity, totalAmount, status, deliveryLocation, notes
+      
+      const totalPrice = parseInt(selectedItem.price.replace(/[^0-9]/g, '')) * orderQuantity;
 
       await databases.createDocument(
         APPWRITE_DATABASE_ID,
         APPWRITE_FOOD_ORDERS_COLLECTION_ID,
         ID.unique(),
-        newPostData
+        {
+          providerId: selectedItem.posterId,
+          providerName: selectedItem.posterName,
+          buyerId: user!.$id,
+          buyerName: user!.name,
+          offeringTitle: selectedItem.title,
+          quantity: orderQuantity,
+          totalAmount: isNaN(totalPrice) ? 0 : totalPrice,
+          status: "Pending Confirmation", // Initial Status
+          deliveryLocation: orderLocation,
+          notes: orderNotes,
+          collegeName: userProfile?.collegeName,
+          // Optional: Add link to original service ID if needed
+        }
       );
-      
-      toast.success(`Your offering "${data.title}" has been posted!`);
-      setIsPostServiceDialogOpen(false);
-    } catch (e: any) {
-      console.error("Error posting service:", e);
-      toast.error(e.message || "Failed to post offering.");
+
+      toast.success("Order placed! Track status in your Activity tab.");
+      setIsOrderDialogOpen(false);
+    } catch (error: any) {
+      console.error("Order failed:", error);
+      toast.error("Failed to place order. Please try again.");
+    } finally {
+      setIsOrdering(false);
     }
   };
 
-  const handlePostCustomOrder = async (data: {
-    title: string;
-    description: string;
-    category: string;
-    price: string;
-    contact: string;
-    customOrderDescription?: string;
-    ambassadorDelivery: boolean;
-    ambassadorMessage: string;
-  }) => {
-    if (!user || !userProfile) {
-      toast.error("You must be logged in to post a custom request.");
-      return;
-    }
-
+  const handlePostService = async (data: any) => {
+    if (!user || !userProfile) return;
     try {
-      const newRequest = {
-        ...data,
-        posterId: user.$id,
-        posterName: user.name,
-        isCustomOrder: true,
-        collegeName: userProfile.collegeName,
-      };
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_FOOD_ORDERS_COLLECTION_ID, // Note: You might want a separate 'offerings' collection, but reusing is fine if schema allows
+        ID.unique(),
+        {
+          ...data,
+          posterId: user.$id,
+          posterName: user.name,
+          isCustomOrder: false,
+          collegeName: userProfile.collegeName,
+        }
+      );
+      toast.success("Offering posted!");
+      setIsPostServiceDialogOpen(false);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to post.");
+    }
+  };
 
+  const handlePostCustomOrder = async (data: any) => {
+    if (!user || !userProfile) return;
+    try {
       await databases.createDocument(
         APPWRITE_DATABASE_ID,
         APPWRITE_FOOD_ORDERS_COLLECTION_ID,
         ID.unique(),
-        newRequest
+        {
+          ...data,
+          posterId: user.$id,
+          posterName: user.name,
+          isCustomOrder: true,
+          collegeName: userProfile.collegeName,
+        }
       );
-      
-      toast.success(`Your custom order request "${data.title}" has been posted!`);
+      toast.success("Request posted!");
       setIsPostCustomOrderDialogOpen(false);
     } catch (e: any) {
-      console.error("Error posting custom request:", e);
-      toast.error(e.message || "Failed to post custom request.");
+      toast.error(e.message || "Failed to post.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-4 pb-20">
-      <h1 className="text-4xl font-bold mb-6 text-center text-foreground">Food & Wellness</h1>
+    <div className="min-h-screen bg-background text-foreground p-4 pb-24">
       <div className="max-w-md mx-auto space-y-6">
-        <Card className="bg-card text-card-foreground shadow-lg border-border">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
-              <Soup className="h-5 w-5 text-secondary-neon" /> Post Your Offerings
+        
+        {/* HEADER SECTION */}
+        <div className="flex justify-between items-end">
+          <div>
+            <h1 className="text-3xl font-black italic tracking-tighter text-foreground">
+              CAMPUS<span className="text-secondary-neon">EATS</span>
+            </h1>
+            <p className="text-xs text-muted-foreground font-medium">Homemade & Healthy, delivered to your block.</p>
+          </div>
+          <Dialog open={isPostServiceDialogOpen} onOpenChange={setIsPostServiceDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="bg-foreground text-background hover:bg-foreground/90 h-8 text-xs font-bold">
+                <ChefHat className="mr-1 h-3 w-3" /> Sell Food
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Start Your Cloud Kitchen</DialogTitle>
+              </DialogHeader>
+              <div className="max-h-[70vh] overflow-y-auto pr-2">
+                <PostServiceForm 
+                  onSubmit={handlePostService} 
+                  onCancel={() => setIsPostServiceDialogOpen(false)} 
+                  categoryOptions={OFFERING_OPTIONS}
+                  titlePlaceholder="e.g. Mom's Special Chicken Curry"
+                  pricePlaceholder="e.g. 120"
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* OFFERINGS GRID */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <Soup className="h-5 w-5 text-secondary-neon" /> On The Menu
+            </h2>
+          </div>
+
+          {isLoading ? (
+            <div className="grid grid-cols-2 gap-4">
+              {[1, 2, 3, 4].map(i => <Card key={i} className="h-48 animate-pulse bg-muted/20" />)}
+            </div>
+          ) : postedOfferings.length > 0 ? (
+            <div className="grid grid-cols-2 gap-4">
+              {postedOfferings.map(item => (
+                <FoodItemCard key={item.$id} item={item} onOrder={handleOpenOrderDialog} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-10 border border-dashed border-border rounded-xl">
+              <p className="text-muted-foreground text-sm">No food available right now. Be the first chef!</p>
+            </div>
+          )}
+        </div>
+
+        {/* CUSTOM REQUESTS SECTION */}
+        <Card className="bg-secondary/5 border-none shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <Utensils className="h-5 w-5 text-primary" /> Custom Cravings?
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-4 pt-0 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Post your homemade food or wellness remedies for your college peers to order.
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Craving something specific? Request a custom meal or wellness remedy from campus chefs.
             </p>
-            <Dialog open={isPostServiceDialogOpen} onOpenChange={setIsPostServiceDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-                  <PlusCircle className="mr-2 h-4 w-4" /> Post New Offering
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
-                <DialogHeader className="relative">
-                  <DialogTitle className="text-foreground">Post New Food/Wellness Offering</DialogTitle>
-                </DialogHeader>
-                {/* Scroll pane for dialog content */}
-                <div className="max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
-                  
-                  {/* FIXED: Removed the duplicate manual Alert here. PostServiceForm handles the information display. */}
-                  
-                  <PostServiceForm 
-                    onSubmit={handlePostService} 
-                    onCancel={() => setIsPostServiceDialogOpen(false)} 
-                    categoryOptions={OFFERING_OPTIONS}
-                    titlePlaceholder="e.g., Delicious Homemade Biryani"
-                    descriptionPlaceholder="Describe your food or remedy, ingredients, benefits, etc."
-                    pricePlaceholder="e.g., 150 INR per plate or 200 INR for a wellness drink"
-                    contactPlaceholder="e.g., +91 9876543210 or @your_telegram_id"
-                    ambassadorMessagePlaceholder="e.g., Deliver to Block A, Room 101 by 7 PM"
-                  />
-                </div>
-              </DialogContent>
-            </Dialog>
-
             <Dialog open={isPostCustomOrderDialogOpen} onOpenChange={setIsPostCustomOrderDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90 mt-2">
-                  <Utensils className="mr-2 h-4 w-4" /> Request Custom Order
+                <Button variant="outline" className="w-full border-primary/50 text-primary hover:bg-primary/10">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Request Custom Dish
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground border-border">
-                <DialogHeader className="relative">
-                  <DialogTitle className="text-foreground">Request Custom Food/Remedy</DialogTitle>
-                </DialogHeader>
-                {/* Scroll pane for dialog content */}
-                <div className="max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
-                  
-                  {/* FIXED: Removed the duplicate manual Alert here. */}
-                  
-                  <PostServiceForm 
-                    onSubmit={handlePostCustomOrder} 
-                    onCancel={() => setIsPostCustomOrderDialogOpen(false)} 
-                    isCustomOrder={true}
-                    categoryOptions={CUSTOM_REQUEST_OPTIONS}
-                    titlePlaceholder="e.g., Request for Vegan Pasta"
-                    descriptionPlaceholder="Describe the custom food or remedy you need, specific requirements, etc."
-                    customOrderDescriptionPlaceholder="Specify details like ingredients, dietary restrictions, quantity, preferred time."
-                    pricePlaceholder="e.g., 250 INR (negotiable) or Your budget"
-                    contactPlaceholder="e.g., +91 9876543210 or @your_telegram_id"
-                    ambassadorMessagePlaceholder="e.g., Pick up from my room, Block B, Room 205"
-                  />
-                </div>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader><DialogTitle>Request Custom Food</DialogTitle></DialogHeader>
+                <PostServiceForm 
+                  onSubmit={handlePostCustomOrder} 
+                  onCancel={() => setIsPostCustomOrderDialogOpen(false)} 
+                  isCustomOrder={true}
+                  categoryOptions={CUSTOM_REQUEST_OPTIONS}
+                />
               </DialogContent>
             </Dialog>
-
-            <p className="text-xs text-destructive-foreground mt-4 flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3" /> Quality assurance and cancellation warnings apply.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card text-card-foreground shadow-lg border-border">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xl font-semibold text-card-foreground flex items-center gap-2">
-              <Utensils className="h-5 w-5 text-secondary-neon" /> Custom Order Requests
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 space-y-4">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
-                <p className="ml-3 text-muted-foreground">Loading custom requests...</p>
+            
+            {/* List of existing requests */}
+            {postedCustomRequests.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-border/50">
+                <h3 className="text-xs font-bold uppercase text-muted-foreground mb-3">Recent Requests</h3>
+                <FoodCustomRequestsList requests={postedCustomRequests} isLoading={isLoading} error={error} />
               </div>
-            ) : error ? (
-              <p className="text-center text-destructive py-4">Error loading requests: {error}</p>
-            ) : postedCustomRequests.length > 0 ? (
-              <FoodCustomRequestsList requests={postedCustomRequests} isLoading={isLoading} error={error} />
-            ) : (
-              <p className="text-center text-muted-foreground py-4">No custom requests posted yet for your college. Be the first!</p>
             )}
           </CardContent>
         </Card>
+
+        {/* SAFETY FOOTER */}
+        <p className="text-[10px] text-center text-muted-foreground flex items-center justify-center gap-1 opacity-70">
+          <ShieldCheck className="h-3 w-3" /> 
+          Natpe Thunai ensures safe peer-to-peer food exchange.
+        </p>
       </div>
+
+      {/* --- ORDER CONFIRMATION SHEET (Responsive Dialog) --- */}
+      <Dialog open={isOrderDialogOpen} onOpenChange={setIsOrderDialogOpen}>
+        <DialogContent className="sm:max-w-[400px] bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <ShoppingBag className="h-5 w-5 text-secondary-neon" /> Confirm Order
+            </DialogTitle>
+            <DialogDescription>
+              Ordering from <span className="font-semibold text-foreground">{selectedItem?.posterName}</span>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-2">
+            {/* Item Details */}
+            <div className="flex justify-between items-center bg-muted/30 p-3 rounded-lg">
+              <div>
+                <p className="font-bold text-foreground">{selectedItem?.title}</p>
+                <p className="text-xs text-muted-foreground">₹{selectedItem?.price} x {orderQuantity}</p>
+              </div>
+              <div className="flex items-center gap-3 bg-background border border-border rounded-md px-2 py-1">
+                <button 
+                  onClick={() => setOrderQuantity(Math.max(1, orderQuantity - 1))}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <span className="font-bold text-sm w-4 text-center">{orderQuantity}</span>
+                <button 
+                  onClick={() => setOrderQuantity(orderQuantity + 1)}
+                  className="text-secondary-neon hover:text-secondary-neon/80"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Delivery Details */}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="location" className="text-xs font-semibold uppercase text-muted-foreground">Delivery Location</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    id="location" 
+                    placeholder="e.g. Block A, Room 302" 
+                    className="pl-9 bg-input/50"
+                    value={orderLocation}
+                    onChange={(e) => setOrderLocation(e.target.value)}
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-1">
+                <Label htmlFor="notes" className="text-xs font-semibold uppercase text-muted-foreground">Cooking Instructions / Notes</Label>
+                <Textarea 
+                  id="notes" 
+                  placeholder="e.g. Less spicy, extra sauce..." 
+                  className="resize-none h-20 bg-input/50 text-sm"
+                  value={orderNotes}
+                  onChange={(e) => setOrderNotes(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Total */}
+            <div className="flex justify-between items-center pt-2 border-t border-border">
+              <span className="font-bold text-lg">Total Pay</span>
+              <span className="font-black text-2xl text-secondary-neon">
+                ₹{(parseInt(selectedItem?.price?.replace(/[^0-9]/g, '') || '0') * orderQuantity).toFixed(0)}
+              </span>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 h-12 text-lg font-bold shadow-lg"
+              onClick={handleConfirmOrder}
+              disabled={isOrdering}
+            >
+              {isOrdering ? <Loader2 className="h-5 w-5 animate-spin" /> : "Place Order"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <MadeWithDyad />
     </div>
   );
