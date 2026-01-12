@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ScrollText, Loader2, CheckCircle, Circle, Gift } from "lucide-react";
+import { ScrollText, Loader2, CheckCircle, Gift } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -89,8 +89,8 @@ const DailyQuestCard = () => {
 
     setClaimingQuestId(quest.id);
     try {
-      await addXp(quest.xpReward);
-      
+      // FIX: Step 1 - Update the profile to mark as CLAIMED first.
+      // We do this first so that the subsequent profile refresh doesn't overwrite the XP we are about to add.
       const profile = userProfile as any;
       const currentClaimedQuests = profile.claimedQuests || {};
       
@@ -99,10 +99,13 @@ const DailyQuestCard = () => {
         [quest.id]: new Date().toISOString()
       };
 
-      // FIX: Added userProfile.$id as the first argument
       await updateUserProfile(userProfile.$id, {
         claimedQuests: updatedClaimedQuests
       } as any);
+
+      // FIX: Step 2 - Add XP second.
+      // This ensures the final state update that reaches the UI contains the new XP value.
+      await addXp(quest.xpReward);
 
       toast.success(`Claimed: ${quest.title}! +${quest.xpReward} XP earned.`);
     } catch (error: any) {
