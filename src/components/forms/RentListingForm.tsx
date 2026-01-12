@@ -8,9 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import AmbassadorDeliveryOption from "@/components/AmbassadorDeliveryOption";
-import { Brain, CheckCircle, XCircle, HelpCircle } from "lucide-react";
+import { Brain, CheckCircle, XCircle, MapPin, Clock, IndianRupee, Image as ImageIcon, HelpCircle, AlertCircle } from "lucide-react";
 import { usePriceAnalysis } from "@/hooks/usePriceAnalysis";
 import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 interface RentListingFormProps {
   onSubmit: (product: {
@@ -19,6 +20,7 @@ interface RentListingFormProps {
     description: string;
     policies: string;
     imageUrl: string;
+    location: string;
     ambassadorDelivery: boolean;
     ambassadorMessage: string;
   }) => void;
@@ -29,178 +31,140 @@ const RentListingForm: React.FC<RentListingFormProps> = ({ onSubmit, onCancel })
   const [title, setTitle] = useState("");
   const [rentPriceValue, setRentPriceValue] = useState("");
   const [rentUnit, setRentUnit] = useState<"day" | "hour">("day");
+  const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
   const [policies, setPolicies] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [ambassadorDelivery, setAmbassadorDelivery] = useState(false);
   const [ambassadorMessage, setAmbassadorMessage] = useState("");
 
-  const {
-    isPriceAnalyzed,
-    isPriceReasonable,
-    aiSuggestion,
-    aiLoading,
-    analyzePrice,
-    resetAnalysis,
-  } = usePriceAnalysis();
-
-  const handleAnalyzePriceClick = () => {
-    analyzePrice(title, rentPriceValue, undefined, rentUnit);
-  };
+  const { isPriceAnalyzed, isPriceReasonable, aiSuggestion, aiLoading, analyzePrice, resetAnalysis } = usePriceAnalysis();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !rentPriceValue || !description || !policies) {
-      toast.error("Please fill in all required fields.");
+    if (!title || !rentPriceValue || !description || !policies || !location) {
+      toast.error("All fields are required.");
       return;
     }
-    if (!isPriceAnalyzed) {
-      toast.error("Please analyze the price before creating the listing.");
-      return;
-    }
-    if (!isPriceReasonable) {
-      toast.error("The price is outside the reasonable range. Please adjust or confirm you understand.");
-      return;
-    }
+    if (!isPriceAnalyzed) { toast.error("Please verify price first."); return; }
 
-    const finalImageUrl = imageUrl.trim() || "/app-logo.png";
-
-    onSubmit({ title, price: `₹${rentPriceValue}/${rentUnit}`, description, policies, imageUrl: finalImageUrl, ambassadorDelivery, ambassadorMessage });
-    setTitle("");
-    setRentPriceValue("");
-    setRentUnit("day");
-    setDescription("");
-    setPolicies("");
-    setImageUrl("");
-    setAmbassadorDelivery(false);
-    setAmbassadorMessage("");
-    resetAnalysis();
+    onSubmit({ 
+        title, 
+        price: `₹${rentPriceValue}/${rentUnit}`, 
+        description, 
+        policies, 
+        location,
+        imageUrl: imageUrl.trim() || "/app-logo.png", 
+        ambassadorDelivery, 
+        ambassadorMessage 
+    });
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="title" className="text-foreground">Title</Label>
+    <form onSubmit={handleSubmit} className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      
+      <div className="space-y-1.5">
+        <Label className="text-foreground font-semibold">Item Name</Label>
         <Input
-          id="title"
-          type="text"
-          placeholder="e.g., Bicycle"
+          placeholder="e.g. Scientific Calculator, DSLR Camera"
           value={title}
           onChange={(e) => { setTitle(e.target.value); resetAnalysis(); }}
-          required
-          className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
+          className="h-12 bg-secondary/5 border-border focus:ring-secondary-neon"
         />
-      </div>
-      <div>
-        <Label htmlFor="rentPrice" className="text-foreground">Rent Price</Label>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Input
-            id="rentPrice"
-            type="number"
-            placeholder="e.g., 500"
-            value={rentPriceValue}
-            onChange={(e) => { setRentPriceValue(e.target.value); resetAnalysis(); }}
-            required
-            min="1"
-            className="flex-grow bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-          />
-          <Select value={rentUnit} onValueChange={(value: "day" | "hour") => { setRentUnit(value); resetAnalysis(); }} required>
-            <SelectTrigger className="w-full sm:w-[100px] bg-input text-foreground border-border focus:ring-ring focus:border-ring">
-              <SelectValue placeholder="Unit" />
-            </SelectTrigger>
-            <SelectContent className="bg-popover text-popover-foreground border-border">
-              <SelectItem value="day">/day</SelectItem>
-              <SelectItem value="hour">/hour</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div>
-        <Label htmlFor="description" className="text-foreground">Description</Label>
-        <Textarea
-          id="description"
-          placeholder="Describe your item..."
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          required
-          className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-        />
-      </div>
-      <div>
-        <Label htmlFor="policies" className="text-foreground">Valid Policies</Label>
-        <Textarea
-          id="policies"
-          placeholder="e.g., No smoking, return by 5 PM, security deposit required."
-          value={policies}
-          onChange={(e) => setPolicies(e.target.value)}
-          required
-          className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-        />
-      </div>
-      <div>
-        <div className="flex items-center justify-between">
-          <Label htmlFor="imageUrl" className="text-foreground">Image URL (Optional)</Label>
-          <Link to="/help/image-to-url" className="text-xs text-secondary-neon hover:underline flex items-center gap-1">
-            <HelpCircle className="h-3 w-3" /> How to get URL?
-          </Link>
-        </div>
-        <Input
-          id="imageUrl"
-          type="text"
-          placeholder="e.g., https://example.com/image.jpg (Defaults to app logo)"
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          className="bg-input text-foreground border-border focus:ring-ring focus:border-ring"
-        />
-        <p className="text-xs text-muted-foreground mt-1">If left empty, the app logo will be used as a placeholder.</p>
       </div>
 
-      <AmbassadorDeliveryOption
-        ambassadorDelivery={ambassadorDelivery}
-        setAmbassadorDelivery={setAmbassadorDelivery}
-        ambassadorMessage={ambassadorMessage}
-        setAmbassadorMessage={setAmbassadorMessage}
-      />
-
-      {/* AI Price Analysis Section */}
-      <div className="space-y-2 border-t border-border pt-4 mt-4">
-        <Button
-          type="button"
-          onClick={handleAnalyzePriceClick}
-          disabled={aiLoading || !title || !rentPriceValue}
-          className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          {aiLoading ? (
-            <>
-              <Brain className="mr-2 h-4 w-4 animate-pulse" /> Analyzing Price...
-            </>
-          ) : (
-            <>
-              <Brain className="mr-2 h-4 w-4" /> Analyze Price
-            </>
-          )}
-        </Button>
-        {isPriceAnalyzed && (
-          <div className={`p-3 rounded-md text-sm ${isPriceReasonable ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400" : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"}`}>
-            <div className="flex items-center gap-2 font-semibold">
-              {isPriceReasonable ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-              <span>Price Status: {isPriceReasonable ? "Reasonable" : "Potentially Unreasonable"}</span>
+      {/* Price & Unit Row */}
+      <div className="space-y-1.5">
+        <Label className="text-foreground font-semibold">Rental Rate</Label>
+        <div className="flex gap-2">
+            <div className="relative flex-grow">
+                <IndianRupee className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                    type="number"
+                    placeholder="50"
+                    value={rentPriceValue}
+                    onChange={(e) => { setRentPriceValue(e.target.value); resetAnalysis(); }}
+                    className="pl-9 h-11 bg-secondary/5 border-border"
+                />
             </div>
-            {aiSuggestion && <p className="mt-1">{aiSuggestion}</p>}
-          </div>
-        )}
+            <Select value={rentUnit} onValueChange={(v: any) => { setRentUnit(v); resetAnalysis(); }}>
+                <SelectTrigger className="w-[110px] h-11 bg-secondary/5 border-border">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="day">/ Day</SelectItem>
+                    <SelectItem value="hour">/ Hour</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel} className="w-full sm:w-auto border-border text-primary-foreground hover:bg-muted">
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90"
-          disabled={!isPriceReasonable || aiLoading}
-        >
-          Create Listing
+      {/* AI Price Check */}
+      <div className={cn("rounded-lg border p-3 transition-all", isPriceAnalyzed ? (isPriceReasonable ? "bg-green-500/10 border-green-500/20" : "bg-red-500/10 border-red-500/20") : "bg-muted/30 border-dashed")}>
+        <div className="flex justify-between items-center">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <Brain className="h-3 w-3" /> Price Check
+            </h4>
+            <Button
+                type="button" variant="ghost" size="sm"
+                onClick={() => analyzePrice(title, rentPriceValue, undefined, rentUnit)}
+                disabled={aiLoading || !title || !rentPriceValue}
+                className="h-6 text-xs text-secondary-neon p-0 hover:bg-transparent"
+            >
+                {aiLoading ? "Scanning..." : "Verify Rate"}
+            </Button>
+        </div>
+        {isPriceAnalyzed && <p className="text-xs mt-2 text-foreground/80">{aiSuggestion}</p>}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-foreground font-semibold">Pickup / Return Location</Label>
+        <div className="relative">
+            <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+            placeholder="e.g. Block A Hostel Warden Office"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            className="pl-9 h-11 bg-secondary/5 border-border"
+            />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+            <Label className="text-foreground font-semibold">Description</Label>
+            <Textarea
+                placeholder="Condition, included accessories..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="bg-secondary/5 border-border h-24"
+            />
+        </div>
+        <div className="space-y-1.5">
+            <Label className="text-foreground font-semibold">Policies / Terms</Label>
+            <Textarea
+                placeholder="e.g. ID card deposit required, return by 8 PM..."
+                value={policies}
+                onChange={(e) => setPolicies(e.target.value)}
+                className="bg-secondary/5 border-border h-24"
+            />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex justify-between items-center">
+            <Label className="text-foreground font-semibold">Image URL (Optional)</Label>
+            <Link to="/help/image-to-url" className="text-[10px] text-secondary-neon hover:underline">How?</Link>
+        </div>
+        <Input placeholder="https://..." value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} className="h-11 bg-secondary/5 border-border" />
+      </div>
+
+      <AmbassadorDeliveryOption ambassadorDelivery={ambassadorDelivery} setAmbassadorDelivery={setAmbassadorDelivery} ambassadorMessage={ambassadorMessage} setAmbassadorMessage={setAmbassadorMessage} />
+
+      <div className="flex gap-3 pt-2">
+        <Button type="button" variant="outline" onClick={onCancel} className="flex-1 h-11">Cancel</Button>
+        <Button type="submit" className="flex-[2] h-11 bg-secondary-neon text-primary-foreground font-bold" disabled={!isPriceReasonable && isPriceAnalyzed}>
+          List for Rent
         </Button>
       </div>
     </form>
