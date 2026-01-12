@@ -9,10 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Briefcase, Clock, RefreshCcw, Link as LinkIcon, IndianRupee, LayoutGrid, Zap } from "lucide-react";
+import { Loader2, Briefcase, Clock, RefreshCcw, Link as LinkIcon, IndianRupee, LayoutGrid } from "lucide-react";
 import AmbassadorDeliveryOption from "@/components/AmbassadorDeliveryOption";
 import DeletionInfoMessage from "@/components/DeletionInfoMessage";
-import { cn } from "@/lib/utils";
 
 // Enhanced Schema
 const ServiceFormSchema = z.object({
@@ -21,10 +20,10 @@ const ServiceFormSchema = z.object({
   category: z.string().min(1, { message: "Select a category." }),
   otherCategoryDescription: z.string().optional(),
   price: z.string().min(1, { message: "Price required." }),
-  pricingModel: z.enum(["fixed", "hourly"]), // NEW
-  deliveryTime: z.string().min(1, { message: "Timeframe required." }), // NEW
-  revisions: z.string().optional(), // NEW
-  portfolioUrl: z.string().url().optional().or(z.literal("")), // NEW
+  pricingModel: z.enum(["fixed", "hourly"]),
+  deliveryTime: z.string().min(1, { message: "Timeframe required." }),
+  revisions: z.string().optional(),
+  portfolioUrl: z.string().url().optional().or(z.literal("")),
   contact: z.string().min(5, { message: "Contact info required." }),
   isCustomOrder: z.boolean().default(false),
   customOrderDescription: z.string().optional(),
@@ -38,6 +37,9 @@ interface PostServiceFormProps {
   categoryOptions: { value: string; label: string }[];
   initialCategory?: string;
   isCustomOrder?: boolean;
+  // FIX: Added these optional props to match usage in FoodWellnessPage
+  titlePlaceholder?: string;
+  pricePlaceholder?: string;
 }
 
 const PostServiceForm: React.FC<PostServiceFormProps> = ({
@@ -46,6 +48,9 @@ const PostServiceForm: React.FC<PostServiceFormProps> = ({
   categoryOptions,
   initialCategory,
   isCustomOrder = false,
+  // Destructure defaults
+  titlePlaceholder = "e.g. I will design your event posters",
+  pricePlaceholder = "500"
 }) => {
   const form = useForm<z.infer<typeof ServiceFormSchema>>({
     resolver: zodResolver(ServiceFormSchema),
@@ -100,7 +105,7 @@ const PostServiceForm: React.FC<PostServiceFormProps> = ({
               </FormLabel>
               <FormControl>
                 <Input 
-                    placeholder={isCustomOrder ? "e.g. Need a Python Tutor" : "e.g. I will design your event posters"} 
+                    placeholder={titlePlaceholder} // FIX: Used the prop here
                     {...field} 
                     className="h-12 bg-secondary/5 border-border focus:ring-secondary-neon text-lg"
                 />
@@ -165,7 +170,7 @@ const PostServiceForm: React.FC<PostServiceFormProps> = ({
                         <IndianRupee className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input 
                             type="number" 
-                            placeholder="500" 
+                            placeholder={pricePlaceholder} // FIX: Used the prop here
                             {...field} 
                             className="pl-9 h-11 bg-secondary/5 border-border" 
                         />
@@ -302,7 +307,7 @@ const PostServiceForm: React.FC<PostServiceFormProps> = ({
           )}
         />
 
-        {/* --- OPTIONAL DELIVERY (Hidden for purely digital, but kept for hybrid) --- */}
+        {/* --- OPTIONAL DELIVERY --- */}
         <div className="opacity-80 hover:opacity-100 transition-opacity">
             <AmbassadorDeliveryOption
                 ambassadorDelivery={form.watch('ambassadorDelivery')}
