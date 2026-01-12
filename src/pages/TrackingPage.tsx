@@ -20,21 +20,27 @@ import { Query, ID } from "appwrite";
 import { useFoodOrders, FoodOrder } from "@/hooks/useFoodOrders";
 
 // --- INTERFACES ---
-export interface MarketTransactionItem {
+export interface BaseTrackingItem {
   id: string;
+  description: string;
+  date: string;
+  status: string; // Unified status field
+  isUserProvider: boolean;
+  timestamp: number;
+  ambassadorDelivery?: boolean;
+  ambassadorMessage?: string;
+}
+
+export interface MarketTransactionItem extends BaseTrackingItem {
   type: "Transaction" | "Cash Exchange" | "Service" | "Rental";
-  productId: string; // NEW: Needed to delete the listing
+  productId?: string;
   productTitle: string;
   amount: number;
   sellerName: string;
   buyerName: string;
   sellerId: string;
   buyerId: string;
-  status: string;
   appwriteStatus: string;
-  date: string;
-  timestamp: number;
-  isUserProvider: boolean;
   
   // Handshake Props
   handoverEvidenceUrl?: string;
@@ -43,22 +49,20 @@ export interface MarketTransactionItem {
   disputeReason?: string;
 }
 
-export interface FoodOrderItem {
-    id: string;
-    type: "Food Order";
-    offeringTitle: string;
-    totalAmount: number;
-    providerName: string;
-    buyerName: string;
-    quantity: number;
-    orderStatus: FoodOrder["status"];
-    date: string;
-    timestamp: number;
-    isUserProvider: boolean;
-    providerId: string;
+export interface FoodOrderItem extends BaseTrackingItem {
+  type: "Food Order";
+  offeringTitle: string;
+  totalAmount: number;
+  providerName: string;
+  buyerName: string;
+  providerId: string;
+  buyerId: string;
+  quantity: number;
+  deliveryLocation: string;
+  orderStatus: FoodOrder["status"];
 }
 
-type TrackingItem = MarketTransactionItem | FoodOrderItem;
+export type TrackingItem = MarketTransactionItem | FoodOrderItem;
 
 // --- UTILS ---
 const mapAppwriteStatusToTrackingStatus = (status: string): string => {
@@ -69,14 +73,14 @@ const mapAppwriteStatusToTrackingStatus = (status: string): string => {
     "active": "In Use / Active",
     "seller_confirmed_delivery": "Delivered",
     "meeting_scheduled": "Meeting Set",
-    "completed": "Completed & Sold", // Updated label
+    "completed": "Completed & Sold",
     "failed": "Cancelled",
     "disputed": "Disputed / Damage Reported"
   };
   return map[status] || "Pending";
 };
 
-// --- COMPONENT: EVIDENCE MODAL (Reusable) ---
+// --- COMPONENT: EVIDENCE MODAL ---
 const EvidenceModal = ({ 
   isOpen, onClose, title, onUpload, isUploading, viewOnlyUrl 
 }: { 
@@ -192,7 +196,7 @@ const TrackingCard = ({ item, onAction }: { item: TrackingItem, onAction: (actio
                     {item.type === 'Transaction' ? '2. Sold' : '2. Active'}
                 </span>
                 <div className="h-[1px] flex-1 bg-border mx-2" />
-                <span className={cn(marketItem.status === 'Completed' ? "text-green-500 font-bold" : "")}>3. Done</span>
+                <span className={cn(marketItem.status.includes('Completed') ? "text-green-500 font-bold" : "")}>3. Done</span>
             </div>
 
             <div className="flex items-center gap-3">
@@ -218,7 +222,7 @@ const TrackingCard = ({ item, onAction }: { item: TrackingItem, onAction: (actio
                 </Button>
             )}
 
-            {!item.isUserProvider && marketItem.handoverEvidenceUrl && marketItem.appwriteStatus !== 'active' && marketItem.appwriteStatus !== 'completed' && (
+            {!item.isUserProvider && marketItem.handoverEvidenceUrl && marketItem.appwriteStatus !== 'active' && !marketItem.appwriteStatus.includes('completed') && (
                 <div className="flex gap-2">
                     <Button variant="outline" className="flex-1 h-9 text-xs" onClick={() => { setEvidenceMode("view_handover"); setShowEvidenceModal(true); }}>View Proof</Button>
                     <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white h-9 text-xs font-bold" onClick={() => onAction("accept_handover", item.id, { type: item.type, productId: marketItem.productId })}>
@@ -293,8 +297,9 @@ const TrackingPage = () => {
       const transactions = response.documents.map((doc: any) => ({
         id: doc.$id,
         type: doc.type === 'product' ? 'Transaction' : 'Rental', 
-        productId: doc.productId, // CRITICAL: Mapping productId
+        productId: doc.productId,
         productTitle: doc.productTitle,
+        description: doc.productTitle, // Map description for base type
         status: mapAppwriteStatusToTrackingStatus(doc.status),
         appwriteStatus: doc.status,
         date: new Date(doc.$createdAt).toLocaleDateString(),
@@ -306,14 +311,30 @@ const TrackingPage = () => {
         buyerId: doc.buyerId,
         isUserProvider: doc.sellerId === user.$id,
         handoverEvidenceUrl: doc.handoverEvidenceUrl,
-        isDisputed: doc.isDisputed
+        isDisputed: doc.isDisputed,
+        ambassadorDelivery: doc.ambassadorDelivery,
+        ambassadorMessage: doc.ambassadorMessage
       } as MarketTransactionItem));
 
       const foodItems = foodOrders.map(o => ({
-        id: o.$id, type: "Food Order", offeringTitle: o.offeringTitle, status: o.status,
-        totalAmount: o.totalAmount, providerName: o.providerName, buyerName: o.buyerName,
-        isUserProvider: o.providerId === user.$id, timestamp: new Date(o.$createdAt).getTime(),
-        date: new Date(o.$createdAt).toLocaleDateString(), quantity: o.quantity, deliveryLocation: o.deliveryLocation, providerId: o.providerId
+        id: o.$id, 
+        type: "Food Order", 
+        offeringTitle: o.offeringTitle,
+        description: o.offeringTitle, // Map description for base type
+        status: o.status, // Unified status
+        orderStatus: o.status,
+        totalAmount: o.totalAmount, 
+        providerName: o.providerName, 
+        buyerName: o.buyerName,
+        providerId: o.providerId,
+        buyerId: o.buyerId,
+        isUserProvider: o.providerId === user.$id, 
+        timestamp: new Date(o.$createdAt).getTime(),
+        date: new Date(o.$createdAt).toLocaleDateString(), 
+        quantity: o.quantity, 
+        deliveryLocation: o.deliveryLocation,
+        ambassadorDelivery: o.ambassadorDelivery,
+        ambassadorMessage: o.ambassadorMessage
       } as FoodOrderItem));
 
       setItems([...transactions, ...foodItems].sort((a, b) => b.timestamp - a.timestamp));
@@ -323,7 +344,7 @@ const TrackingPage = () => {
 
   useEffect(() => { refreshData(); }, [refreshData]);
 
-  // --- CORE LOGIC: HANDSHAKE + AUTO DELETE ---
+  // --- ACTIONS ---
   const handleAction = async (action: string, id: string, payload?: any) => {
     try {
         if (action === "upload_handover_evidence") {
@@ -337,24 +358,18 @@ const TrackingPage = () => {
             const productId = payload?.productId;
 
             if (isSale) {
-                // LOGIC 1: It's a Sale -> Complete Transaction + Delete Product
                 await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, {
                     status: "completed"
                 });
-                
                 if (productId) {
                     try {
                         await databases.deleteDocument(APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID, productId);
-                        toast.success("Purchase confirmed! Listing removed from market.");
-                    } catch (delError) {
-                        console.error("Failed to delete product listing:", delError);
-                        // Don't block the UI flow if delete fails, just warn
-                    }
+                        toast.success("Purchase confirmed! Listing removed.");
+                    } catch (delError) { console.error(delError); }
                 } else {
                     toast.success("Transaction completed.");
                 }
             } else {
-                // LOGIC 2: It's a Rental -> Just Mark Active
                 await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, {
                     status: "active"
                 });
@@ -400,12 +415,12 @@ const TrackingPage = () => {
                 <TabsTrigger value="history" className="text-xs font-bold">History</TabsTrigger>
             </TabsList>
             <TabsContent value="all" className="space-y-4 pt-4">
-                 {items.filter(i => i.status !== 'Completed' && i.status !== 'Completed & Sold' && i.status !== 'Cancelled' && !(i as any).isDisputed).map(item => (
+                 {items.filter(i => !i.status.includes('Completed') && i.status !== 'Cancelled' && !(i as any).isDisputed).map(item => (
                     <TrackingCard key={item.id} item={item} onAction={handleAction} />
                 ))}
             </TabsContent>
             <TabsContent value="history" className="space-y-4 pt-4">
-                 {items.filter(i => i.status === 'Completed' || i.status === 'Completed & Sold' || i.status === 'Cancelled' || (i as any).isDisputed).map(item => (
+                 {items.filter(i => i.status.includes('Completed') || i.status === 'Cancelled' || (i as any).isDisputed).map(item => (
                     <TrackingCard key={item.id} item={item} onAction={handleAction} />
                 ))}
             </TabsContent>
