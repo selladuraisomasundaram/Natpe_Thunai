@@ -4,40 +4,40 @@ import React, { useEffect, useState, useCallback } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Truck, DollarSign, Loader2, Utensils, CheckCircle, ArrowRight, Handshake } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  Truck, DollarSign, Loader2, Utensils, CheckCircle, 
+  ArrowRight, Handshake, Clock, Package, ShoppingBag, 
+  ChevronRight, AlertCircle, History, Activity
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID } from "@/lib/appwrite";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { Models, Query } from "appwrite";
-import { calculateCommissionRate } from "@/utils/commission";
 import { useFoodOrders, FoodOrder } from "@/hooks/useFoodOrders";
-import { Button } from "@/components/ui/button";
 
-// --- Tracking Item Interfaces ---
-
+// --- INTERFACES ---
 interface BaseTrackingItem {
   id: string;
   description: string;
   date: string;
   status: string;
-  isUserProvider: boolean;
+  isUserProvider: boolean; // True if user is Seller/Chef/Provider
+  timestamp: number; // For sorting
 }
 
 export interface MarketTransactionItem extends BaseTrackingItem {
-  type: "Transaction" | "Cash Exchange";
+  type: "Transaction" | "Cash Exchange" | "Service" | "Errand" | "Collaboration";
   productTitle: string;
   amount: number;
   sellerName: string;
   buyerName: string;
-  buyerId: string;
-  sellerId: string;
-  commissionAmount?: number;
-  netSellerAmount?: number;
   collegeName: string;
   ambassadorDelivery?: boolean;
   ambassadorMessage?: string;
-  appwriteStatus: string; // Keep raw status for logic
+  appwriteStatus: string;
 }
 
 export interface FoodOrderItem extends BaseTrackingItem {
@@ -46,470 +46,343 @@ export interface FoodOrderItem extends BaseTrackingItem {
   totalAmount: number;
   providerName: string;
   buyerName: string;
-  buyerId: string;
-  providerId: string;
-  orderStatus: FoodOrder["status"];
-  quantity: number;
   deliveryLocation: string;
-  notes: string;
-  collegeName: string;
-  ambassadorDelivery?: boolean;
-  ambassadorMessage?: string;
+  quantity: number;
+  orderStatus: FoodOrder["status"];
 }
 
 type TrackingItem = MarketTransactionItem | FoodOrderItem;
 
-// --- Conversion Functions ---
-
-const mapAppwriteStatusToTrackingStatus = (appwriteStatus: string): string => {
-  switch (appwriteStatus) {
-    case "initiated":
-      return "Initiated (Awaiting Payment)";
-    case "payment_confirmed_to_developer":
-      return "Payment Confirmed (Processing)";
-    case "commission_deducted":
-      return "Commission Deducted (Awaiting Seller Pay)";
-    case "seller_confirmed_delivery":
-      return "Seller Confirmed Delivery (Awaiting Payout)";
-    case "meeting_scheduled": // NEW: Specific for Cash Exchange
-      return "Meeting Scheduled";
-    case "paid_to_seller":
-    case "completed":
-      return "Completed";
-    case "failed":
-      return "Cancelled";
-    default:
-      return "Pending";
-  }
+// --- UTILS ---
+const mapAppwriteStatusToTrackingStatus = (status: string): string => {
+  const map: Record<string, string> = {
+    "initiated": "Payment Pending",
+    "payment_confirmed_to_developer": "Processing",
+    "commission_deducted": "Active",
+    "seller_confirmed_delivery": "Delivered",
+    "meeting_scheduled": "Meeting Set",
+    "negotiating": "In Discussion",
+    "applied": "Application Sent",
+    "paid_to_seller": "Completed",
+    "completed": "Completed",
+    "failed": "Cancelled"
+  };
+  return map[status] || "Pending";
 };
 
-const convertAppwriteTransactionToTrackingItem = (doc: Models.Document, currentUserId: string): MarketTransactionItem => {
-  const transactionDoc = doc as any;
-  const isBuyer = transactionDoc.buyerId === currentUserId;
-  const isCashExchange = transactionDoc.type === 'cash-exchange';
+// --- COMPONENT: STATUS STEPPER ---
+// Visualizes the progress of an order
+const StatusStepper = ({ status, type }: { status: string, type: string }) => {
+  let steps = [];
+  let currentStep = 0;
 
-  let description = `Payment for ${transactionDoc.productTitle}`;
-  let type: MarketTransactionItem["type"] = "Transaction";
-
-  if (isCashExchange) {
-    type = "Cash Exchange";
-    description = isBuyer 
-      ? `Accepted Exchange: ${transactionDoc.productTitle}` 
-      : `Your Exchange Accepted: ${transactionDoc.productTitle}`;
+  if (type === "Food Order") {
+    steps = ["Ordered", "Confirmed", "Cooking", "Out for Delivery", "Delivered"];
+    const statusMap: Record<string, number> = {
+      "Pending Confirmation": 0, "Confirmed": 1, "Preparing": 2, "Out for Delivery": 3, "Delivered": 4
+    };
+    currentStep = statusMap[status] ?? 0;
   } else {
-    if (isBuyer) {
-      description = `Purchase of ${transactionDoc.productTitle}`;
-    } else if (transactionDoc.sellerId === currentUserId) {
-      description = `Sale of ${transactionDoc.productTitle}`;
-    }
+    // Generic Market Flow
+    steps = ["Initiated", "Active", "Delivered", "Completed"];
+    const statusMap: Record<string, number> = {
+      "Payment Pending": 0, "Processing": 1, "Active": 1, "Delivered": 2, "Completed": 3
+    };
+    currentStep = statusMap[status] ?? 0;
   }
 
-  return {
-    id: transactionDoc.$id,
-    type: type,
-    description: description,
-    status: mapAppwriteStatusToTrackingStatus(transactionDoc.status),
-    appwriteStatus: transactionDoc.status,
-    date: new Date(transactionDoc.$createdAt).toLocaleDateString(),
-    productTitle: transactionDoc.productTitle,
-    amount: transactionDoc.amount,
-    sellerName: transactionDoc.sellerName,
-    buyerName: transactionDoc.buyerName,
-    buyerId: transactionDoc.buyerId,
-    sellerId: transactionDoc.sellerId,
-    commissionAmount: transactionDoc.commissionAmount,
-    netSellerAmount: transactionDoc.netSellerAmount,
-    isUserProvider: transactionDoc.sellerId === currentUserId,
-    collegeName: transactionDoc.collegeName,
-    ambassadorDelivery: transactionDoc.ambassadorDelivery,
-    ambassadorMessage: transactionDoc.ambassadorMessage,
-  };
+  return (
+    <div className="flex items-center w-full mt-3 mb-2">
+      {steps.map((step, idx) => (
+        <div key={idx} className="flex items-center flex-1 last:flex-none">
+          <div className={cn(
+            "h-2 w-full rounded-full transition-all duration-500 mr-1",
+            idx <= currentStep ? "bg-secondary-neon" : "bg-muted"
+          )} />
+        </div>
+      ))}
+      <span className="ml-2 text-[10px] font-bold text-secondary-neon uppercase tracking-wider">
+        {steps[currentStep]}
+      </span>
+    </div>
+  );
 };
 
-const convertAppwriteFoodOrderToTrackingItem = (doc: FoodOrder, currentUserId: string): FoodOrderItem => {
-  const isBuyer = doc.buyerId === currentUserId;
-  const description = isBuyer
-    ? `Order placed for ${doc.offeringTitle}`
-    : `Order received for ${doc.offeringTitle}`;
-
-  return {
-    id: doc.$id,
-    type: "Food Order",
-    description: description,
-    status: doc.status,
-    date: new Date(doc.$createdAt).toLocaleDateString(),
-    offeringTitle: doc.offeringTitle,
-    totalAmount: doc.totalAmount,
-    providerName: doc.providerName,
-    buyerName: doc.buyerName,
-    buyerId: doc.buyerId,
-    providerId: doc.providerId,
-    orderStatus: doc.status,
-    isUserProvider: doc.providerId === currentUserId,
-    quantity: doc.quantity,
-    deliveryLocation: doc.deliveryLocation,
-    notes: doc.notes,
-    collegeName: doc.collegeName,
-    ambassadorDelivery: doc.ambassadorDelivery,
-    ambassadorMessage: doc.ambassadorMessage,
+// --- COMPONENT: TRACKING CARD ---
+const TrackingCard = ({ item, onAction }: { item: TrackingItem, onAction: (action: string, id: string) => void }) => {
+  
+  const getIcon = () => {
+    switch (item.type) {
+      case "Transaction": return <ShoppingBag className="h-5 w-5 text-blue-500" />;
+      case "Food Order": return <Utensils className="h-5 w-5 text-orange-500" />;
+      case "Cash Exchange": return <DollarSign className="h-5 w-5 text-green-500" />;
+      case "Collaboration": return <Handshake className="h-5 w-5 text-purple-500" />;
+      default: return <Activity className="h-5 w-5 text-gray-500" />;
+    }
   };
+
+  const isCompleted = item.status === "Completed" || item.status === "Delivered" || item.status === "Cancelled";
+
+  return (
+    <Card className={cn(
+      "border-l-4 transition-all hover:shadow-md bg-card",
+      isCompleted ? "border-l-muted border-border opacity-80" : "border-l-secondary-neon border-border shadow-sm"
+    )}>
+      <CardContent className="p-4">
+        
+        {/* Header Row */}
+        <div className="flex justify-between items-start mb-2">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-muted/50 rounded-full border border-border">
+              {getIcon()}
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-foreground leading-tight">
+                {item.type === 'Food Order' ? item.offeringTitle : item.productTitle}
+              </h4>
+              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                {item.type} • {item.date}
+              </p>
+            </div>
+          </div>
+          <Badge variant={isCompleted ? "secondary" : "outline"} className={cn(
+            "text-[10px] font-bold uppercase",
+            !isCompleted && "border-secondary-neon text-secondary-neon bg-secondary-neon/10"
+          )}>
+            {item.status}
+          </Badge>
+        </div>
+
+        {/* Status Visualizer (Only for Active) */}
+        {!isCompleted && <StatusStepper status={item.status === "Initiated (Awaiting Payment)" ? "Payment Pending" : (item as any).orderStatus || mapAppwriteStatusToTrackingStatus((item as any).appwriteStatus)} type={item.type} />}
+
+        {/* Details Row */}
+        <div className="bg-muted/30 p-3 rounded-md text-xs space-y-1 mt-2">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Role:</span>
+            <span className="font-medium">{item.isUserProvider ? "Seller / Provider" : "Buyer / Client"}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Partner:</span>
+            <span className="font-medium">
+              {item.isUserProvider ? item.buyerName : (item.type === 'Food Order' ? item.providerName : item.sellerName)}
+            </span>
+          </div>
+          {(item.type === 'Food Order' || item.type === 'Transaction') && (
+             <div className="flex justify-between border-t border-border/50 pt-1 mt-1">
+               <span className="text-muted-foreground font-bold">Amount:</span>
+               <span className="font-bold text-foreground">
+                 ₹{item.type === 'Food Order' ? item.totalAmount : item.amount}
+               </span>
+             </div>
+          )}
+          {item.ambassadorDelivery && (
+             <div className="flex items-center gap-1 text-blue-500 pt-1">
+                <Truck className="h-3 w-3" /> Ambassador Delivery Active
+             </div>
+          )}
+        </div>
+
+        {/* Action Buttons (Dynamic based on state) */}
+        {!isCompleted && (
+          <div className="mt-3 flex justify-end gap-2">
+            
+            {/* Food Order Actions */}
+            {item.type === "Food Order" && item.isUserProvider && (item as any).orderStatus === "Pending Confirmation" && (
+                <Button size="sm" className="h-8 text-xs bg-primary" onClick={() => onAction("confirm_food", item.id)}>Accept Order</Button>
+            )}
+            {item.type === "Food Order" && item.isUserProvider && (item as any).orderStatus === "Confirmed" && (
+                <Button size="sm" className="h-8 text-xs bg-orange-500 text-white hover:bg-orange-600" onClick={() => onAction("update_food", item.id)}>Start Cooking</Button>
+            )}
+            {item.type === "Food Order" && item.isUserProvider && (item as any).orderStatus === "Preparing" && (
+                <Button size="sm" className="h-8 text-xs bg-purple-500 text-white hover:bg-purple-600" onClick={() => onAction("update_food", item.id)}>Dispatch Delivery</Button>
+            )}
+            {item.type === "Food Order" && !item.isUserProvider && (item as any).orderStatus === "Out for Delivery" && (
+                <Button size="sm" className="h-8 text-xs bg-green-600 text-white hover:bg-green-700" onClick={() => onAction("confirm_delivery_food", item.id)}>Confirm Receipt</Button>
+            )}
+
+            {/* Cash Exchange Actions */}
+            {item.type === "Cash Exchange" && item.isUserProvider && (item as any).appwriteStatus === "meeting_scheduled" && (
+                <Button size="sm" className="h-8 text-xs bg-green-600 text-white hover:bg-green-700" onClick={() => onAction("complete_exchange", item.id)}>
+                   <CheckCircle className="h-3 w-3 mr-1" /> Exchange Done
+                </Button>
+            )}
+
+            {/* Market Seller Actions */}
+            {item.type === "Transaction" && item.isUserProvider && (item as any).appwriteStatus === "commission_deducted" && (
+                <Button size="sm" className="h-8 text-xs bg-green-600 text-white hover:bg-green-700" onClick={() => onAction("confirm_delivery_market", item.id)}>
+                   <Package className="h-3 w-3 mr-1" /> Item Delivered
+                </Button>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 };
 
+// --- MAIN PAGE ---
 const TrackingPage = () => {
   const { user, userProfile } = useAuth();
   const { orders: foodOrders, isLoading: isLoadingFood, refetch: refetchFoodOrders } = useFoodOrders();
+  
+  const [items, setItems] = useState<TrackingItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("active");
 
-  const [trackingItems, setTrackingItems] = useState<TrackingItem[]>([]);
-  const [loadingTransactions, setLoadingTransactions] = useState(true);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-
-  const fetchMarketTransactions = useCallback(async () => {
-    if (!user?.$id || !userProfile?.collegeName) {
-      setLoadingTransactions(false);
-      return [];
-    }
-
-    setLoadingTransactions(true);
+  // Fetch Market Data
+  const fetchTransactions = useCallback(async () => {
+    if (!user?.$id) return [];
     try {
       const response = await databases.listDocuments(
         APPWRITE_DATABASE_ID,
         APPWRITE_TRANSACTIONS_COLLECTION_ID,
         [
-          Query.or([
-            Query.equal('buyerId', user.$id),
-            Query.equal('sellerId', user.$id)
-          ]),
-          Query.equal('collegeName', userProfile.collegeName),
+          Query.or([Query.equal('buyerId', user.$id), Query.equal('sellerId', user.$id)]),
           Query.orderDesc('$createdAt')
         ]
       );
+      
+      // Map Appwrite Docs to TrackingItems
+      return response.documents.map((doc: any) => ({
+        id: doc.$id,
+        type: doc.type === 'cash-exchange' ? 'Cash Exchange' : doc.type === 'collaboration' ? 'Collaboration' : 'Transaction',
+        description: doc.productTitle,
+        productTitle: doc.productTitle,
+        status: mapAppwriteStatusToTrackingStatus(doc.status),
+        appwriteStatus: doc.status,
+        date: new Date(doc.$createdAt).toLocaleDateString(),
+        timestamp: new Date(doc.$createdAt).getTime(),
+        amount: doc.amount,
+        sellerName: doc.sellerName,
+        buyerName: doc.buyerName,
+        isUserProvider: doc.sellerId === user.$id,
+        collegeName: doc.collegeName,
+        ambassadorDelivery: doc.ambassadorDelivery
+      } as MarketTransactionItem));
 
-      return response.documents.map((doc: Models.Document) => convertAppwriteTransactionToTrackingItem(doc, user.$id));
-    } catch (error) {
-      console.error("Error fetching market transactions:", error);
-      toast.error("Failed to load market transactions.");
+    } catch (e) {
+      console.error(e);
       return [];
     }
-  }, [user?.$id, userProfile?.collegeName]);
+  }, [user?.$id]);
 
-  const mergeAndSetItems = useCallback(async () => {
-    const fetchedTransactions = await fetchMarketTransactions();
-    const foodOrderItems = foodOrders.map(o => convertAppwriteFoodOrderToTrackingItem(o, user!.$id));
-    const mergedItems = [...fetchedTransactions, ...foodOrderItems];
-    mergedItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // Refresh All Data
+  const refreshData = useCallback(async () => {
+    setIsLoading(true);
+    const transactions = await fetchTransactions();
+    
+    const foodItems = foodOrders.map(order => ({
+      id: order.$id,
+      type: "Food Order",
+      description: order.offeringTitle,
+      offeringTitle: order.offeringTitle,
+      status: order.status,
+      orderStatus: order.status,
+      date: new Date(order.$createdAt).toLocaleDateString(),
+      timestamp: new Date(order.$createdAt).getTime(),
+      totalAmount: order.totalAmount,
+      providerName: order.providerName,
+      buyerName: order.buyerName,
+      isUserProvider: order.providerId === user?.$id,
+      quantity: order.quantity,
+      deliveryLocation: order.deliveryLocation
+    } as FoodOrderItem));
 
-    setTrackingItems(mergedItems);
-    setLoadingTransactions(false);
-  }, [fetchMarketTransactions, foodOrders, user]);
+    const combined = [...transactions, ...foodItems].sort((a, b) => b.timestamp - a.timestamp);
+    setItems(combined);
+    setIsLoading(false);
+  }, [fetchTransactions, foodOrders, user?.$id]);
 
   useEffect(() => {
-    if (user) {
-      mergeAndSetItems();
-    }
-  }, [user, mergeAndSetItems]);
+    if(user) refreshData();
+  }, [user, refreshData]);
 
-  // --- Status Update Handlers ---
-
-  const handleUpdateFoodOrderStatus = async (orderId: string, currentStatus: FoodOrder["status"]) => {
-    if (isUpdatingStatus) return;
-    setIsUpdatingStatus(true);
-
-    let nextStatus: FoodOrder["status"];
-    let successMessage: string;
-
-    if (currentStatus === "Pending Confirmation") {
-      nextStatus = "Confirmed";
-      successMessage = "Order confirmed! Start preparing.";
-    } else if (currentStatus === "Confirmed") {
-      nextStatus = "Preparing";
-      successMessage = "Order status updated to Preparing.";
-    } else if (currentStatus === "Preparing") {
-      nextStatus = "Out for Delivery";
-      successMessage = "Order is out for delivery!";
-    } else {
-      setIsUpdatingStatus(false);
-      return;
-    }
-
+  // Handle Actions
+  const handleAction = async (action: string, id: string) => {
     try {
-      await databases.updateDocument(
-        APPWRITE_DATABASE_ID,
-        APPWRITE_FOOD_ORDERS_COLLECTION_ID,
-        orderId,
-        { status: nextStatus }
-      );
-      toast.success(successMessage);
-      refetchFoodOrders();
-    } catch (error: any) {
-      console.error("Error updating order status:", error);
-      toast.error(error.message || "Failed to update order status.");
-    } finally {
-      setIsUpdatingStatus(false);
+        if(action === "confirm_food" || action === "update_food") {
+            // Find current status to determine next
+            const order = foodOrders.find(o => o.$id === id);
+            let nextStatus = "Confirmed";
+            if(order?.status === "Confirmed") nextStatus = "Preparing";
+            if(order?.status === "Preparing") nextStatus = "Out for Delivery";
+            
+            await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID, id, { status: nextStatus });
+            toast.success("Order status updated!");
+        } 
+        else if (action === "confirm_delivery_food") {
+            await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID, id, { status: "Delivered" });
+            toast.success("Bon appétit! Order marked delivered.");
+        }
+        else if (action === "complete_exchange") {
+            await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "completed" });
+            toast.success("Cash Exchange Closed.");
+        }
+        else if (action === "confirm_delivery_market") {
+            await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "seller_confirmed_delivery" });
+            toast.success("Delivery Confirmed! Payout processing.");
+        }
+        refreshData();
+    } catch (e) {
+        toast.error("Action failed.");
     }
   };
 
-  const handleConfirmDelivery = async (orderId: string) => {
-    if (isUpdatingStatus) return;
-    setIsUpdatingStatus(true);
-
-    try {
-      await databases.updateDocument(
-        APPWRITE_DATABASE_ID,
-        APPWRITE_FOOD_ORDERS_COLLECTION_ID,
-        orderId,
-        { status: "Delivered" }
-      );
-      toast.success("Delivery confirmed! Enjoy your meal.");
-      refetchFoodOrders();
-    } catch (error: any) {
-      console.error("Error confirming delivery:", error);
-      toast.error(error.message || "Failed to confirm delivery.");
-    } finally {
-      setIsUpdatingStatus(false);
-    }
-  };
-
-  const handleMarkMarketItemDelivered = async (transactionId: string) => {
-    if (isUpdatingStatus) return;
-    setIsUpdatingStatus(true);
-
-    try {
-      await databases.updateDocument(
-        APPWRITE_DATABASE_ID,
-        APPWRITE_TRANSACTIONS_COLLECTION_ID,
-        transactionId,
-        { status: "seller_confirmed_delivery" }
-      );
-      toast.success("Delivery confirmed! Developer will process your payout shortly.");
-      mergeAndSetItems(); // Refresh items
-    } catch (error: any) {
-      console.error("Error marking market item as delivered:", error);
-      toast.error(error.message || "Failed to mark item as delivered.");
-    } finally {
-      setIsUpdatingStatus(false);
-    }
-  };
-
-  // NEW: Handle completing cash exchange
-  const handleCompleteCashExchange = async (transactionId: string) => {
-    if (isUpdatingStatus) return;
-    setIsUpdatingStatus(true);
-
-    try {
-      await databases.updateDocument(
-        APPWRITE_DATABASE_ID,
-        APPWRITE_TRANSACTIONS_COLLECTION_ID,
-        transactionId,
-        { status: "completed" }
-      );
-      toast.success("Exchange marked as completed!");
-      mergeAndSetItems(); // Refresh items
-    } catch (error: any) {
-      console.error("Error completing exchange:", error);
-      toast.error("Failed to complete exchange.");
-    } finally {
-      setIsUpdatingStatus(false);
-    }
-  };
-
-  // --- UI Helpers ---
-
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case "Pending Confirmation":
-      case "Initiated (Awaiting Payment)":
-        return "bg-yellow-500 text-white";
-      case "Payment Confirmed (Processing)":
-      case "Confirmed":
-      case "Meeting Scheduled": // NEW
-        return "bg-blue-500 text-white";
-      case "Commission Deducted (Awaiting Seller Pay)":
-      case "Preparing":
-        return "bg-orange-500 text-white";
-      case "Out for Delivery":
-      case "Seller Confirmed Delivery (Awaiting Payout)":
-        return "bg-purple-500 text-white";
-      case "Completed":
-      case "Delivered":
-        return "bg-green-500 text-white"; // Changed to consistent green
-      case "Cancelled":
-        return "bg-destructive text-destructive-foreground";
-      default:
-        return "bg-muted text-muted-foreground";
-    }
-  };
-
-  const getIcon = (type: TrackingItem["type"]) => {
-    switch (type) {
-      case "Transaction":
-        return <DollarSign className="h-4 w-4 text-green-500" />;
-      case "Food Order":
-        return <Utensils className="h-4 w-4 text-red-500" />;
-      case "Cash Exchange":
-        return <Handshake className="h-4 w-4 text-blue-500" />;
-      default:
-        return null;
-    }
-  };
-
-  const userLevel = userProfile?.level ?? 1;
-  const dynamicCommissionRate = calculateCommissionRate(userLevel);
+  const activeItems = items.filter(i => i.status !== "Completed" && i.status !== "Delivered" && i.status !== "Cancelled");
+  const historyItems = items.filter(i => i.status === "Completed" || i.status === "Delivered" || i.status === "Cancelled");
 
   return (
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
-      <h1 className="text-4xl font-bold mb-6 text-center text-foreground">Tracking</h1>
       <div className="max-w-md mx-auto space-y-6">
-        <Card className="bg-card text-card-foreground shadow-lg border-border">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xl font-semibold text-card-foreground">Your Activities (Real-time)</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0 space-y-4">
-            {(loadingTransactions || isLoadingFood) ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-secondary-neon" />
-                <p className="ml-3 text-muted-foreground">Loading your activities...</p>
-              </div>
-            ) : trackingItems.length > 0 ? (
-              trackingItems.map((item) => {
-                const isSellerOrProvider = item.isUserProvider;
-                const marketItem = (item.type === "Transaction" || item.type === "Cash Exchange") ? (item as MarketTransactionItem) : null;
-                const isCashExchange = item.type === "Cash Exchange";
+        
+        {/* Header */}
+        <div className="flex justify-between items-end">
+            <div>
+                <h1 className="text-3xl font-black italic tracking-tight text-foreground">
+                    ACTIVITY<span className="text-secondary-neon">LOG</span>
+                </h1>
+                <p className="text-xs text-muted-foreground font-medium">Track payments, orders, and gigs.</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={refreshData} disabled={isLoading}>
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Refresh"}
+            </Button>
+        </div>
 
-                return (
-                  <div key={item.id} className="flex flex-col space-y-3 p-3 border border-border rounded-md bg-background">
-                    <div className="flex items-start space-x-3">
-                      <div className="flex-shrink-0 mt-1">
-                        {getIcon(item.type)}
-                      </div>
-                      <div className="flex-grow min-w-0">
-                        <p className="font-medium text-foreground truncate">{item.description}</p>
-                        <p className="text-sm text-muted-foreground">{item.type} - {item.date}</p>
-                        <Badge className={cn("mt-1", getStatusBadgeClass(item.status))}>
-                          {item.status}
-                        </Badge>
-                      </div>
+        {/* Tabs */}
+        <Tabs defaultValue="active" onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-4 bg-muted/50 p-1">
+                <TabsTrigger value="active" className="text-xs font-bold data-[state=active]:bg-background data-[state=active]:text-secondary-neon data-[state=active]:shadow-sm">
+                    <Activity className="h-4 w-4 mr-2" /> Live Activities ({activeItems.length})
+                </TabsTrigger>
+                <TabsTrigger value="history" className="text-xs font-bold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">
+                    <History className="h-4 w-4 mr-2" /> History
+                </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="active" className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                {activeItems.length > 0 ? (
+                    activeItems.map(item => <TrackingCard key={item.id} item={item} onAction={handleAction} />)
+                ) : (
+                    <div className="text-center py-12 border border-dashed border-border rounded-xl">
+                        <Clock className="h-10 w-10 text-muted-foreground mx-auto mb-2 opacity-50" />
+                        <p className="text-muted-foreground">No active orders right now.</p>
                     </div>
+                )}
+            </TabsContent>
 
-                    {/* --- Market / Cash Exchange Details --- */}
-                    {marketItem && (
-                      <div className="space-y-1 text-xs border-t border-border pt-2">
-                        <p className="text-muted-foreground">Amount: <span className="font-semibold text-foreground">₹{marketItem.amount?.toFixed(2)}</span></p>
-                        
-                        {/* Specific UI for Cash Exchange */}
-                        {isCashExchange ? (
-                            <div className="mt-2">
-                                <p className="text-muted-foreground">Partner: {isSellerOrProvider ? marketItem.buyerName : marketItem.sellerName}</p>
-                                <p className="text-blue-500 font-medium mt-1">{marketItem.ambassadorMessage}</p>
-                                
-                                {/* Button for Poster to Confirm Completion */}
-                                {isSellerOrProvider && marketItem.appwriteStatus === 'meeting_scheduled' && (
-                                    <Button
-                                        size="sm"
-                                        onClick={() => handleCompleteCashExchange(marketItem.id)}
-                                        disabled={isUpdatingStatus}
-                                        className="w-full mt-2 bg-green-600 hover:bg-green-700 text-white"
-                                    >
-                                        {isUpdatingStatus ? <Loader2 className="h-3 w-3 animate-spin" /> : "Confirm Exchange Completed"}
-                                    </Button>
-                                )}
-                            </div>
-                        ) : (
-                            // Standard Market Transaction UI
-                            <>
-                                {marketItem.ambassadorDelivery && (
-                                <p className="text-muted-foreground flex items-center gap-1">
-                                    <Truck className="h-3 w-3" /> Ambassador Delivery Requested
-                                    {marketItem.ambassadorMessage && <span className="ml-1">({marketItem.ambassadorMessage})</span>}
-                                </p>
-                                )}
-                                {isSellerOrProvider ? (
-                                <>
-                                    <p className="text-muted-foreground">Buyer: {marketItem.buyerName || "N/A"}</p>
-                                    {marketItem.status === "Initiated (Awaiting Payment)" && (
-                                    <p className="text-yellow-500">Awaiting buyer payment confirmation to developer.</p>
-                                    )}
-                                    {marketItem.status === "Payment Confirmed (Processing)" && (
-                                    <p className="text-blue-500">Payment confirmed. Developer processing commission.</p>
-                                    )}
-                                    {marketItem.status === "Commission Deducted (Awaiting Seller Pay)" && (
-                                    <p className="text-orange-500">
-                                        Commission deducted. Awaiting payout: ₹{marketItem.netSellerAmount?.toFixed(2)}.
-                                    </p>
-                                    )}
-                                    {marketItem.status === "Seller Confirmed Delivery (Awaiting Payout)" && (
-                                    <p className="text-purple-500">
-                                        You confirmed delivery. Awaiting payout.
-                                    </p>
-                                    )}
-                                    
-                                    {/* Seller Action: Confirm Delivery */}
-                                    {marketItem.status === "Commission Deducted (Awaiting Seller Pay)" && (
-                                    <div className="flex justify-end mt-2">
-                                        <Button
-                                        size="sm"
-                                        onClick={() => handleMarkMarketItemDelivered(marketItem.id)}
-                                        disabled={isUpdatingStatus}
-                                        className="bg-green-500 text-white hover:bg-green-600 text-xs"
-                                        >
-                                        <CheckCircle className="h-3 w-3 mr-1" /> Mark as Delivered
-                                        </Button>
-                                    </div>
-                                    )}
-                                </>
-                                ) : (
-                                <p className="text-muted-foreground">Seller: {marketItem.sellerName || "N/A"}</p>
-                                )}
-                            </>
-                        )}
-                      </div>
-                    )}
+            <TabsContent value="history" className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                {historyItems.length > 0 ? (
+                    historyItems.map(item => <TrackingCard key={item.id} item={item} onAction={handleAction} />)
+                ) : (
+                    <div className="text-center py-12 border border-dashed border-border rounded-xl">
+                        <History className="h-10 w-10 text-muted-foreground mx-auto mb-2 opacity-50" />
+                        <p className="text-muted-foreground">No history yet.</p>
+                    </div>
+                )}
+            </TabsContent>
+        </Tabs>
 
-                    {/* --- Food Order Details --- */}
-                    {item.type === "Food Order" && (
-                      <div className="space-y-2 border-t border-border pt-2">
-                        <p className="text-xs text-muted-foreground">Total: <span className="font-semibold text-foreground">₹{item.totalAmount.toFixed(2)}</span></p>
-                        <p className="text-xs text-muted-foreground">Delivery to: {item.deliveryLocation}</p>
-                        
-                        {/* Provider Actions */}
-                        {isSellerOrProvider && item.orderStatus !== "Delivered" && item.orderStatus !== "Cancelled" && (
-                          <div className="flex justify-end">
-                            <Button
-                              size="sm"
-                              onClick={() => handleUpdateFoodOrderStatus(item.id, item.orderStatus)}
-                              disabled={isUpdatingStatus}
-                              className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs"
-                            >
-                              {item.orderStatus === "Pending Confirmation" && "Confirm Order"}
-                              {item.orderStatus === "Confirmed" && "Start Preparing"}
-                              {item.orderStatus === "Preparing" && "Mark Out for Delivery"}
-                              {item.orderStatus === "Out for Delivery" && "Awaiting Buyer Confirmation"}
-                            </Button>
-                          </div>
-                        )}
-
-                        {/* Buyer Actions */}
-                        {!isSellerOrProvider && item.orderStatus === "Out for Delivery" && (
-                          <div className="flex justify-end">
-                            <Button
-                              size="sm"
-                              onClick={() => handleConfirmDelivery(item.id)}
-                              disabled={isUpdatingStatus}
-                              className="bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 text-xs"
-                            >
-                              <CheckCircle className="h-3 w-3 mr-1" /> Confirm Delivery
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-center text-muted-foreground py-4">No activities to track yet.</p>
-            )}
-          </CardContent>
-        </Card>
       </div>
       <MadeWithDyad />
     </div>
