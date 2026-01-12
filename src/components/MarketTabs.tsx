@@ -5,7 +5,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProductListingCard from "@/components/ProductListingCard";
 import { Product } from "@/lib/mockData";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from '@/lib/utils';
 import { ShoppingBag, Tag, Clock, Gift, Dumbbell, Box, SearchX } from "lucide-react";
 
 // Helper function to filter products by type AND search query
@@ -21,13 +20,13 @@ const filterProducts = (products: Product[], type: Product['type'] | 'all', quer
     }
   }
 
-  // 2. Filter by Search Query (Title or Description)
+  // 2. Filter by Search Query
   if (query) {
     const q = query.toLowerCase();
     filtered = filtered.filter(p => 
       p.title.toLowerCase().includes(q) || 
       p.description.toLowerCase().includes(q) ||
-      p.category?.toLowerCase().includes(q)
+      (p.category && p.category.toLowerCase().includes(q))
     );
   }
 
@@ -53,7 +52,6 @@ const MarketTabs: React.FC<MarketTabsProps> = ({
 
   const items = filterProducts(products, activeTab, searchQuery);
 
-  // Tab Configuration
   const tabConfig = [
     { value: "all", label: "All Items", icon: ShoppingBag },
     { value: "sell", label: "For Sale", icon: Tag },
@@ -63,27 +61,21 @@ const MarketTabs: React.FC<MarketTabsProps> = ({
   ];
 
   const renderContent = () => {
-    // --- SKELETAL LOADING STATE ---
+    // LOADING
     if (isLoading) {
       return (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 py-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {[...Array(8)].map((_, i) => (
             <div key={i} className="flex flex-col space-y-3 bg-card border border-border/40 rounded-xl p-3 h-full">
-               {/* Image Placeholder */}
                <Skeleton className="h-32 w-full rounded-lg bg-muted/50" />
-               
                <div className="space-y-2 px-1">
-                 {/* Title Placeholder */}
                  <Skeleton className="h-4 w-3/4 rounded bg-muted/60" />
-                 {/* Description Placeholder */}
                  <Skeleton className="h-3 w-full rounded bg-muted/40" />
                  <Skeleton className="h-3 w-1/2 rounded bg-muted/40" />
                </div>
-
-               {/* Footer Placeholder */}
                <div className="mt-auto pt-2 flex justify-between items-center px-1">
-                  <Skeleton className="h-4 w-16 rounded bg-muted/50" /> {/* Price */}
-                  <Skeleton className="h-8 w-20 rounded bg-muted/50" /> {/* Button */}
+                  <Skeleton className="h-4 w-16 rounded bg-muted/50" />
+                  <Skeleton className="h-8 w-20 rounded bg-muted/50" />
                </div>
             </div>
           ))}
@@ -91,7 +83,7 @@ const MarketTabs: React.FC<MarketTabsProps> = ({
       );
     }
     
-    // --- ERROR STATE ---
+    // ERROR
     if (error) {
         return (
             <div className="flex flex-col items-center justify-center py-12 text-destructive bg-destructive/5 rounded-xl border border-destructive/20">
@@ -101,7 +93,7 @@ const MarketTabs: React.FC<MarketTabsProps> = ({
         );
     }
 
-    // --- EMPTY STATE ---
+    // EMPTY (No Listings)
     if (items.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -112,13 +104,13 @@ const MarketTabs: React.FC<MarketTabsProps> = ({
                 {searchQuery ? `No results for "${searchQuery}"` : "No listings found"}
             </h3>
             <p className="text-sm text-muted-foreground max-w-xs mt-1">
-                {searchQuery ? "Try checking your spelling or use different keywords." : "There are no items in this category yet. Be the first to list something!"}
+                {searchQuery ? "Try checking your spelling or use different keywords." : "This category is currently empty. Be the first to list something!"}
             </p>
         </div>
       );
     }
 
-    // --- LISTINGS GRID ---
+    // LISTINGS GRID
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 py-2 animate-in fade-in zoom-in-95 duration-300">
         {items.map((product) => (
@@ -130,19 +122,20 @@ const MarketTabs: React.FC<MarketTabsProps> = ({
 
   return (
     <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Product['type'] | 'all')} className="w-full space-y-6">
-      
-      {/* Scrollable Tab List */}
       <TabsList className="flex w-full justify-start overflow-x-auto bg-transparent p-0 gap-2 scrollbar-hide">
-        {tabConfig.map((tab) => (
-            <TabsTrigger 
-                key={tab.value} 
-                value={tab.value} 
-                className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-border bg-card data-[state=active]:bg-secondary-neon data-[state=active]:text-primary-foreground data-[state=active]:border-secondary-neon data-[state=active]:shadow-md transition-all duration-300 min-w-max hover:bg-muted"
-            >
-                <tab.icon className="h-4 w-4" />
-                <span className="text-xs font-bold">{tab.label}</span>
-            </TabsTrigger>
-        ))}
+        {tabConfig.map((tab) => {
+            const Icon = tab.icon;
+            return (
+                <TabsTrigger 
+                    key={tab.value} 
+                    value={tab.value} 
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-border bg-card data-[state=active]:bg-secondary-neon data-[state=active]:text-primary-foreground data-[state=active]:border-secondary-neon data-[state=active]:shadow-md transition-all duration-300 min-w-max hover:bg-muted"
+                >
+                    <Icon className="h-4 w-4" />
+                    <span className="text-xs font-bold">{tab.label}</span>
+                </TabsTrigger>
+            );
+        })}
       </TabsList>
       
       <TabsContent value={activeTab} className="mt-0 min-h-[300px]">
