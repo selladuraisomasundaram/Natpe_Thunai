@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import CashExchangeListings from "@/components/CashExchangeListings";
 import DeletionInfoMessage from "@/components/DeletionInfoMessage";
 
+// FIX: Added 'posterId' to the interface to match 'Listing' type
 interface CashExchangeRequest extends Models.Document {
   type: "request" | "offer" | "group-contribution";
   amount: number;
@@ -30,6 +31,7 @@ interface CashExchangeRequest extends Models.Document {
   meetingTime: string;
   isUrgent: boolean;
   posterName: string;
+  posterId: string; 
   collegeName: string;
 }
 
@@ -105,9 +107,10 @@ const CashExchangePage = () => {
   };
 
   const getFilteredListings = (tab: string) => {
-    if (tab === "need_cash") return exchangeRequests.filter(r => r.type === "request");
-    if (tab === "have_cash") return exchangeRequests.filter(r => r.type === "offer");
-    return exchangeRequests.filter(r => r.type === "group-contribution");
+    // Cast to 'any' here if the Component expects strict 'Listing' type but data structure matches
+    if (tab === "need_cash") return exchangeRequests.filter(r => r.type === "request") as any;
+    if (tab === "have_cash") return exchangeRequests.filter(r => r.type === "offer") as any;
+    return exchangeRequests.filter(r => r.type === "group-contribution") as any;
   };
 
   return (
