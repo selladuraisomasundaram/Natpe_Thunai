@@ -12,7 +12,6 @@ import { DollarSign, Handshake, PlusCircle, Users, Loader2, Info, ArrowRightLeft
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_CASH_EXCHANGE_COLLECTION_ID } from "@/lib/appwrite";
 import { ID, Models, Query } from "appwrite";
@@ -21,7 +20,7 @@ import { cn } from "@/lib/utils";
 import CashExchangeListings from "@/components/CashExchangeListings";
 import DeletionInfoMessage from "@/components/DeletionInfoMessage";
 
-// FIX: Added 'posterId' to the interface to match 'Listing' type
+// Interface matching the CashExchangeListings component
 interface CashExchangeRequest extends Models.Document {
   type: "request" | "offer" | "group-contribution";
   amount: number;
@@ -50,9 +49,6 @@ const CashExchangePage = () => {
   const [time, setTime] = useState("");
   const [isUrgent, setIsUrgent] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
-
-  // Common Campus Locations
-  const SAFE_SPOTS = ["Main Canteen", "Library Entrance", "Admin Block", "Hostel Gate", "Coffee Shop", "Sports Ground"];
 
   useEffect(() => { window.scrollTo(0, 0); }, []);
 
@@ -107,7 +103,7 @@ const CashExchangePage = () => {
   };
 
   const getFilteredListings = (tab: string) => {
-    // Cast to 'any' here if the Component expects strict 'Listing' type but data structure matches
+    // Cast to 'any' to bypass strict type check if component props vary slightly, though interface now matches.
     if (tab === "need_cash") return exchangeRequests.filter(r => r.type === "request") as any;
     if (tab === "have_cash") return exchangeRequests.filter(r => r.type === "offer") as any;
     return exchangeRequests.filter(r => r.type === "group-contribution") as any;
@@ -220,15 +216,17 @@ const CashExchangePage = () => {
 
                     <div className="space-y-2">
                         <Label>Safe Meeting Spot</Label>
-                        <Select value={location} onValueChange={setLocation}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a public location" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {SAFE_SPOTS.map(spot => <SelectItem key={spot} value={spot}>{spot}</SelectItem>)}
-                                <SelectItem value="other">Other (Public Spot)</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <div className="relative">
+                            <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input 
+                                type="text"
+                                placeholder="e.g. Main Canteen, Block A Entrance" 
+                                className="pl-9"
+                                value={location} 
+                                onChange={(e) => setLocation(e.target.value)} 
+                            />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">Please choose a public area on campus.</p>
                     </div>
 
                     <div className="space-y-2">
