@@ -1,22 +1,22 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { RefreshCw, Utensils, Plus, Trash2, Loader2, Store, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { RefreshCw, Utensils, Plus, Trash2, Loader2, Store, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AddCanteenForm from "./forms/AddCanteenForm";
 import { useCanteenData } from "@/hooks/useCanteenData"; 
+import { useAuth } from "@/context/AuthContext"; // 1. Import Auth
 import { cn } from "@/lib/utils";
 
-// 
-
 const CanteenManagerWidget = () => {
+  const { userProfile } = useAuth(); // 2. Get User Profile
   const { allCanteens, isLoading, error, refetch, updateCanteen, addCanteen } = useCanteenData();
   
   const [selectedCanteenId, setSelectedCanteenId] = useState<string | null>(null);
@@ -37,16 +37,24 @@ const CanteenManagerWidget = () => {
   }, [allCanteens, selectedCanteenId]);
 
   const handleAddCanteen = async (canteenName: string) => {
+    if (!userProfile?.collegeName) {
+        toast.error("User profile not loaded. Cannot add canteen.");
+        return;
+    }
+
     setIsAddingCanteen(true);
     try {
-      const newCanteen = await addCanteen(canteenName);
+      // 3. FIX: Pass collegeName as the second argument
+      const newCanteen = await addCanteen(canteenName, userProfile.collegeName);
+      
       if (newCanteen) {
         toast.success(`"${canteenName}" is ready for business!`);
         setSelectedCanteenId(newCanteen.$id);
       }
       setIsAddCanteenDialogOpen(false);
     } catch (e) {
-      // Error handled in hook
+      console.error(e);
+      toast.error("Failed to create canteen");
     } finally {
       setIsAddingCanteen(false);
     }
@@ -59,7 +67,7 @@ const CanteenManagerWidget = () => {
       await updateCanteen(selectedCanteenId, { isOpen: checked });
       toast.success(checked ? "We are open! Students can now order." : "Outlet closed. Orders paused.");
     } catch (e) {
-      // Error handled in hook
+      console.error(e);
     } finally {
       setIsUpdating(false);
     }
@@ -73,9 +81,8 @@ const CanteenManagerWidget = () => {
         i === index ? { ...item, available: !item.available } : item
       );
       await updateCanteen(selectedCanteenId, { items: newItems });
-      // No toast needed for quick toggles to keep UI clean, or use a subtle one
     } catch (e) {
-      // Error handled in hook
+      console.error(e);
     } finally {
       setIsUpdating(false);
     }
@@ -95,7 +102,7 @@ const CanteenManagerWidget = () => {
       setNewItemName("");
       setIsAddingItem(false);
     } catch (e) {
-      // Error handled in hook
+      console.error(e);
     } finally {
       setIsUpdating(false);
     }
@@ -109,7 +116,7 @@ const CanteenManagerWidget = () => {
       await updateCanteen(selectedCanteenId, { items: newItems });
       toast.info("Item removed from menu.");
     } catch (e) {
-      // Error handled in hook
+      console.error(e);
     } finally {
       setIsUpdating(false);
     }
@@ -295,7 +302,7 @@ const CanteenManagerWidget = () => {
                     ))
                   ) : (
                     <div className="text-center py-10 border-2 border-dashed border-border rounded-xl">
-                      <Clock className="h-10 w-10 text-muted-foreground mx-auto mb-2 opacity-50" />
+                      <Utensils className="h-10 w-10 text-muted-foreground mx-auto mb-2 opacity-50" />
                       <p className="text-muted-foreground font-medium">Menu is empty</p>
                       <p className="text-xs text-muted-foreground/70">Add items to start selling.</p>
                     </div>
