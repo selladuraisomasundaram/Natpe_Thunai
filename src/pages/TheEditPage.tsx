@@ -261,6 +261,7 @@ const TheEditPage = () => {
         </div>
       )}
       <MadeWithDyad />
+      <p className="text-xs text-center text-red-500 mt-4">Version: Mobile Fix 2.0</p>
     </div>
   );
 };
