@@ -9,9 +9,8 @@ module.exports = async function ({ req, res, log, error }) {
 
   const databases = new sdk.Databases(client);
   const APPWRITE_DATABASE_ID = process.env.APPWRITE_DATABASE_ID;
-  const APPWRITE_PRODUCTS_COLLECTION_ID = 'affiliate_listings'; // Ensure this ID is correct
+  const APPWRITE_PRODUCTS_COLLECTION_ID = 'affiliate_listings'; 
 
-  // 2. Validate Request
   if (req.method !== 'POST') {
     return res.json({ success: false, error: 'Method must be POST' }, 400);
   }
@@ -19,44 +18,50 @@ module.exports = async function ({ req, res, log, error }) {
   try {
     const payload = JSON.parse(req.body);
     const listingId = payload.listingId;
-    const pubId = process.env.CUELINKS_PUB_ID; // Your Cuelinks ID
+    const pubId = process.env.CUELINKS_PUB_ID; 
 
     if (!listingId) throw new Error("Missing listingId");
-    if (!pubId) throw new Error("Server Misconfiguration: Missing CUELINKS_PUB_ID");
+    if (!pubId) throw new Error("Missing CUELINKS_PUB_ID env variable");
 
-    // 3. Fetch the Original URL from Database
+    // 2. Fetch Original URL
     const product = await databases.getDocument(
       APPWRITE_DATABASE_ID,
       APPWRITE_PRODUCTS_COLLECTION_ID,
       listingId
     );
 
-    const originalUrl = product.original_url; // Ensure your DB column is named 'original_url'
+    let rawUrl = product.original_url;
 
-    if (!originalUrl) {
-      throw new Error(`Product ${listingId} has no original_url field.`);
+    if (!rawUrl) {
+      throw new Error(`Product ${listingId} has empty original_url in DB.`);
     }
 
-    // 4. Generate Deep Link (The Fix)
-    // We use the direct Cuelinks redirection format. 
-    // This is robust: It tells Cuelinks "Send the user HERE".
-    // Important: We MUST encodeURIComponent the URL.
-    const encodedUrl = encodeURIComponent(originalUrl);
-    
-    // Format: https://links.cuelinks.com/cu/{PUB_ID}?url={ENCODED_URL}
-    // This format supports Universal Links (Mobile Apps)
+    // --- FIX: URL CLEANING & VALIDATION ---
+    // 1. Remove accidental spaces
+    rawUrl = rawUrl.trim();
+
+    // 2. Add https:// if missing
+    if (!/^https?:\/\//i.test(rawUrl)) {
+      rawUrl = 'https://' + rawUrl;
+      log(`Auto-fixed URL to: ${rawUrl}`);
+    }
+
+    // 3. Validate it is a real URL (throws error if invalid)
+    new URL(rawUrl); 
+
+    // 3. Generate Deep Link
+    const encodedUrl = encodeURIComponent(rawUrl);
     const affiliateUrl = `https://links.cuelinks.com/cu/${pubId}?url=${encodedUrl}`;
 
-    log(`Generated for ${listingId}: ${affiliateUrl}`);
+    log(`Success: ${affiliateUrl}`);
 
-    // 5. Return Success
     return res.json({
       success: true,
       cueLink: affiliateUrl
     });
 
   } catch (err) {
-    error("Error generating link: " + err.message);
-    return res.json({ success: false, error: err.message }, 500);
+    error("Error: " + err.message);
+    return res.json({ success: false, error: "Invalid URL in database: " + err.message }, 500);
   }
 };
