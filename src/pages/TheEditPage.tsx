@@ -12,7 +12,7 @@ import { databases, functions, APPWRITE_DATABASE_ID } from "@/lib/appwrite";
 
 // --- CONFIGURATION ---
 const COLLECTION_ID = "affiliate_listings";
-const FUNCTION_ID = "6953da45001e5ab7ad94";
+const FUNCTION_ID = "generate_cuelink"; // Ensure this matches your Function ID
 
 interface Deal {
   $id: string;
@@ -40,7 +40,6 @@ const TheEditPage = () => {
         setDeals(response.documents as unknown as Deal[]);
       } catch (error: any) {
         console.error("Appwrite Error:", error);
-        toast.error("Failed to load deals.");
       } finally {
         setLoading(false);
       }
@@ -56,8 +55,9 @@ const TheEditPage = () => {
   const handleLootClick = async (listingId: string) => {
     if (!userProfile?.$id) return toast.error("Please login to access deals.");
     
-    // 1. OPEN WINDOW IMMEDIATELY (Bypass Popup Blocker)
-    // We inject a nice loading spinner so the user knows something is happening.
+    // 1. OPEN POPUP IMMEDIATELY
+    // This creates the window context *during* the click event, bypassing popup blockers.
+    // We display a loading state inside the new tab.
     const newWindow = window.open("", "_blank");
     
     if (newWindow) {
@@ -65,19 +65,20 @@ const TheEditPage = () => {
             <!DOCTYPE html>
             <html>
             <head>
-                <title>Generating Link...</title>
+                <title>Redirecting to Deal...</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>
-                    body { background-color: #09090b; color: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: system-ui, -apple-system, sans-serif; margin: 0; }
-                    .loader { border: 4px solid #333; border-top: 4px solid #10b981; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+                    body { background-color: #000; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: -apple-system, system-ui, sans-serif; }
+                    .spinner { width: 40px; height: 40px; border: 4px solid #333; border-top: 4px solid #10b981; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
                     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-                    h2 { font-weight: 600; letter-spacing: -0.5px; }
-                    p { color: #888; font-size: 14px; }
+                    h2 { font-weight: 600; margin: 0 0 10px 0; }
+                    p { color: #888; font-size: 14px; margin: 0; text-align: center; padding: 0 20px; }
                 </style>
             </head>
             <body>
-                <div class="loader"></div>
-                <h2>Securing your loot...</h2>
-                <p>Please wait while we generate your unique link.</p>
+                <div class="spinner"></div>
+                <h2>Securing Deal</h2>
+                <p>Opening app or website...</p>
             </body>
             </html>
         `);
@@ -97,58 +98,45 @@ const TheEditPage = () => {
         ExecutionMethod.POST          
       );
       
-      const responseBody = result.responseBody;
       let data;
-      
       try {
-          data = JSON.parse(responseBody);
+          data = JSON.parse(result.responseBody);
       } catch (e) {
           if (newWindow) newWindow.close();
-          throw new Error("Invalid response from server");
+          throw new Error("Invalid server response");
       }
       
-      if (result.responseStatusCode >= 400) {
+      if (!data.success || !data.cueLink) {
           if (newWindow) newWindow.close();
-          throw new Error(data.error || "Function execution failed");
+          throw new Error(data.error || "Link generation failed");
       }
 
-      // Check all possible casing for the link
-      const finalLink = data.cueLink || data.cuelink || data.url || data.link;
+      // 2. PERFORM REDIRECT
+      if (newWindow) {
+        // A. Primary Redirect (Javascript)
+        newWindow.location.href = data.cueLink;
 
-      if (finalLink && newWindow) {
-        // 2. ROBUST REDIRECT STRATEGY
-        // A. Try direct assignment (Fastest)
-        newWindow.location.href = finalLink;
-
-        // B. Fallback: If browser blocked the redirect, show a button (Safety Net)
-        // We overwrite the loading screen with a "Success" screen containing the link.
-        newWindow.document.body.innerHTML = `
-            <style>
-                body { background-color: #09090b; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; text-align: center; }
-                .btn { background-color: #10b981; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; transition: opacity 0.2s; margin-top: 20px; display: inline-block; }
-                .btn:hover { opacity: 0.9; }
-                h2 { margin-bottom: 10px; }
-            </style>
-            <h2>Link Ready!</h2>
-            <p>If you weren't redirected automatically, click below:</p>
-            <a href="${finalLink}" class="btn">Go to Deal &rarr;</a>
-            <script>
-                // Try one more JS redirect just in case
-                window.location.replace("${finalLink}");
-            </script>
-        `;
-        
-        toast.success("Redirecting to loot!");
-      } else {
-        if (newWindow) newWindow.close();
-        console.error("SERVER RESPONSE:", data); 
-        toast.error("Link generated but URL is missing."); 
+        // B. Fallback UI (In case redirect is slow or blocked)
+        // We inject a clickable button into the popup just in case.
+        setTimeout(() => {
+            if (newWindow && !newWindow.closed) {
+                newWindow.document.body.innerHTML = `
+                    <style>
+                        body { background-color: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+                        .btn { background: #10b981; color: #000; padding: 15px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 20px; font-size: 18px; }
+                    </style>
+                    <h2>Almost there...</h2>
+                    <p>If the deal didn't open automatically:</p>
+                    <a href="${data.cueLink}" class="btn">Click Here to Open Deal</a>
+                `;
+            }
+        }, 1500);
       }
 
     } catch (err: any) {
       if (newWindow) newWindow.close();
       console.error("Execution Error:", err);
-      toast.error(err.message || "Failed to generate link");
+      toast.error("Failed to open deal. Please try again.");
     } finally {
       setActiveGen(null);
     }
@@ -171,7 +159,7 @@ const TheEditPage = () => {
 
       {deals.length === 0 ? (
         <div className="text-center p-10 border border-dashed rounded-lg border-border">
-          <p className="text-muted-foreground">No deals found today.</p>
+          <p className="text-muted-foreground">No deals found.</p>
         </div>
       ) : (
         <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -181,13 +169,13 @@ const TheEditPage = () => {
                 <div className="h-48 w-full bg-muted relative">
                   <img src={deal.image_url} alt={deal.title} className="w-full h-full object-cover transition-transform hover:scale-105 duration-500" />
                   <div className="absolute top-2 right-2 bg-black/80 text-secondary-neon text-[10px] font-bold px-2 py-1 rounded backdrop-blur-sm">
-                    {deal.brand || "EXCLUSIVE"}
+                    {deal.brand || "LOOT"}
                   </div>
                 </div>
               )}
               <CardHeader>
                 <CardTitle className="text-lg leading-tight">{deal.title}</CardTitle>
-                {deal.category && <p className="text-xs text-secondary-neon uppercase font-bold tracking-wide">{deal.category}</p>}
+                {deal.category && <p className="text-xs text-secondary-neon uppercase font-bold">{deal.category}</p>}
               </CardHeader>
               <CardContent className="flex-grow flex flex-col justify-between">
                 <p className="text-sm text-muted-foreground mb-6 line-clamp-3">{deal.description}</p>
@@ -197,7 +185,7 @@ const TheEditPage = () => {
                   className="w-full bg-foreground text-background hover:bg-secondary-neon hover:text-black font-bold transition-all"
                 >
                   {activeGen === deal.$id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShoppingCart className="h-4 w-4 mr-2" />}
-                  {activeGen === deal.$id ? "Generating..." : "Get Loot"}
+                  {activeGen === deal.$id ? "Opening..." : "Get Loot"}
                 </Button>
               </CardContent>
             </Card>
