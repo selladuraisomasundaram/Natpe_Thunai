@@ -6,19 +6,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { Loader2, ShoppingCart, Sparkles } from "lucide-react";
+import { Loader2, ShoppingCart, Sparkles, ExternalLink } from "lucide-react"; // Added ExternalLink icon
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { databases, functions, APPWRITE_DATABASE_ID } from "@/lib/appwrite"; 
 
 // --- CONFIGURATION ---
 const COLLECTION_ID = "affiliate_listings";
-const FUNCTION_ID = "6953da45001e5ab7ad94"; // Your Generate Cuelink Function ID
+const FUNCTION_ID = "YOUR_FUNCTION_ID"; // <--- Replace with your actual Function ID
 
 interface Deal {
   $id: string;
   title: string;
   description: string;
-  original_url: string;
+  // We support multiple casing variations to be safe
+  originalURL?: string; 
+  originalurl?: string;
   image_url?: string;
   brand?: string;
   category?: string;
@@ -28,9 +30,11 @@ const TheEditPage = () => {
   const { userProfile } = useAuth();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Track which deal is loading, and which is ready
   const [activeGen, setActiveGen] = useState<string | null>(null);
+  const [readyLinks, setReadyLinks] = useState<Record<string, string>>({});
 
-  // --- 1. FETCH DEALS ---
   useEffect(() => {
     const fetchListings = async () => {
       try {
@@ -41,7 +45,6 @@ const TheEditPage = () => {
         setDeals(response.documents as unknown as Deal[]);
       } catch (error: any) {
         console.error("Appwrite Error:", error);
-        toast.error("Failed to load deals.");
       } finally {
         setLoading(false);
       }
@@ -54,41 +57,55 @@ const TheEditPage = () => {
     }
   }, []);
 
-  // --- 2. HANDLE CLICK (GENERATE & REDIRECT) ---
+  // --- MOBILE DEEP LINK TRIGGER ---
+  const triggerDeepLink = (url: string) => {
+    // 1. Create an invisible anchor tag
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = "_self"; // Keep in same tab to allow app interception
+    link.rel = "noopener noreferrer";
+    link.style.display = 'none';
+    
+    // 2. Add to body, click it, then remove it
+    document.body.appendChild(link);
+    link.click(); // This simulates a real user click
+    
+    setTimeout(() => {
+        if (document.body.contains(link)) {
+            document.body.removeChild(link);
+        }
+    }, 500);
+  };
+
   const handleLootClick = async (listingId: string) => {
+    // Check if we already generated this link (Avoid re-fetching)
+    if (readyLinks[listingId]) {
+        triggerDeepLink(readyLinks[listingId]);
+        return;
+    }
+
     if (!userProfile?.$id) return toast.error("Please login to access deals.");
     
-    // A. OPEN POPUP IMMEDIATELY (Bypass Blocker)
-    const newWindow = window.open("", "_blank");
-    
-    if (newWindow) {
-        newWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Redirecting to Deal...</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <style>
-                    body { background-color: #000; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: -apple-system, system-ui, sans-serif; }
-                    .spinner { width: 40px; height: 40px; border: 4px solid #333; border-top: 4px solid #10b981; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
-                    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-                    h2 { font-weight: 600; margin: 0 0 10px 0; }
-                    p { color: #888; font-size: 14px; margin: 0; text-align: center; padding: 0 20px; }
-                </style>
-            </head>
-            <body>
-                <div class="spinner"></div>
-                <h2>Securing Deal</h2>
-                <p>Opening app or website...</p>
-            </body>
-            </html>
-        `);
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    let newWindow: Window | null = null;
+
+    // DESKTOP: Open new tab immediately (Anti-popup blocker)
+    if (!isMobile) {
+        newWindow = window.open("", "_blank");
+        if (newWindow) {
+            newWindow.document.write(`
+                <html><body style="background:#09090b;color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;">
+                <div style="border:4px solid #333;border-top:4px solid #10b981;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin-bottom:20px;"></div>
+                <h2 style="margin:0;">Securing Deal...</h2>
+                <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+                </body></html>
+            `);
+        }
     }
 
     setActiveGen(listingId);
 
     try {
-      // B. CALL BACKEND FUNCTION
       const result = await functions.createExecution(
         FUNCTION_ID,                  
         JSON.stringify({              
@@ -105,48 +122,43 @@ const TheEditPage = () => {
           data = JSON.parse(result.responseBody);
       } catch (e) {
           if (newWindow) newWindow.close();
-          throw new Error("Invalid server response (Not JSON)");
+          throw new Error("Invalid server response");
       }
       
-      // Check for backend errors (Status 400/500)
-      if (result.responseStatusCode >= 400 || !data.success) {
+      if (!data.success || !data.cueLink) {
           if (newWindow) newWindow.close();
-          // This ensures the backend error message (e.g. "Missing ID") is thrown
           throw new Error(data.error || "Link generation failed");
       }
 
-      // C. GET LINK & REDIRECT
-      const finalLink = data.cueLink || data.cuelink || data.url;
+      const finalLink = data.cueLink;
+      
+      // Save link so we don't fetch again if clicked twice
+      setReadyLinks(prev => ({ ...prev, [listingId]: finalLink }));
 
-      if (finalLink && newWindow) {
-        // Try JS Redirect
-        newWindow.location.href = finalLink;
+      if (isMobile) {
+          // --- MOBILE APP OPENING LOGIC ---
+          toast.success("Opening App...");
+          
+          // Use the "Anchor Injection" method
+          triggerDeepLink(finalLink);
+          
+          // Fallback: If the app doesn't open in 2 seconds, redirect normally
+          setTimeout(() => {
+             window.location.href = finalLink;
+          }, 1500);
 
-        // Fallback Button (in case JS redirect is blocked or slow)
-        setTimeout(() => {
-            if (newWindow && !newWindow.closed) {
-                newWindow.document.body.innerHTML = `
-                    <style>
-                        body { background-color: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-                        .btn { background: #10b981; color: #000; padding: 15px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 20px; font-size: 18px; }
-                    </style>
-                    <h2>Almost there...</h2>
-                    <p>If the deal didn't open automatically:</p>
-                    <a href="${finalLink}" class="btn">Click Here to Open Deal</a>
-                `;
-            }
-        }, 1500);
       } else {
-        if (newWindow) newWindow.close();
-        throw new Error("Link generated but URL is empty.");
+          // --- DESKTOP LOGIC ---
+          if (newWindow) {
+              newWindow.location.href = finalLink;
+          } else {
+              window.open(finalLink, "_blank");
+          }
       }
 
     } catch (err: any) {
       if (newWindow) newWindow.close();
       console.error("Execution Error:", err);
-      
-      // --- UPDATED CATCH BLOCK ---
-      // This will now show the exact error from the backend (e.g. "DB Error", "Invalid URL")
       toast.error(`Error: ${err.message || "Failed to open deal"}`);
     } finally {
       setActiveGen(null);
@@ -193,10 +205,28 @@ const TheEditPage = () => {
                 <Button 
                   onClick={() => handleLootClick(deal.$id)}
                   disabled={activeGen === deal.$id}
-                  className="w-full bg-foreground text-background hover:bg-secondary-neon hover:text-black font-bold transition-all"
+                  className={`w-full font-bold transition-all ${
+                    readyLinks[deal.$id] 
+                        ? "bg-green-500 hover:bg-green-600 text-white" 
+                        : "bg-foreground text-background hover:bg-secondary-neon hover:text-black"
+                  }`}
                 >
-                  {activeGen === deal.$id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShoppingCart className="h-4 w-4 mr-2" />}
-                  {activeGen === deal.$id ? "Opening..." : "Get Loot"}
+                  {activeGen === deal.$id ? (
+                    <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" /> 
+                        Fetching...
+                    </>
+                  ) : readyLinks[deal.$id] ? (
+                    <>
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Open Again
+                    </>
+                  ) : (
+                    <>
+                        <ShoppingCart className="h-4 w-4 mr-2" /> 
+                        Get Loot
+                    </>
+                  )}
                 </Button>
               </CardContent>
             </Card>
