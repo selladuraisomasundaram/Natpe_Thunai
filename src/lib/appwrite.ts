@@ -4,7 +4,7 @@ import { Client, Databases, Account, Storage, Functions } from 'appwrite';
 
 // --- Environment Variables ---
 export const APPWRITE_PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID || 'YOUR_APPWRITE_PROJECT_ID';
-export const APPWRITE_ENDPOINT = import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1'; 
+export const APPWRITE_ENDPOINT = 'https://cloud.appwrite.io/v1'; 
 export const APPWRITE_DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID || 'YOUR_APPWRITE_DATABASE_ID';
 
 // --- Collection IDs ---
