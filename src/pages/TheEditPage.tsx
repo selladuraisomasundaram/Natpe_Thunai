@@ -120,7 +120,7 @@ const TheEditPage = () => {
   };
 
   const handleLootClick = async (listingId: string) => {
-    toast.info(`Debug: Using Function ID: ${FUNCTION_ID}`);
+    toast.info(`Redirecting to the affiliate market...`);
     if (readyLinks[listingId]) {
         openLinkSafely(readyLinks[listingId]);
         return;
