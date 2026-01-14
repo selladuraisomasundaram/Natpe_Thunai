@@ -29,10 +29,7 @@ module.exports = async function ({ req, res, log, error }) {
     const product = response.documents[0];
 
     // Smart Search for the URL field
-    let rawUrl = product.originalURL || 
-                 product.originalurl || 
-                 product.original_url || 
-                 product.url;
+    let rawUrl = product.originalUrl;
 
     if (!rawUrl) throw new Error(`Product found, but URL attribute is missing.`);
 
