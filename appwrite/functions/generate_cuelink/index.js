@@ -15,9 +15,8 @@ module.exports = async function ({ req, res, log, error }) {
   try {
     const payload = JSON.parse(req.body);
     const listingId = payload.listingId;
-    const pubId = process.env.CUELINKS_PUB_ID;
+    const pubId = process.env.CUELINKS_PUB_ID; // Your ID: 256625
 
-    // Use listDocuments to avoid Node 18 compatibility bugs
     const response = await databases.listDocuments(
         DATABASE_ID,
         COLLECTION_ID,
@@ -28,21 +27,21 @@ module.exports = async function ({ req, res, log, error }) {
 
     const product = response.documents[0];
 
-    // Smart Search for the URL field
+    // Smart Attribute Search
     let rawUrl = product.originalUrl;
 
-    if (!rawUrl) throw new Error(`Product found, but URL attribute is missing.`);
+    if (!rawUrl) throw new Error(`Product found, but URL is missing.`);
 
-    // Clean URL
     rawUrl = rawUrl.trim();
     if (!/^https?:\/\//i.test(rawUrl)) rawUrl = 'https://' + rawUrl;
 
     const encodedUrl = encodeURIComponent(rawUrl);
 
-    // --- FIX IS HERE ---
-    // OLD (BROKEN): https://links.cuelinks.com/cu/...
-    // NEW (CORRECT): https://www.cuelinks.com/links?pub_id=...&url=...
-    const affiliateUrl = `https://www.cuelinks.com/links?pub_id=${pubId}&url=${encodedUrl}`;
+    // --- CRITICAL FIX ---
+    // Use the official redirect domain with 'source=linkkit' to ensure attribution.
+    // We use 'pub_id' (common) but sometimes Cuelinks uses 'cid'. 
+    // Try this format first:
+    const affiliateUrl = `https://linksredirect.com/?cid=${pubId}&source=linkkit&url=${encodedUrl}`;
 
     return res.json({ success: true, cueLink: affiliateUrl });
 
