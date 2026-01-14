@@ -56,15 +56,29 @@ const TheEditPage = () => {
   const handleLootClick = async (listingId: string) => {
     if (!userProfile?.$id) return toast.error("Please login to access deals.");
     
-    // 1. OPEN WINDOW IMMEDIATELY (Bypasses Popup Blocker)
-    // We open a blank tab first, then fill it with the URL later.
+    // 1. OPEN WINDOW IMMEDIATELY (Bypass Popup Blocker)
+    // We inject a nice loading spinner so the user knows something is happening.
     const newWindow = window.open("", "_blank");
+    
     if (newWindow) {
         newWindow.document.write(`
+            <!DOCTYPE html>
             <html>
-                <body style="background-color: #000; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif;">
-                    <h2>Generating your loot link... please wait...</h2>
-                </body>
+            <head>
+                <title>Generating Link...</title>
+                <style>
+                    body { background-color: #09090b; color: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: system-ui, -apple-system, sans-serif; margin: 0; }
+                    .loader { border: 4px solid #333; border-top: 4px solid #10b981; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+                    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                    h2 { font-weight: 600; letter-spacing: -0.5px; }
+                    p { color: #888; font-size: 14px; }
+                </style>
+            </head>
+            <body>
+                <div class="loader"></div>
+                <h2>Securing your loot...</h2>
+                <p>Please wait while we generate your unique link.</p>
+            </body>
             </html>
         `);
     }
@@ -84,12 +98,12 @@ const TheEditPage = () => {
       );
       
       const responseBody = result.responseBody;
-      
       let data;
+      
       try {
           data = JSON.parse(responseBody);
       } catch (e) {
-          if (newWindow) newWindow.close(); // Close if error
+          if (newWindow) newWindow.close();
           throw new Error("Invalid response from server");
       }
       
@@ -98,17 +112,32 @@ const TheEditPage = () => {
           throw new Error(data.error || "Function execution failed");
       }
 
-      // FIX: Check for 'cueLink' (camelCase) to match backend
-      const finalLink = data.cueLink || data.cuelink || data.url;
+      // Check all possible casing for the link
+      const finalLink = data.cueLink || data.cuelink || data.url || data.link;
 
-      if (finalLink) {
-        // 2. REDIRECT THE OPENED WINDOW
-        if (newWindow) {
-            newWindow.location.href = finalLink;
-        } else {
-            // Fallback if popup was totally blocked (rare with the trick above)
-            window.location.href = finalLink; 
-        }
+      if (finalLink && newWindow) {
+        // 2. ROBUST REDIRECT STRATEGY
+        // A. Try direct assignment (Fastest)
+        newWindow.location.href = finalLink;
+
+        // B. Fallback: If browser blocked the redirect, show a button (Safety Net)
+        // We overwrite the loading screen with a "Success" screen containing the link.
+        newWindow.document.body.innerHTML = `
+            <style>
+                body { background-color: #09090b; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; text-align: center; }
+                .btn { background-color: #10b981; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; transition: opacity 0.2s; margin-top: 20px; display: inline-block; }
+                .btn:hover { opacity: 0.9; }
+                h2 { margin-bottom: 10px; }
+            </style>
+            <h2>Link Ready!</h2>
+            <p>If you weren't redirected automatically, click below:</p>
+            <a href="${finalLink}" class="btn">Go to Deal &rarr;</a>
+            <script>
+                // Try one more JS redirect just in case
+                window.location.replace("${finalLink}");
+            </script>
+        `;
+        
         toast.success("Redirecting to loot!");
       } else {
         if (newWindow) newWindow.close();
