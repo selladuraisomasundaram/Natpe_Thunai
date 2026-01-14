@@ -120,6 +120,7 @@ const TheEditPage = () => {
   };
 
   const handleLootClick = async (listingId: string) => {
+    toast.info(`Debug: Using Function ID: ${FUNCTION_ID}`);
     if (readyLinks[listingId]) {
         openLinkSafely(readyLinks[listingId]);
         return;
