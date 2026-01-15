@@ -3,11 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2, DollarSign } from "lucide-react";
-
-// --- FIX 1: Import ID directly from 'appwrite' to avoid import errors ---
-import { ID } from "appwrite"; 
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_REGISTRATIONS_COLLECTION_ID } from "@/lib/appwrite";
+import { Loader2, DollarSign, ExternalLink } from "lucide-react";
 
 interface Player {
   name: string;
@@ -15,7 +11,6 @@ interface Player {
 }
 
 interface DetailedTournamentRegistrationFormProps {
-  tournamentId: string;
   tournamentName: string;
   gameName: string;
   fee: number;
@@ -28,7 +23,6 @@ interface DetailedTournamentRegistrationFormProps {
 }
 
 const DetailedTournamentRegistrationForm = ({
-  tournamentId,
   tournamentName,
   gameName,
   fee,
@@ -58,13 +52,17 @@ const DetailedTournamentRegistrationForm = ({
 
     if (fee > 0 && hostUpiId) {
       // 1. Construct UPI Link
+      // tr = transaction reference (optional), tn = transaction note
       const transactionNote = `Entry Fee for ${teamName} - ${tournamentName}`;
       const upiLink = `upi://pay?pa=${hostUpiId}&pn=${encodeURIComponent(hostName)}&tn=${encodeURIComponent(transactionNote)}&am=${fee}&cu=INR`;
 
       // 2. Redirect to UPI App
+      // This works on mobile. On desktop, it might do nothing or try to open an associated app.
       window.location.href = upiLink;
 
-      // 3. Pause for user action
+      // 3. User Experience Pause
+      // We pause for a few seconds to let the app open, then assume success or ask for confirmation
+      // In a real app, you'd show a "Enter Transaction ID" input after they return.
       setTimeout(() => {
         const confirmed = window.confirm("Did you complete the payment in your UPI app?");
         if (confirmed) {
@@ -80,30 +78,14 @@ const DetailedTournamentRegistrationForm = ({
     }
   };
 
-  const submitRegistration = async () => {
-    try {
-        // --- FIX 2: Ensure exactly 4 arguments are passed ---
-        await databases.createDocument(
-            APPWRITE_DATABASE_ID,               // Arg 1: Database ID
-            APPWRITE_REGISTRATIONS_COLLECTION_ID, // Arg 2: Collection ID
-            ID.unique(),                        // Arg 3: Document ID (MUST be generated)
-            {                                   // Arg 4: Data Object
-                tournamentId: tournamentId,
-                teamName: teamName,
-                contactEmail: contactEmail,
-                players: JSON.stringify(players)
-            }
-        );
-        
-        onRegister({ teamName, contactEmail, players });
-        toast.success("Team registered successfully!");
-    } catch (error: any) {
-        // --- CHANGE THIS LINE TO SEE THE REAL REASON ---
-        console.error("Full Error:", error);
-        toast.error("Appwrite Error: " + error.message); 
-    } finally {
-        setIsSubmitting(false);
-    }
+  const submitRegistration = () => {
+    // Call the parent handler to save to Appwrite
+    onRegister({
+        teamName,
+        contactEmail,
+        players
+    });
+    setIsSubmitting(false);
   };
 
   const updatePlayer = (index: number, field: keyof Player, value: string) => {
