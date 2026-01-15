@@ -12,12 +12,14 @@ import { useServiceListings } from '@/hooks/useServiceListings';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
+// --- 1. Import Appwrite DB directly to guarantee connection ---
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_USER_PROFILES_COLLECTION_ID } from "@/lib/appwrite";
 
 const ITEMS_PER_PAGE = 6;
 
 const DiscoveryFeed: React.FC = () => {
-  // 1. Get addXp from AuthContext (Matches LoginStreakCard logic)
-  const { addXp } = useAuth();
+  // 2. We need 'userProfile' to get the ID, and 'checkUserStatus' to refresh UI after update
+  const { userProfile, checkUserStatus } = useAuth();
   
   const { products, isLoading: productsLoading, error: productsError } = useMarketListings();
   const { services, isLoading: servicesLoading, error: servicesError } = useServiceListings(undefined);
@@ -26,24 +28,41 @@ const DiscoveryFeed: React.FC = () => {
   const [isClaiming, setIsClaiming] = useState(false);
   const [rewardClaimed, setRewardClaimed] = useState(false);
 
-  // --- XP CLAIM LOGIC (Fixed) ---
+  // --- XP CLAIM LOGIC (ROBUST VERSION) ---
   const handleClaimReward = async () => {
+    // 3. Safety Check: Ensure we have a profile to update
+    if (!userProfile || !userProfile.$id) {
+        toast.error("Profile not found. Please refresh the page.");
+        return;
+    }
+
     setIsClaiming(true);
     try {
         const REWARD_XP = 15; 
+        const currentXp = userProfile.xp || 0;
+        const newXp = currentXp + REWARD_XP;
 
-        // 1. Use the helper from Context (Fixes Type Errors)
-        if (addXp) {
-            await addXp(REWARD_XP);
-            toast.success(`Reward Claimed! +${REWARD_XP} XP`);
-            setRewardClaimed(true);
-        } else {
-            console.error("Auth Context missing addXp function");
-            toast.error("Profile sync error. Try reloading.");
+        console.log("Claiming Reward...", { id: userProfile.$id, oldXp: currentXp, newXp });
+
+        // 4. Direct Database Update (Bypasses potential Context issues)
+        await databases.updateDocument(
+            APPWRITE_DATABASE_ID,
+            APPWRITE_USER_PROFILES_COLLECTION_ID,
+            userProfile.$id,
+            { xp: newXp }
+        );
+
+        // 5. Refresh the UI by reloading profile data
+        if (checkUserStatus) {
+            await checkUserStatus();
         }
+
+        toast.success(`Reward Claimed! +${REWARD_XP} XP`);
+        setRewardClaimed(true);
+
     } catch (error: any) {
-        console.error("XP Claim Error:", error);
-        toast.error("Failed to claim reward. Please try again.");
+        console.error("XP Claim Error Details:", error);
+        toast.error(`Failed to claim: ${error.message || "Unknown Error"}`);
     } finally {
         setIsClaiming(false);
     }
