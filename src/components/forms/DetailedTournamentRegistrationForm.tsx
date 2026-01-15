@@ -82,8 +82,7 @@ const DetailedTournamentRegistrationForm = ({
     try {
         await databases.createDocument(
             APPWRITE_DATABASE_ID,
-            APPWRITE_REGISTRATIONS_COLLECTION_ID,
-            ID.unique(),
+            APPWRITE_REGISTRATIONS_COLLECTION_ID.unique(),
             {
                 tournamentId: tournamentId,
                 teamName: teamName,
