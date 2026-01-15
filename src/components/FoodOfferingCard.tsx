@@ -14,25 +14,34 @@ interface FoodOfferingCardProps {
   offering: ServicePost;
 }
 
+// FIX: Extend the ServicePost type locally for food items to avoid TS errors
+interface FoodServicePost extends ServicePost {
+  dietaryType?: string;
+  timeEstimate?: string;
+}
+
 const FoodOfferingCard: React.FC<FoodOfferingCardProps> = ({ offering }) => {
   const [isOrderDialogOpen, setIsOrderDialogOpen] = useState(false);
 
+  // Cast offering to extended type
+  const foodItem = offering as FoodServicePost;
+
   // 1. Generate Image (Unsplash Source based on ID)
-  const isMeal = offering.category === "homemade-meals";
+  const isMeal = foodItem.category === "homemade-meals";
   const imageKeyword = isMeal ? "curry" : "tea";
-  const imageUrl = `https://source.unsplash.com/400x300/?food,${imageKeyword}&sig=${offering.$id}`;
+  const imageUrl = `https://source.unsplash.com/400x300/?food,${imageKeyword}&sig=${foodItem.$id}`;
 
   // 2. Veg/Non-Veg Logic
-  const lowerTitle = offering.title.toLowerCase();
-  const lowerDesc = offering.description.toLowerCase();
+  const lowerTitle = foodItem.title.toLowerCase();
+  const lowerDesc = foodItem.description.toLowerCase();
   const isNonVeg = 
-     offering.dietaryType === 'non-veg' || 
+     foodItem.dietaryType === 'non-veg' || 
      lowerTitle.includes("chicken") || 
      lowerTitle.includes("egg") || 
      lowerDesc.includes("chicken");
 
   // 3. Prep Time (Default or from data)
-  const prepTime = offering.timeEstimate || "20-30 min";
+  const prepTime = foodItem.timeEstimate || "20-30 min";
 
   return (
     <Card className="group flex flex-col h-full relative overflow-hidden hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 bg-card border-border/50 rounded-xl">
@@ -41,7 +50,7 @@ const FoodOfferingCard: React.FC<FoodOfferingCardProps> = ({ offering }) => {
       <div className="relative h-44 w-full bg-muted overflow-hidden">
         <img 
           src={imageUrl} 
-          alt={offering.title}
+          alt={foodItem.title}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
           onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'; }}
         />
@@ -83,25 +92,25 @@ const FoodOfferingCard: React.FC<FoodOfferingCardProps> = ({ offering }) => {
         {/* Title */}
         <div className="flex justify-between items-start gap-1">
           <h3 className="text-base font-bold leading-tight line-clamp-1 text-foreground group-hover:text-secondary-neon transition-colors">
-            {offering.title}
+            {foodItem.title}
           </h3>
         </div>
 
         {/* Description */}
         <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed h-8">
-          {offering.description}
+          {foodItem.description}
         </p>
 
         {/* Chef Info */}
         <div className="flex items-center gap-2 pt-2 border-t border-dashed border-border/60">
             <Avatar className="h-5 w-5 border border-border">
-                <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${offering.posterName}`} />
-                <AvatarFallback className="text-[9px]">{offering.posterName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${foodItem.posterName}`} />
+                <AvatarFallback className="text-[9px]">{foodItem.posterName.substring(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
             <span className="text-xs font-medium text-foreground/80 truncate">
-                By {offering.posterName}
+                By {foodItem.posterName}
             </span>
-            {offering.isCustomOrder && (
+            {foodItem.isCustomOrder && (
                  <Badge variant="outline" className="ml-auto text-[9px] h-4 px-1 border-blue-500/50 text-blue-500">Requested</Badge>
             )}
         </div>
@@ -110,7 +119,7 @@ const FoodOfferingCard: React.FC<FoodOfferingCardProps> = ({ offering }) => {
       {/* --- FOOTER ACTION --- */}
       <CardFooter className="p-3 pt-0 mt-auto flex items-center justify-between">
         <div className="flex flex-col">
-            <span className="text-lg font-black text-foreground">{offering.price}</span>
+            <span className="text-lg font-black text-foreground">{foodItem.price}</span>
             <span className="text-[9px] text-muted-foreground -mt-1">per serving</span>
         </div>
 
@@ -127,7 +136,7 @@ const FoodOfferingCard: React.FC<FoodOfferingCardProps> = ({ offering }) => {
               </DialogTitle>
             </DialogHeader>
             <PlaceFoodOrderForm 
-              offering={offering}
+              offering={foodItem}
               onOrderPlaced={() => setIsOrderDialogOpen(false)}
               onCancel={() => setIsOrderDialogOpen(false)}
             />
