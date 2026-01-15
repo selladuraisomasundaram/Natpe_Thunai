@@ -4,8 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, DollarSign } from "lucide-react";
-// Import ID and the Collection ID from your lib file
-import { databases, APPWRITE_DATABASE_ID,APPWRITE_REGISTRATIONS_COLLECTION_ID } from "@/lib/appwrite";
+
+// --- FIX 1: Import ID directly from 'appwrite' to avoid import errors ---
+import { ID } from "appwrite"; 
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_REGISTRATIONS_COLLECTION_ID } from "@/lib/appwrite";
 
 interface Player {
   name: string;
@@ -13,7 +15,7 @@ interface Player {
 }
 
 interface DetailedTournamentRegistrationFormProps {
-  tournamentId: string; // Required prop
+  tournamentId: string;
   tournamentName: string;
   gameName: string;
   fee: number;
@@ -62,7 +64,7 @@ const DetailedTournamentRegistrationForm = ({
       // 2. Redirect to UPI App
       window.location.href = upiLink;
 
-      // 3. User Experience Pause
+      // 3. Pause for user action
       setTimeout(() => {
         const confirmed = window.confirm("Did you complete the payment in your UPI app?");
         if (confirmed) {
@@ -80,20 +82,24 @@ const DetailedTournamentRegistrationForm = ({
 
   const submitRegistration = async () => {
     try {
+        // --- FIX 2: Ensure exactly 4 arguments are passed ---
         await databases.createDocument(
-            APPWRITE_DATABASE_ID,
-            APPWRITE_REGISTRATIONS_COLLECTION_ID.unique(),
-            {
+            APPWRITE_DATABASE_ID,               // Arg 1: Database ID
+            APPWRITE_REGISTRATIONS_COLLECTION_ID, // Arg 2: Collection ID
+            ID.unique(),                        // Arg 3: Document ID (MUST be generated)
+            {                                   // Arg 4: Data Object
                 tournamentId: tournamentId,
                 teamName: teamName,
                 contactEmail: contactEmail,
                 players: JSON.stringify(players)
             }
         );
+        
         onRegister({ teamName, contactEmail, players });
-    } catch (error) {
-        toast.error("Registration failed in database.");
-        console.error(error);
+        toast.success("Team registered successfully!");
+    } catch (error: any) {
+        toast.error("Registration failed. Please try again.");
+        console.error("Appwrite Registration Error:", error);
     } finally {
         setIsSubmitting(false);
     }
