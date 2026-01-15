@@ -1,6 +1,6 @@
 "use client";
 
-import { Client, Databases, Account, Storage, Functions } from 'appwrite';
+import { Client, Databases, Account, Storage, Functions, ID, Query } from 'appwrite';
 
 // --- Environment Variables ---
 export const APPWRITE_PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID || 'YOUR_APPWRITE_PROJECT_ID';
@@ -19,6 +19,9 @@ export const APPWRITE_CANTEEN_COLLECTION_ID = import.meta.env.VITE_APPWRITE_CANT
 export const APPWRITE_FOOD_ORDERS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_FOOD_ORDERS_COLLECTION_ID || 'YOUR_FOOD_ORDERS_COLLECTION_ID';
 export const APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID || 'YOUR_BARGAIN_REQUESTS_COLLECTION_ID';
 export const APPWRITE_TOURNAMENTS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_TOURNAMENTS_COLLECTION_ID || 'YOUR_TOURNAMENTS_COLLECTION_ID';
+// --- ADDED THIS LINE FOR REGISTRATIONS ---
+export const APPWRITE_REGISTRATIONS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_REGISTRATIONS_COLLECTION_ID || 'YOUR_REGISTRATIONS_COLLECTION_ID'; 
+
 export const APPWRITE_CASH_EXCHANGE_COLLECTION_ID = import.meta.env.VITE_APPWRITE_CASH_EXCHANGE_COLLECTION_ID || 'YOUR_CASH_EXCHANGE_COLLECTION_ID';
 export const APPWRITE_LOST_FOUND_COLLECTION_ID = import.meta.env.VITE_APPWRITE_LOST_FOUND_COLLECTION_ID || 'YOUR_LOST_FOUND_COLLECTION_ID';
 export const APPWRITE_SERVICES_COLLECTION_ID = import.meta.env.VITE_APPWRITE_SERVICES_COLLECTION_ID || 'YOUR_SERVICES_COLLECTION_ID';
@@ -43,6 +46,9 @@ client
 export const account = new Account(client);
 export const databases = new Databases(client);
 export const storage = new Storage(client);
-export const functions = new Functions(client); // Added Functions export
+export const functions = new Functions(client);
+
+// --- HELPER EXPORTS (FIXES YOUR IMPORT ERRORS) ---
+export { ID, Query };
 
 export default client;
