@@ -81,7 +81,7 @@ const TournamentManagementForm: React.FC<TournamentManagementFormProps> = ({ tou
             [
               // Make sure you have an Index in Appwrite named 'tournament_idx' (or anything) 
               // on the attribute 'tournamentId' for this to work.
-              Query.equal("registrations", tournament.$id)
+              Query.equal("tournament_idx", tournament.$id)
             ]
           );
           setRegisteredTeams(res.documents);
