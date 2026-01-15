@@ -98,8 +98,9 @@ const DetailedTournamentRegistrationForm = ({
         onRegister({ teamName, contactEmail, players });
         toast.success("Team registered successfully!");
     } catch (error: any) {
-        toast.error("Registration failed. Please try again.");
-        console.error("Appwrite Registration Error:", error);
+        // --- CHANGE THIS LINE TO SEE THE REAL REASON ---
+        console.error("Full Error:", error);
+        toast.error("Appwrite Error: " + error.message); 
     } finally {
         setIsSubmitting(false);
     }
