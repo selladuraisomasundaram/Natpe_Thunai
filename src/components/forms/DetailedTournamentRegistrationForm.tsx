@@ -6,11 +6,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { DialogFooter } from "@/components/ui/dialog";
-import { Loader2, UserPlus, Trash2 } from "lucide-react";
+import { Loader2, UserPlus, Trash2, DollarSign } from "lucide-react";
 import { toast } from "sonner";
+// Import Appwrite dependencies
+import { databases, APPWRITE_DATABASE_ID, ID } from "@/lib/appwrite"; // Ensure ID is exported from lib/appwrite or import { ID } from 'appwrite';
+
+// REPLACE THIS WITH YOUR ACTUAL REGISTRATIONS COLLECTION ID
+const APPWRITE_REGISTRATIONS_COLLECTION_ID = "YOUR_REGISTRATIONS_COLLECTION_ID";
 
 const playerSchema = z.object({
   name: z.string().min(1, "Player name is required."),
@@ -24,21 +28,25 @@ const formSchema = z.object({
 });
 
 interface DetailedTournamentRegistrationFormProps {
+  tournamentId: string; // Added ID for DB relation
   tournamentName: string;
   gameName: string;
   fee: number;
   minPlayers: number;
   maxPlayers: number;
-  onRegister: (data: z.infer<typeof formSchema>) => void;
+  hostUpiId?: string; // Added Host UPI ID
+  onRegister: (data: any) => void;
   onCancel: () => void;
 }
 
 const DetailedTournamentRegistrationForm: React.FC<DetailedTournamentRegistrationFormProps> = ({
+  tournamentId,
   tournamentName,
   gameName,
   fee,
   minPlayers,
   maxPlayers,
+  hostUpiId,
   onRegister,
   onCancel,
 }) => {
@@ -60,17 +68,47 @@ const DetailedTournamentRegistrationForm: React.FC<DetailedTournamentRegistratio
 
   const handleRegistrationSubmit = async (data: z.infer<typeof formSchema>) => {
     setIsRegistering(true);
-    try {
-      // Here you would typically handle payment initiation if fee > 0
-      // For this example, we'll assume payment is handled or not required.
-      if (fee > 0) {
-        toast.info(`Initiating payment for ₹${fee}. This is a placeholder.`);
-        // In a real app, integrate with a payment gateway here.
-        // If payment fails, return early.
-      }
+    
+    // --- 1. UPI PAYMENT LOGIC ---
+    if (fee > 0 && hostUpiId) {
+      // Construct UPI Deep Link
+      // pa = Payee Address (UPI ID), pn = Payee Name, am = Amount, tn = Note
+      const note = `Fee for ${data.teamName} - ${tournamentName}`;
+      const upiLink = `upi://pay?pa=${hostUpiId}&pn=TournamentHost&am=${fee}&tn=${encodeURIComponent(note)}&cu=INR`;
 
+      // Redirect user to their UPI app
+      window.location.href = upiLink;
+
+      // Small delay to allow app switch, then ask for confirmation
+      // In a production app, you might want a more robust "Verify Payment" button state instead of alert
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const confirmed = window.confirm("Please confirm: Did you complete the payment in your UPI app?");
+      if (!confirmed) {
+        setIsRegistering(false);
+        toast.info("Registration cancelled. Payment not confirmed.");
+        return;
+      }
+    }
+
+    // --- 2. SAVE TO APPWRITE ---
+    try {
+      // Create document in 'registrations' collection
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_REGISTRATIONS_COLLECTION_ID,
+        ID.unique(),
+        {
+          tournamentId: tournamentId,
+          teamName: data.teamName,
+          contactEmail: data.contactEmail,
+          // Store players as a stringified JSON to avoid complex relationship setups for now
+          players: JSON.stringify(data.players) 
+        }
+      );
+
+      // --- 3. CALLBACK & CLEANUP ---
       await onRegister(data);
-      toast.success(`Team "${data.teamName}" registered for ${tournamentName}!`);
       form.reset();
     } catch (error: any) {
       console.error("Error during registration:", error);
@@ -88,12 +126,12 @@ const DetailedTournamentRegistrationForm: React.FC<DetailedTournamentRegistratio
           <p className="text-sm text-muted-foreground">
             <span className="font-medium text-foreground">{tournamentName}</span> ({gameName})
           </p>
-          <p className="text-sm text-muted-foreground">
-            Fee: <span className="font-medium text-foreground">{fee === 0 ? "Free" : `₹${fee}`}</span>
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Players per team: <span className="font-medium text-foreground">{minPlayers} - {maxPlayers}</span>
-          </p>
+          <div className="flex justify-between items-center mt-1">
+            <p className="text-sm text-muted-foreground">
+                Fee: <span className={`font-medium ${fee > 0 ? "text-secondary-neon" : "text-foreground"}`}>{fee === 0 ? "Free" : `₹${fee}`}</span>
+            </p>
+            {fee > 0 && <span className="text-xs text-muted-foreground flex items-center"><DollarSign className="w-3 h-3 mr-1"/> Pay via UPI</span>}
+          </div>
         </div>
 
         <FormField
@@ -181,7 +219,7 @@ const DetailedTournamentRegistrationForm: React.FC<DetailedTournamentRegistratio
             Cancel
           </Button>
           <Button type="submit" disabled={isRegistering} className="w-full sm:w-auto bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-            {isRegistering ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Register Team"}
+            {isRegistering ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (fee > 0 ? "Pay & Register" : "Register Team")}
           </Button>
         </DialogFooter>
       </form>
