@@ -2,21 +2,19 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, Handshake, PlusCircle, Users, Loader2, Info, ArrowRightLeft, MapPin, Clock, AlertCircle } from "lucide-react";
+import { DollarSign, ArrowRightLeft, Users, Loader2, Info, MapPin, Clock, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_CASH_EXCHANGE_COLLECTION_ID } from "@/lib/appwrite";
 import { ID, Models, Query } from "appwrite";
 import { useAuth } from "@/context/AuthContext";
-import { cn } from "@/lib/utils";
 import CashExchangeListings from "@/components/CashExchangeListings";
 import DeletionInfoMessage from "@/components/DeletionInfoMessage";
 
@@ -103,10 +101,16 @@ const CashExchangePage = () => {
   };
 
   const getFilteredListings = (tab: string) => {
-    // Cast to 'any' to bypass strict type check if component props vary slightly, though interface now matches.
     if (tab === "need_cash") return exchangeRequests.filter(r => r.type === "request") as any;
     if (tab === "have_cash") return exchangeRequests.filter(r => r.type === "offer") as any;
     return exchangeRequests.filter(r => r.type === "group-contribution") as any;
+  };
+
+  // Helper for dynamic form labels
+  const getFormTitle = () => {
+      if (postType === 'request') return "Request Physical Cash";
+      if (postType === 'offer') return "Offer Physical Cash";
+      return "Start Group Contribution";
   };
 
   return (
@@ -119,33 +123,50 @@ const CashExchangePage = () => {
                 CASH <span className="text-secondary-neon">POINT</span>
             </h1>
             <p className="text-sm text-muted-foreground">
-                Safe P2P cash exchange within {userProfile?.collegeName || "campus"}.
+                Safe P2P cash exchange & bill splitting.
             </p>
         </div>
 
-        {/* Action Cards */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Action Cards - Updated to 3 Columns */}
+        <div className="grid grid-cols-3 gap-2">
+            {/* 1. Offer Cash */}
             <Card 
                 className="bg-green-50/50 hover:bg-green-100/50 border-green-200 cursor-pointer transition-colors"
                 onClick={() => { setPostType("offer"); setIsPostDialogOpen(true); }}
             >
-                <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                    <div className="p-2 bg-green-100 rounded-full text-green-600"><DollarSign className="h-6 w-6"/></div>
+                <CardContent className="p-3 flex flex-col items-center text-center gap-1.5 h-full justify-center">
+                    <div className="p-1.5 bg-green-100 rounded-full text-green-600"><DollarSign className="h-5 w-5"/></div>
                     <div>
-                        <h3 className="font-bold text-green-900">I Have Cash</h3>
-                        <p className="text-xs text-green-700">Give physical cash, get UPI.</p>
+                        <h3 className="font-bold text-green-900 text-xs sm:text-sm leading-tight">Have Cash</h3>
+                        <p className="text-[10px] text-green-700 leading-tight mt-0.5">Give Cash</p>
                     </div>
                 </CardContent>
             </Card>
+
+            {/* 2. Request Cash */}
             <Card 
                 className="bg-blue-50/50 hover:bg-blue-100/50 border-blue-200 cursor-pointer transition-colors"
                 onClick={() => { setPostType("request"); setIsPostDialogOpen(true); }}
             >
-                <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                    <div className="p-2 bg-blue-100 rounded-full text-blue-600"><ArrowRightLeft className="h-6 w-6"/></div>
+                <CardContent className="p-3 flex flex-col items-center text-center gap-1.5 h-full justify-center">
+                    <div className="p-1.5 bg-blue-100 rounded-full text-blue-600"><ArrowRightLeft className="h-5 w-5"/></div>
                     <div>
-                        <h3 className="font-bold text-blue-900">I Need Cash</h3>
-                        <p className="text-xs text-blue-700">Send UPI, get physical cash.</p>
+                        <h3 className="font-bold text-blue-900 text-xs sm:text-sm leading-tight">Need Cash</h3>
+                        <p className="text-[10px] text-blue-700 leading-tight mt-0.5">Get Cash</p>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* 3. Group Contribution (New) */}
+            <Card 
+                className="bg-purple-50/50 hover:bg-purple-100/50 border-purple-200 cursor-pointer transition-colors"
+                onClick={() => { setPostType("group-contribution"); setIsPostDialogOpen(true); }}
+            >
+                <CardContent className="p-3 flex flex-col items-center text-center gap-1.5 h-full justify-center">
+                    <div className="p-1.5 bg-purple-100 rounded-full text-purple-600"><Users className="h-5 w-5"/></div>
+                    <div>
+                        <h3 className="font-bold text-purple-900 text-xs sm:text-sm leading-tight">Split Bill</h3>
+                        <p className="text-[10px] text-purple-700 leading-tight mt-0.5">Pool Money</p>
                     </div>
                 </CardContent>
             </Card>
@@ -162,7 +183,7 @@ const CashExchangePage = () => {
             <TabsList className="grid w-full grid-cols-3 bg-muted/50 p-1">
                 <TabsTrigger value="need_cash" className="text-xs font-bold">Requests</TabsTrigger>
                 <TabsTrigger value="have_cash" className="text-xs font-bold">Offers</TabsTrigger>
-                <TabsTrigger value="split_bill" className="text-xs font-bold">Group Split</TabsTrigger>
+                <TabsTrigger value="split_bill" className="text-xs font-bold">Splits</TabsTrigger>
             </TabsList>
 
             <TabsContent value={activeTab} className="mt-4">
@@ -178,9 +199,7 @@ const CashExchangePage = () => {
         <Dialog open={isPostDialogOpen} onOpenChange={setIsPostDialogOpen}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>
-                        {postType === 'request' ? "Request Physical Cash" : postType === 'offer' ? "Offer Physical Cash" : "Create Group Pot"}
-                    </DialogTitle>
+                    <DialogTitle>{getFormTitle()}</DialogTitle>
                 </DialogHeader>
                 
                 <form onSubmit={handlePostSubmit} className="space-y-4 py-2">
@@ -188,7 +207,9 @@ const CashExchangePage = () => {
                     
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label>Amount (₹)</Label>
+                            <Label>
+                                {postType === 'group-contribution' ? "Total Amount (₹)" : "Amount (₹)"}
+                            </Label>
                             <div className="relative">
                                 <span className="absolute left-3 top-2.5 text-muted-foreground">₹</span>
                                 <Input 
@@ -215,7 +236,9 @@ const CashExchangePage = () => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Safe Meeting Spot</Label>
+                        <Label>
+                            {postType === 'group-contribution' ? "Collection Point" : "Safe Meeting Spot"}
+                        </Label>
                         <div className="relative">
                             <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input 
@@ -230,9 +253,11 @@ const CashExchangePage = () => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Notes (Optional)</Label>
+                        <Label>
+                            {postType === 'group-contribution' ? "Purpose (e.g. Cake, Cab)" : "Notes (Optional)"}
+                        </Label>
                         <Textarea 
-                            placeholder="e.g. Need only ₹100 notes / GPay accepted" 
+                            placeholder={postType === 'group-contribution' ? "Collecting for John's gift..." : "e.g. Need only ₹100 notes / GPay accepted"}
                             className="h-20 resize-none" 
                             value={notes} 
                             onChange={(e) => setNotes(e.target.value)} 
