@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { Loader2, ShoppingBag, Sparkles, ExternalLink, Tag, Zap } from "lucide-react"; 
+import { Loader2, Sparkles, ExternalLink, Tag, Zap } from "lucide-react"; 
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { databases, functions, APPWRITE_DATABASE_ID } from "@/lib/appwrite"; 
 
@@ -28,14 +28,12 @@ interface Deal {
   title: string;
   description: string;
   originalURL?: string; 
-  image_url?: string;
+  imageUrl?: string; // FIXED: Matches your database attribute name
   brand?: string;
   category?: string;
-  price?: string; // Optional: If you have pricing data
 }
 
 // --- COMPONENT: DEAL CARD ---
-// Extracted to handle image fallback state independently
 const DealCard = ({ 
   deal, 
   onClick, 
@@ -49,28 +47,37 @@ const DealCard = ({
 }) => {
   const [imageError, setImageError] = useState(false);
 
-  // Determine which image to show
-  const showImage = deal.image_url && !imageError;
+  // 1. Prioritize the manual 'imageUrl' from database
+  // 2. If it fails or is empty, fallback to false
+  const hasValidImage = deal.imageUrl && !imageError;
 
   return (
     <Card className="group relative flex flex-col overflow-hidden border-border/50 bg-card transition-all duration-300 hover:border-secondary-neon/50 hover:shadow-[0_0_25px_rgba(0,243,255,0.15)]">
       
       {/* --- IMAGE AREA --- */}
-      <div className="relative aspect-[16/9] w-full overflow-hidden bg-muted/50">
-        {showImage ? (
+      <div className="relative aspect-[16/9] w-full overflow-hidden bg-black/5">
+        {hasValidImage ? (
           <img 
-            src={deal.image_url} 
+            src={deal.imageUrl} 
             alt={deal.title} 
             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
             onError={() => setImageError(true)}
           />
         ) : (
-          // FALLBACK: Stylish Placeholder (App Logo Vibe)
-          <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-background to-secondary/10">
-            <div className="rounded-full bg-secondary-neon/10 p-4 ring-1 ring-secondary-neon/30">
-               <ShoppingBag className="h-8 w-8 text-secondary-neon opacity-70" />
+          // FALLBACK: App Logo (The Grind Vibe)
+          <div className="flex h-full w-full flex-col items-center justify-center bg-secondary/5 p-6">
+            <div className="relative h-20 w-20 opacity-80 grayscale transition-all group-hover:grayscale-0 group-hover:opacity-100">
+               {/* Using standard PWA icon path - Replace with your specific logo path if different */}
+               <img 
+                 src="/icons/icon-512x512.png" 
+                 alt="Natpe Thunai Logo" 
+                 className="h-full w-full object-contain drop-shadow-[0_0_10px_rgba(0,243,255,0.5)]"
+                 onError={(e) => {
+                    // Final safety net if logo file is missing
+                    (e.target as HTMLImageElement).style.display = 'none';
+                 }}
+               />
             </div>
-            <span className="mt-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">The Grind Loot</span>
           </div>
         )}
 
@@ -85,7 +92,7 @@ const DealCard = ({
         
         {deal.brand && (
             <div className="absolute top-2 right-2">
-                <Badge className="bg-black/70 text-white backdrop-blur-md border-0 text-[10px] font-bold">
+                <Badge className="bg-black/70 text-white backdrop-blur-md border-0 text-[10px] font-bold shadow-md">
                     {deal.brand}
                 </Badge>
             </div>
@@ -186,10 +193,8 @@ const TheEditPage = () => {
         link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
-        
         setTimeout(() => { if (document.body.contains(link)) document.body.removeChild(link); }, 500);
         setTimeout(() => { window.location.href = url; }, 1500);
-        
         toast.success("Opening App...");
     } else {
         window.open(url, "_blank");
@@ -207,7 +212,6 @@ const TheEditPage = () => {
     toast.info(`Securing exclusive deal...`);
     setActiveGen(listingId);
 
-    // Desktop Pre-loader Logic
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const isMedian = window.median || window.gonative;
     let newWindow: Window | null = null;
