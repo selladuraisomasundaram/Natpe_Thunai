@@ -78,7 +78,7 @@ const DetailedTournamentRegistrationForm = ({
     }
   };
 
-  const submitRegistration = () => {
+  const submitRegistration = async() => {
     // Call the parent handler to save to Appwrite
     onRegister({
         teamName,
