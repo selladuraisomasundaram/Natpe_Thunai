@@ -12,12 +12,10 @@ import { DialogFooter } from "@/components/ui/dialog";
 import { Loader2, Save, PlusCircle, Trash2, Users, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { useTournamentData, Tournament, TeamStanding, Winner } from "@/hooks/useTournamentData";
-import { databases, APPWRITE_DATABASE_ID, Query } from "@/lib/appwrite";
+// --- FIXED IMPORTS HERE ---
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_REGISTRATIONS_COLLECTION_ID, Query } from "@/lib/appwrite";
 
-// REPLACE WITH YOUR ACTUAL ID
-const APPWRITE_REGISTRATIONS_COLLECTION_ID = "YOUR_REGISTRATIONS_COLLECTION_ID";
-
-// --- EXISTING SCHEMAS (Unchanged) ---
+// --- EXISTING SCHEMAS ---
 const teamStandingSchema = z.object({
   rank: z.preprocess((val) => Number(val), z.number().min(1, "Rank must be at least 1.")),
   teamName: z.string().min(1, "Team name is required."),
@@ -79,16 +77,18 @@ const TournamentManagementForm: React.FC<TournamentManagementFormProps> = ({ tou
         try {
           const res = await databases.listDocuments(
             APPWRITE_DATABASE_ID,
-            APPWRITE_REGISTRATIONS_COLLECTION_ID,
+            APPWRITE_REGISTRATIONS_COLLECTION_ID, // Now uses the real ID from appwrite.ts
             [
-              // Using the index you mentioned
+              // Make sure you have an Index in Appwrite named 'tournament_idx' (or anything) 
+              // on the attribute 'tournamentId' for this to work.
               Query.equal("tournamentId", tournament.$id)
             ]
           );
           setRegisteredTeams(res.documents);
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error fetching teams:", error);
-          toast.error("Failed to load registered teams.");
+          // Show the specific error to help debugging
+          toast.error("Failed to load teams: " + error.message);
         } finally {
           setLoadingTeams(false);
         }
@@ -327,17 +327,17 @@ const TournamentManagementForm: React.FC<TournamentManagementFormProps> = ({ tou
                   
                   <div className="bg-background p-2 rounded border border-border">
                     <p className="text-xs font-semibold mb-1 text-muted-foreground">ROSTER:</p>
-                    {/* Parse JSON string of players safely */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                       {(() => {
                         try {
-                          const roster = JSON.parse(team.players || "[]");
-                          return roster.map((p: any, i: number) => (
+                          // Handle case where players is already an object or a string
+                          const roster = typeof team.players === 'string' ? JSON.parse(team.players || "[]") : team.players;
+                          return Array.isArray(roster) ? roster.map((p: any, i: number) => (
                             <div key={i} className="text-xs flex justify-between bg-muted px-2 py-1 rounded">
                               <span>{p.name}</span>
                               <span className="font-mono text-muted-foreground">{p.inGameId}</span>
                             </div>
-                          ));
+                          )) : null;
                         } catch (e) {
                           return <span className="text-xs text-destructive">Error parsing roster data</span>;
                         }
