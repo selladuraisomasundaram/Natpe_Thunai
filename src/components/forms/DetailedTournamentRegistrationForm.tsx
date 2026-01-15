@@ -4,11 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, DollarSign } from "lucide-react";
-// --- FIX 1: Import Appwrite SDK and Config ---
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_REGISTRATIONS_COLLECTION_ID } from "@/lib/appwrite";
-
-// --- FIX 2: Define Collection ID (Replace with your actual ID from previous steps) ---
-const APPWRITE_REGISTRATIONS_COLLECTION_ID = "65abcdef123456..."; // <--- PUT YOUR REAL REGISTRATION COLLECTION ID HERE
+// Import ID and the Collection ID from your lib file
+import { databases, APPWRITE_DATABASE_ID, ID, APPWRITE_REGISTRATIONS_COLLECTION_ID } from "@/lib/appwrite";
 
 interface Player {
   name: string;
@@ -16,8 +13,7 @@ interface Player {
 }
 
 interface DetailedTournamentRegistrationFormProps {
-  // --- FIX 3: Add tournamentId to props ---
-  tournamentId: string; 
+  tournamentId: string; // Required prop
   tournamentName: string;
   gameName: string;
   fee: number;
@@ -30,7 +26,7 @@ interface DetailedTournamentRegistrationFormProps {
 }
 
 const DetailedTournamentRegistrationForm = ({
-  tournamentId, // Destructure the new prop
+  tournamentId,
   tournamentName,
   gameName,
   fee,
@@ -66,9 +62,8 @@ const DetailedTournamentRegistrationForm = ({
       // 2. Redirect to UPI App
       window.location.href = upiLink;
 
-      // 3. Pause for user action
+      // 3. User Experience Pause
       setTimeout(() => {
-        // In a real P2P flow, we just ask them if they paid.
         const confirmed = window.confirm("Did you complete the payment in your UPI app?");
         if (confirmed) {
             submitRegistration();
@@ -85,23 +80,21 @@ const DetailedTournamentRegistrationForm = ({
 
   const submitRegistration = async () => {
     try {
-        // --- FIX 4: Use the imported variables correctly ---
         await databases.createDocument(
             APPWRITE_DATABASE_ID,
             APPWRITE_REGISTRATIONS_COLLECTION_ID,
             ID.unique(),
             {
-                tournamentId: tournamentId, // Use the prop passed from parent
+                tournamentId: tournamentId,
                 teamName: teamName,
                 contactEmail: contactEmail,
-                players: JSON.stringify(players) // Store as string
+                players: JSON.stringify(players)
             }
         );
         onRegister({ teamName, contactEmail, players });
-        toast.success("Team registered successfully!");
     } catch (error) {
-        toast.error("Registration failed. Please try again.");
-        console.error("Appwrite Registration Error:", error);
+        toast.error("Registration failed in database.");
+        console.error(error);
     } finally {
         setIsSubmitting(false);
     }
