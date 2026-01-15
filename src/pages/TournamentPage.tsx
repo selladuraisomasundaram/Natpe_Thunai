@@ -6,13 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trophy, Calendar, DollarSign, Users, Gamepad2, Loader2, AlertTriangle, Edit, PlusCircle, Info, Clock } from "lucide-react"; // Added Clock
+import { Trophy, Calendar, DollarSign, Users, Gamepad2, Loader2, AlertTriangle, Edit, PlusCircle, Info, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import DetailedTournamentRegistrationForm from "@/components/forms/DetailedTournamentRegistrationForm";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_TOURNAMENTS_COLLECTION_ID } from "@/lib/appwrite";
-import TournamentManagementForm from "@/components/forms/TournamentManagementForm"; // Assuming this exists and is functional
+import TournamentManagementForm from "@/components/forms/TournamentManagementForm";
 import PostTournamentForm from "@/components/forms/PostTournamentForm";
 import { useTournamentData, Tournament, TeamStanding, Winner } from "@/hooks/useTournamentData";
 import { useAuth } from "@/context/AuthContext";
@@ -25,23 +25,16 @@ const TournamentPage = () => {
   const [isManagementDialogOpen, setIsManagementDialogOpen] = useState(false);
   const [isPostTournamentDialogOpen, setIsPostTournamentDialogOpen] = useState(false);
 
-  // Scroll to top on component mount
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
-  // Aggregate data from all tournaments
   const upcomingTournaments = tournaments.filter(t => t.status === "Open");
   const ongoingTournaments = tournaments.filter(t => t.status === "Ongoing");
   const completedTournaments = tournaments.filter(t => t.status === "Completed");
   
-  // Aggregate all winners from all tournaments
   const allWinners: Winner[] = tournaments.flatMap(t => t.winners || []);
-  
-  // Aggregate all standings (assuming standings are for the most recent/active tournament)
-  // For simplicity, we'll display standings from the first tournament that has them, or an empty array.
   const activeStandings: TeamStanding[] = tournaments.find(t => t.standings && t.standings.length > 0)?.standings || [];
-
 
   const handleRegisterClick = (tournament: Tournament) => {
     setSelectedTournament(tournament);
@@ -50,10 +43,7 @@ const TournamentPage = () => {
 
   const handleRegistrationSubmit = (data: { teamName: string; contactEmail: string; players: { name: string; inGameId: string }[] }) => {
     if (!selectedTournament) return;
-    // The payment initiation is now handled inside the form before calling onRegister.
-    // If onRegister is called, we assume payment initiation was successful (or fee was zero).
-    toast.success(`Successfully registered "${data.teamName}" (${data.players.length} players) for ${selectedTournament.name}!`);
-    // Reset form state if needed, but closing the dialog handles it.
+    toast.success(`Successfully registered "${data.teamName}"!`);
     setIsRegisterDialogOpen(false);
   };
 
@@ -64,7 +54,6 @@ const TournamentPage = () => {
 
   const handleTournamentPosted = () => {
     setIsPostTournamentDialogOpen(false);
-    // The useTournamentData hook will refetch automatically
   };
 
   if (error) {
@@ -317,6 +306,10 @@ const TournamentPage = () => {
           </DialogHeader>
           {selectedTournament && (
             <DetailedTournamentRegistrationForm
+              // --- FIXED: ADDED MISSING PROPS ---
+              tournamentId={selectedTournament.$id} 
+              hostUpiId={(selectedTournament as any).upiId || ""} 
+              // ---------------------------------
               tournamentName={selectedTournament.name}
               gameName={selectedTournament.game}
               fee={selectedTournament.fee}
@@ -331,7 +324,7 @@ const TournamentPage = () => {
 
       {/* Tournament Management Dialog */}
       <Dialog open={isManagementDialogOpen} onOpenChange={setIsManagementDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] bg-card text-card-foreground border-border max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[700px] bg-card text-card-foreground border-border max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-foreground">Manage Tournament: {selectedTournament?.name}</DialogTitle>
           </DialogHeader>
