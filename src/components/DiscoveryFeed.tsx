@@ -6,51 +6,41 @@ import ProductListingCard from "@/components/ProductListingCard";
 import ServiceListingCard from "@/components/ServiceListingCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, ChevronLeft, ChevronRight, Compass, Gift, Loader2 } from "lucide-react"; // Added Gift, Loader2
+import { AlertTriangle, ChevronLeft, ChevronRight, Compass, Gift, Loader2 } from "lucide-react";
 import { useMarketListings } from '@/hooks/useMarketListings';
 import { useServiceListings } from '@/hooks/useServiceListings';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card"; // Added Card components
-import { toast } from "sonner"; // Added Toast
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_USER_PROFILES_COLLECTION_ID } from "@/lib/appwrite"; // Added DB imports
+import { Card, CardContent } from "@/components/ui/card";
+import { toast } from "sonner";
 
 const ITEMS_PER_PAGE = 6;
 
 const DiscoveryFeed: React.FC = () => {
-  // 1. Get updateUserProfile from AuthContext to update UI instantly
-  const { userProfile, updateUserProfile } = useAuth();
+  // 1. Get addXp from AuthContext (Matches LoginStreakCard logic)
+  const { addXp } = useAuth();
   
   const { products, isLoading: productsLoading, error: productsError } = useMarketListings();
   const { services, isLoading: servicesLoading, error: servicesError } = useServiceListings(undefined);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [isClaiming, setIsClaiming] = useState(false);
-  const [rewardClaimed, setRewardClaimed] = useState(false); // Track if claimed in this session
+  const [rewardClaimed, setRewardClaimed] = useState(false);
 
   // --- XP CLAIM LOGIC (Fixed) ---
   const handleClaimReward = async () => {
-    if (!userProfile) return;
-    
     setIsClaiming(true);
     try {
-        const REWARD_XP = 15; // Set your reward amount
-        const newXp = (userProfile.xp || 0) + REWARD_XP;
+        const REWARD_XP = 15; 
 
-        // 1. Update Appwrite Database
-        await databases.updateDocument(
-            APPWRITE_DATABASE_ID,
-            APPWRITE_USER_PROFILES_COLLECTION_ID,
-            userProfile.$id,
-            { xp: newXp }
-        );
-
-        // 2. Update Local Context (This fixes the Level Bar instantly)
-        if (updateUserProfile) {
-            await updateUserProfile(); // Or updateUserProfile({ ...userProfile, xp: newXp }) if your context supports partial updates
+        // 1. Use the helper from Context (Fixes Type Errors)
+        if (addXp) {
+            await addXp(REWARD_XP);
+            toast.success(`Reward Claimed! +${REWARD_XP} XP`);
+            setRewardClaimed(true);
+        } else {
+            console.error("Auth Context missing addXp function");
+            toast.error("Profile sync error. Try reloading.");
         }
-
-        toast.success(`Reward Claimed! +${REWARD_XP} XP`);
-        setRewardClaimed(true);
     } catch (error: any) {
         console.error("XP Claim Error:", error);
         toast.error("Failed to claim reward. Please try again.");
@@ -138,7 +128,7 @@ const DiscoveryFeed: React.FC = () => {
   return (
     <div className="space-y-6 p-4" id="discovery-feed-top">
       
-      {/* --- NEW: Daily Discovery Reward Card --- */}
+      {/* --- Daily Discovery Reward Card --- */}
       {!rewardClaimed && (
         <Card className="bg-gradient-to-r from-secondary-neon/10 to-background border-secondary-neon/30">
             <CardContent className="p-4 flex items-center justify-between">
