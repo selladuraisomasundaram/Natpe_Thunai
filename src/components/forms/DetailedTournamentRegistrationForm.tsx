@@ -3,7 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2, DollarSign, ExternalLink } from "lucide-react";
+import { Loader2, DollarSign } from "lucide-react";
+// --- FIX 1: Import Appwrite SDK and Config ---
+import { databases, APPWRITE_DATABASE_ID, ID } from "@/lib/appwrite";
+
+// --- FIX 2: Define Collection ID (Replace with your actual ID from previous steps) ---
+const APPWRITE_REGISTRATIONS_COLLECTION_ID = "65abcdef123456..."; // <--- PUT YOUR REAL REGISTRATION COLLECTION ID HERE
 
 interface Player {
   name: string;
@@ -11,6 +16,8 @@ interface Player {
 }
 
 interface DetailedTournamentRegistrationFormProps {
+  // --- FIX 3: Add tournamentId to props ---
+  tournamentId: string; 
   tournamentName: string;
   gameName: string;
   fee: number;
@@ -23,6 +30,7 @@ interface DetailedTournamentRegistrationFormProps {
 }
 
 const DetailedTournamentRegistrationForm = ({
+  tournamentId, // Destructure the new prop
   tournamentName,
   gameName,
   fee,
@@ -52,18 +60,15 @@ const DetailedTournamentRegistrationForm = ({
 
     if (fee > 0 && hostUpiId) {
       // 1. Construct UPI Link
-      // tr = transaction reference (optional), tn = transaction note
       const transactionNote = `Entry Fee for ${teamName} - ${tournamentName}`;
       const upiLink = `upi://pay?pa=${hostUpiId}&pn=${encodeURIComponent(hostName)}&tn=${encodeURIComponent(transactionNote)}&am=${fee}&cu=INR`;
 
       // 2. Redirect to UPI App
-      // This works on mobile. On desktop, it might do nothing or try to open an associated app.
       window.location.href = upiLink;
 
-      // 3. User Experience Pause
-      // We pause for a few seconds to let the app open, then assume success or ask for confirmation
-      // In a real app, you'd show a "Enter Transaction ID" input after they return.
+      // 3. Pause for user action
       setTimeout(() => {
+        // In a real P2P flow, we just ask them if they paid.
         const confirmed = window.confirm("Did you complete the payment in your UPI app?");
         if (confirmed) {
             submitRegistration();
@@ -80,23 +85,26 @@ const DetailedTournamentRegistrationForm = ({
 
   const submitRegistration = async () => {
     try {
+        // --- FIX 4: Use the imported variables correctly ---
         await databases.createDocument(
             APPWRITE_DATABASE_ID,
-            registrations, // Make sure to import or define this ID here too!
+            APPWRITE_REGISTRATIONS_COLLECTION_ID,
             ID.unique(),
             {
-                tournamentId: selectedTournament.$id, // You need to pass tournament ID prop to this form
+                tournamentId: tournamentId, // Use the prop passed from parent
                 teamName: teamName,
                 contactEmail: contactEmail,
-                players: JSON.stringify(players) // Convert array to string for storage
+                players: JSON.stringify(players) // Store as string
             }
         );
         onRegister({ teamName, contactEmail, players });
+        toast.success("Team registered successfully!");
     } catch (error) {
-        toast.error("Registration failed in database.");
-        console.error(error);
+        toast.error("Registration failed. Please try again.");
+        console.error("Appwrite Registration Error:", error);
+    } finally {
+        setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   const updatePlayer = (index: number, field: keyof Player, value: string) => {
