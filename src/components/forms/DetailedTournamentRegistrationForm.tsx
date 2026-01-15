@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, DollarSign } from "lucide-react";
 // Import ID and the Collection ID from your lib file
-import { databases, APPWRITE_DATABASE_ID, ID, APPWRITE_REGISTRATIONS_COLLECTION_ID } from "@/lib/appwrite";
+import { databases, APPWRITE_DATABASE_ID,APPWRITE_REGISTRATIONS_COLLECTION_ID } from "@/lib/appwrite";
 
 interface Player {
   name: string;
