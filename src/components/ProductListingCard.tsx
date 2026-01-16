@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { MapPin } from "lucide-react";
+import { MapPin, Eye } from "lucide-react";
 import { Product } from "@/lib/mockData"; 
 import BuyProductDialog from "./forms/BuyProductDialog";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom"; // Use router for navigation
 
 interface ProductListingCardProps {
   product: Product;
@@ -19,61 +20,62 @@ interface ProductListingCardProps {
 
 const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [isBuyDialogOpen, setIsBuyDialogOpen] = useState(false);
 
-  // Helper to determine badge color based on type
   const getTypeBadgeStyle = (type: string) => {
     switch (type) {
       case 'sell': return "bg-blue-100 text-blue-700 border-blue-200";
       case 'rent': return "bg-purple-100 text-purple-700 border-purple-200";
       case 'gift': return "bg-pink-100 text-pink-700 border-pink-200";
-      case 'sports': return "bg-green-100 text-green-700 border-green-200";
       default: return "bg-gray-100 text-gray-700 border-gray-200";
     }
   };
 
-  const handleContactClick = () => {
-    if (!user) {
-      toast.error("Please login to contact the seller.");
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Prevent navigation if clicking specific interactive elements
+    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('[role="dialog"]')) {
       return;
     }
-    // In a real app, this would open a chat. For now, we show a toast.
-    toast.info(`Contacting ${product.sellerName}...`);
+    navigate(`/market/${product.$id}`);
   };
 
   return (
-    <Card className="group flex flex-col h-full border border-border/60 hover:shadow-lg transition-all duration-300 bg-card overflow-hidden">
+    <Card 
+      onClick={handleCardClick}
+      className="group flex flex-col h-full border border-border/60 hover:shadow-[0_0_15px_rgba(0,243,255,0.15)] hover:border-secondary-neon/50 transition-all duration-300 bg-card overflow-hidden cursor-pointer"
+    >
       
       {/* IMAGE SECTION */}
-      <div className="relative h-40 w-full bg-muted overflow-hidden">
+      <div className="relative h-48 w-full bg-muted overflow-hidden">
         <img 
-          src={product.imageUrl || "/app-logo.png"} 
+          // FIX: Use imageUrl attribute with App Logo fallback
+          src={product.imageUrl ? product.imageUrl : "/icons/icon-512x512.png"} 
           alt={product.title}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-          onError={(e) => { (e.target as HTMLImageElement).src = '/app-logo.png'; }}
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+          onError={(e) => { (e.target as HTMLImageElement).src = '/icons/icon-512x512.png'; }}
         />
         
-        {/* Type Badge */}
+        {/* Overlay Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60" />
+
         <div className="absolute top-3 left-3">
           <Badge variant="outline" className={cn("capitalize text-[10px] font-bold tracking-wider shadow-sm backdrop-blur-md bg-white/90", getTypeBadgeStyle(product.type))}>
             {product.type}
           </Badge>
         </div>
 
-        {/* Price Badge */}
         <div className="absolute bottom-3 right-3">
-           <Badge className="bg-black/80 text-white border-0 backdrop-blur-md text-xs font-bold px-2 py-1 shadow-md">
+           <Badge className="bg-black/80 text-white border-0 backdrop-blur-md text-sm font-bold px-2.5 py-1 shadow-md">
              {product.price}
            </Badge>
         </div>
       </div>
 
       {/* CONTENT SECTION */}
-      <CardContent className="flex-grow p-4 space-y-3">
-        
-        {/* Title & Condition */}
+      <CardContent className="flex-grow p-4 space-y-2">
         <div className="space-y-1">
-           <h3 className="font-bold text-base leading-tight line-clamp-1 text-foreground group-hover:text-secondary-neon transition-colors">
+           <h3 className="font-bold text-lg leading-tight line-clamp-1 text-foreground group-hover:text-secondary-neon transition-colors">
              {product.title}
            </h3>
            {product.condition && (
@@ -83,44 +85,34 @@ const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
            )}
         </div>
 
-        {/* Location (NEW FEATURE) */}
         {product.location && (
-          <div className="flex items-start gap-1.5 text-xs text-muted-foreground bg-secondary/5 p-2 rounded-md border border-border/50">
+          <div className="flex items-start gap-1.5 text-xs text-muted-foreground bg-secondary/5 p-1.5 rounded-md border border-border/50">
             <MapPin className="h-3.5 w-3.5 mt-0.5 text-secondary-neon shrink-0" />
             <span className="line-clamp-1 font-medium">{product.location}</span>
           </div>
         )}
 
-        {/* Description */}
-        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-          {product.description}
-        </p>
-
-        {/* Seller Info */}
-        <div className="flex items-center gap-2 pt-2 border-t border-border/40">
+        <div className="flex items-center gap-2 pt-2 border-t border-border/40 mt-2">
           <Avatar className="h-6 w-6 border border-border">
             <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${product.sellerName}`} />
             <AvatarFallback>S</AvatarFallback>
           </Avatar>
-          <div className="flex flex-col">
-             <span className="text-xs font-medium text-foreground/90 truncate max-w-[120px]">
-               {product.sellerName}
-             </span>
-          </div>
+          <span className="text-xs font-medium text-foreground/90 truncate max-w-[120px]">
+            {product.sellerName}
+          </span>
         </div>
       </CardContent>
 
       {/* FOOTER ACTION */}
       <CardFooter className="p-3 bg-muted/20 border-t border-border/40 grid grid-cols-2 gap-2">
-        {/* Buy/Rent Button */}
-        {product.type !== 'gift' && (
+        {product.type !== 'gift' ? (
             <Dialog open={isBuyDialogOpen} onOpenChange={setIsBuyDialogOpen}>
             <DialogTrigger asChild>
                 <Button 
-                className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 h-8 text-xs font-bold shadow-sm"
+                className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 h-9 text-xs font-bold shadow-sm"
                 disabled={user?.$id === product.userId}
                 >
-                {product.type === 'rent' ? 'Rent Now' : 'Buy Now'}
+                {product.type === 'rent' ? 'Rent' : 'Buy'}
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
@@ -132,15 +124,18 @@ const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
                 />
             </DialogContent>
             </Dialog>
+        ) : (
+            <Button className="w-full bg-pink-500 text-white hover:bg-pink-600 h-9 text-xs font-bold">
+                Claim
+            </Button>
         )}
 
-        {/* Contact/Details Button (Takes full width if Gift) */}
         <Button 
             variant="outline" 
-            className={cn("h-8 text-xs font-semibold border-border hover:bg-background", product.type === 'gift' ? "col-span-2" : "")}
-            onClick={handleContactClick}
+            className="h-9 text-xs font-semibold border-border hover:bg-background"
+            onClick={(e) => { e.stopPropagation(); navigate(`/market/${product.$id}`); }}
         >
-            {product.type === 'gift' ? 'Claim Gift' : 'Contact'}
+            <Eye className="mr-2 h-3 w-3" /> View
         </Button>
       </CardFooter>
     </Card>
