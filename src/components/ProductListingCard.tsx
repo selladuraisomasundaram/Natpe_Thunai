@@ -10,9 +10,8 @@ import { MapPin, Eye } from "lucide-react";
 import { Product } from "@/lib/mockData"; 
 import BuyProductDialog from "./forms/BuyProductDialog";
 import { useAuth } from "@/context/AuthContext";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "react-router-dom"; // Use router for navigation
+import { useNavigate } from "react-router-dom"; // Essential for navigation
 
 interface ProductListingCardProps {
   product: Product;
@@ -32,13 +31,21 @@ const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
     }
   };
 
+  // --- NAVIGATION HANDLER ---
   const handleCardClick = (e: React.MouseEvent) => {
-    // Prevent navigation if clicking specific interactive elements
-    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('[role="dialog"]')) {
+    // Prevent navigation if the user clicked a Button or Dialog
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('[role="dialog"]')) {
       return;
     }
+    // Navigate to the details page
     navigate(`/market/${product.$id}`);
   };
+
+  // Image Fallback Logic
+  const displayImage = product.imageUrl && product.imageUrl.trim() !== "" 
+    ? product.imageUrl 
+    : "/icons/icon-512x512.png"; // PWA Icon Path
 
   return (
     <Card 
@@ -49,11 +56,13 @@ const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
       {/* IMAGE SECTION */}
       <div className="relative h-48 w-full bg-muted overflow-hidden">
         <img 
-          // FIX: Use imageUrl attribute with App Logo fallback
-          src={product.imageUrl ? product.imageUrl : "/icons/icon-512x512.png"} 
+          src={displayImage} 
           alt={product.title}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-          onError={(e) => { (e.target as HTMLImageElement).src = '/icons/icon-512x512.png'; }}
+          onError={(e) => { 
+            (e.target as HTMLImageElement).src = '/icons/icon-512x512.png'; 
+            (e.target as HTMLImageElement).classList.add('object-contain', 'p-4'); // Make fallback look nicer
+          }}
         />
         
         {/* Overlay Gradient */}
@@ -109,23 +118,27 @@ const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
             <Dialog open={isBuyDialogOpen} onOpenChange={setIsBuyDialogOpen}>
             <DialogTrigger asChild>
                 <Button 
-                className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 h-9 text-xs font-bold shadow-sm"
-                disabled={user?.$id === product.userId}
+                  className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 h-9 text-xs font-bold shadow-sm"
+                  disabled={user?.$id === product.userId}
+                  onClick={(e) => e.stopPropagation()} // Stop click from opening details
                 >
-                {product.type === 'rent' ? 'Rent' : 'Buy'}
+                  {product.type === 'rent' ? 'Rent' : 'Buy'}
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader><DialogTitle>Confirm Purchase</DialogTitle></DialogHeader>
                 <BuyProductDialog 
-                product={product} 
-                onPurchaseInitiated={() => setIsBuyDialogOpen(false)} 
-                onCancel={() => setIsBuyDialogOpen(false)} 
+                  product={product} 
+                  onPurchaseInitiated={() => setIsBuyDialogOpen(false)} 
+                  onCancel={() => setIsBuyDialogOpen(false)} 
                 />
             </DialogContent>
             </Dialog>
         ) : (
-            <Button className="w-full bg-pink-500 text-white hover:bg-pink-600 h-9 text-xs font-bold">
+            <Button 
+              className="w-full bg-pink-500 text-white hover:bg-pink-600 h-9 text-xs font-bold"
+              onClick={(e) => e.stopPropagation()}
+            >
                 Claim
             </Button>
         )}
@@ -133,7 +146,10 @@ const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
         <Button 
             variant="outline" 
             className="h-9 text-xs font-semibold border-border hover:bg-background"
-            onClick={(e) => { e.stopPropagation(); navigate(`/market/${product.$id}`); }}
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              navigate(`/market/${product.$id}`); 
+            }}
         >
             <Eye className="mr-2 h-3 w-3" /> View
         </Button>
