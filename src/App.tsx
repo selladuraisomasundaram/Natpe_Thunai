@@ -41,7 +41,7 @@ import CollaboratorsPage from "./pages/CollaboratorsPage";
 import PostJobPage from "./pages/PostJobPage";
 import AmbassadorProgramPage from "./pages/AmbassadorProgramPage";
 // Note: Ensure this file is located at src/pages/market/ProductDetailsPage.tsx or update path
-import ProductDetailsPage from "./pages/market/ProductDetailsPage"; 
+import ProductDetailsPage from "./pages/ProductDetailsPage"; 
 import PaymentConfirmationPage from "./pages/PaymentConfirmationPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
