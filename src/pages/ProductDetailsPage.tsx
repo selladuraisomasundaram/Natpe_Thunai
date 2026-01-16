@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID, APPWRITE_SERVICE_REVIEWS_COLLECTION_ID } from "@/lib/appwrite";
-import { Query } from "appwrite";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID, APPWRITE_SERVICE_REVIEWS_COLLECTION_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID } from "@/lib/appwrite";
+import { Query, ID } from "appwrite";
+import { DEVELOPER_UPI_ID } from '@/lib/config';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,19 +14,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { 
   Loader2, ArrowLeft, MapPin, Star, ShieldCheck, 
-  ShoppingCart, MessageCircle, AlertTriangle, ChevronDown, Gavel, ImageOff 
+  ShoppingCart, MessageCircle, AlertTriangle, ChevronDown, Gavel, ImageOff, DollarSign, Flag 
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import BuyProductDialog from "@/components/forms/BuyProductDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import AmbassadorDeliveryOption from "@/components/AmbassadorDeliveryOption"; // Ensure this component exists
+import { useBargainRequests } from '@/hooks/useBargainRequests'; // Ensure this hook exists
 
-// --- HELPER: URL CLEANUP ---
+// --- HELPER: IMAGE OPTIMIZER ---
 const getOptimizedImageUrl = (url?: string) => {
   if (!url) return null;
-  
-  // Google Drive Fix
   if (url.includes("drive.google.com") && url.includes("/view")) {
     const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
     if (idMatch && idMatch[1]) {
@@ -38,23 +38,36 @@ const getOptimizedImageUrl = (url?: string) => {
 const ProductDetailsPage = () => {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, userProfile, incrementAmbassadorDeliveriesCount } = useAuth();
   
+  // Custom Hook for Bargains
+  const { sendBargainRequest, getBargainStatusForProduct } = useBargainRequests();
+  const { status: currentBargainStatus } = getBargainStatusForProduct(productId || '');
+
+  // Data State
   const [product, setProduct] = useState<any>(null);
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // --- ROBUST IMAGE STATE ---
-  // 'loading' | 'success' | 'error'
+  // Image State
   const [imageStatus, setImageStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [displayImage, setDisplayImage] = useState<string>("");
 
-  // Interactive State
-  const [currentPrice, setCurrentPrice] = useState<string>("0");
+  // Transaction State
   const [isBuyDialogOpen, setIsBuyDialogOpen] = useState(false);
   const [isBargainDialogOpen, setIsBargainDialogOpen] = useState(false);
   const [bargainAmount, setBargainAmount] = useState("");
-  const [isNegotiating, setIsNegotiating] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Ambassador State
+  const [ambassadorDelivery, setAmbassadorDelivery] = useState(false);
+  const [ambassadorMessage, setAmbassadorMessage] = useState("");
+
+  // Computed State
+  const originalPriceVal = product ? parseFloat(product.price.replace(/[₹,]/g, '').split('/')[0].trim()) : 0;
+  const isBargainAccepted = currentBargainStatus === 'accepted';
+  // If bargain accepted, use 85% of price, else original
+  const finalPrice = isBargainAccepted ? (originalPriceVal * 0.85) : originalPriceVal;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -66,15 +79,14 @@ const ProductDetailsPage = () => {
           productId
         );
         setProduct(productDoc);
-        setCurrentPrice(productDoc.price);
         
-        // Handle Image URL
+        // Handle Image
         const optimizedUrl = getOptimizedImageUrl(productDoc.imageUrl);
         if (optimizedUrl) {
             setDisplayImage(optimizedUrl);
-            setImageStatus('loading'); // Start loading the new URL
+            setImageStatus('loading');
         } else {
-            setImageStatus('error'); // No URL, go straight to fallback
+            setImageStatus('error');
         }
 
         const reviewsRes = await databases.listDocuments(
@@ -96,23 +108,75 @@ const ProductDetailsPage = () => {
     fetchData();
   }, [productId, navigate]);
 
-  // --- BARGAIN LOGIC ---
-  const handleBargain = () => {
+  // --- BARGAIN HANDLER ---
+  const handleSendBargainRequest = async () => {
+    if (!user || !product) return;
     if (!bargainAmount) return;
-    setIsNegotiating(true);
-
-    setTimeout(() => {
-        setIsNegotiating(false);
+    
+    setIsProcessing(true);
+    try {
+        // Send request using the hook (backend logic)
+        await sendBargainRequest(product, parseFloat(bargainAmount));
         setIsBargainDialogOpen(false);
-        
-        const newPrice = `₹${bargainAmount}`;
-        setCurrentPrice(newPrice);
-        
-        toast.success("Offer Accepted! Price updated.", {
-            description: "The seller agreed to your price. You can now buy it.",
-            icon: <Gavel className="h-4 w-4 text-green-500" />
-        });
-    }, 1500);
+        // Frontend feedback handled by hook/toast usually, but explicit success here:
+        toast.success("Offer Sent! Seller will be notified.");
+    } catch (error: any) {
+        toast.error(error.message || "Failed to send offer.");
+    } finally {
+        setIsProcessing(false);
+    }
+  };
+
+  // --- PURCHASE HANDLER ---
+  const handleInitiatePayment = async () => {
+    if (!user || !userProfile || !product) return;
+    setIsProcessing(true);
+
+    const transactionType = product.type === 'sell' ? 'buy' : 'rent';
+    const transactionNote = isBargainAccepted 
+      ? `Bargain buy: ${product.title}` 
+      : `${transactionType}: ${product.title}`;
+
+    try {
+      const newTransaction = await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_TRANSACTIONS_COLLECTION_ID,
+        ID.unique(),
+        {
+          productId: product.$id,
+          productTitle: product.title,
+          buyerId: user.$id,
+          buyerName: user.name,
+          sellerId: product.userId,
+          sellerName: product.sellerName,
+          sellerUpiId: product.sellerUpiId, // Ensure this field exists in your DB schema
+          amount: parseFloat(finalPrice.toFixed(2)),
+          status: "initiated",
+          type: transactionType,
+          isBargain: isBargainAccepted,
+          collegeName: userProfile.collegeName,
+          ambassadorDelivery: ambassadorDelivery,
+          ambassadorMessage: ambassadorMessage || null,
+        }
+      );
+
+      const transactionId = newTransaction.$id;
+      if (ambassadorDelivery && incrementAmbassadorDeliveriesCount) {
+        await incrementAmbassadorDeliveriesCount();
+      }
+
+      const upiDeepLink = `upi://pay?pa=${DEVELOPER_UPI_ID}&pn=NatpeThunaiDevelopers&am=${finalPrice.toFixed(2)}&cu=INR&tn=${encodeURIComponent(transactionNote + ` (TX:${transactionId.substring(0,6)})`)}`;
+      window.open(upiDeepLink, "_blank");
+      
+      setIsBuyDialogOpen(false);
+      navigate(`/market/confirm-payment/${transactionId}`);
+
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Failed to initiate transaction.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (loading) {
@@ -128,7 +192,7 @@ const ProductDetailsPage = () => {
   return (
     <div className="min-h-screen bg-background pb-28 relative">
       
-      {/* --- HEADER --- */}
+      {/* HEADER */}
       <div className="sticky top-0 z-20 flex items-center p-3 bg-background/80 backdrop-blur-xl border-b border-border">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="-ml-2">
           <ArrowLeft className="h-5 w-5" />
@@ -138,42 +202,37 @@ const ProductDetailsPage = () => {
 
       <div className="max-w-3xl mx-auto">
         
-        {/* --- PRODUCT IMAGE (ROBUST) --- */}
-        <div className="w-full aspect-square sm:aspect-video bg-muted/30 relative overflow-hidden group flex items-center justify-center">
-          
-          {/* 1. Loading Skeleton */}
+        {/* PRODUCT IMAGE */}
+        <div className="w-full aspect-square sm:aspect-video bg-muted/30 relative overflow-hidden group flex items-center justify-center bg-secondary/5">
           {imageStatus === 'loading' && (
              <div className="absolute inset-0 flex items-center justify-center bg-muted animate-pulse">
                 <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
              </div>
           )}
-
-          {/* 2. Actual Image (Hidden until loaded, or removed if error) */}
+          
           {imageStatus !== 'error' && (
               <img 
                 src={displayImage}
                 alt={product.title}
                 className={`w-full h-full object-contain transition-opacity duration-500 ${imageStatus === 'success' ? 'opacity-100' : 'opacity-0'}`}
                 onLoad={() => setImageStatus('success')}
-                onError={() => setImageStatus('error')} // Trigger fallback immediately
+                onError={() => setImageStatus('error')} 
               />
           )}
 
-          {/* 3. Fallback App Logo (If Error or No URL) */}
           {imageStatus === 'error' && (
              <div className="flex flex-col items-center justify-center opacity-80">
                 <img 
-                    src="/icons/icon-512x512.png" // Ensure this path is correct in your public folder
+                    src="/app-logo.png" // CORRECT PATH for public folder
                     alt="App Logo"
                     className="h-24 w-24 object-contain drop-shadow-md mb-2"
                 />
                 <span className="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                    <ImageOff className="h-3 w-3" /> No Preview Available
+                    <ImageOff className="h-3 w-3" /> No Preview
                 </span>
              </div>
           )}
 
-          {/* Overlay Badge */}
           <div className="absolute top-4 left-4 z-10">
              <Badge className="bg-background/90 text-foreground backdrop-blur border border-border/50 shadow-sm uppercase tracking-wider text-[10px]">
                 {product.type}
@@ -181,18 +240,20 @@ const ProductDetailsPage = () => {
           </div>
         </div>
 
-        {/* --- MAIN INFO --- */}
+        {/* MAIN INFO */}
         <div className="p-5 space-y-6">
           
-          {/* Title & Price */}
           <div className="space-y-1">
             <h1 className="text-2xl font-bold text-foreground leading-tight">{product.title}</h1>
             <div className="flex items-center gap-2">
-               <p className="text-3xl font-black text-secondary-neon animate-in fade-in zoom-in duration-300 key={currentPrice}">
-                  {currentPrice}
-               </p>
-               {product.price !== currentPrice && (
-                   <span className="text-sm text-muted-foreground line-through decoration-destructive">{product.price}</span>
+               {isBargainAccepted ? (
+                   <>
+                     <span className="text-3xl font-black text-green-500">₹{finalPrice.toFixed(2)}</span>
+                     <span className="text-sm text-muted-foreground line-through">₹{originalPriceVal}</span>
+                     <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Deal Accepted</Badge>
+                   </>
+               ) : (
+                   <p className="text-3xl font-black text-secondary-neon">{product.price}</p>
                )}
             </div>
             {product.condition && (
@@ -204,7 +265,7 @@ const ProductDetailsPage = () => {
 
           <Separator />
 
-          {/* --- SELLER CARD --- */}
+          {/* SELLER CARD */}
           <div className="flex items-center justify-between bg-card border border-border/50 p-4 rounded-xl shadow-sm">
              <div className="flex items-center gap-3">
                 <Avatar className="h-12 w-12 border-2 border-secondary-neon/20">
@@ -229,7 +290,7 @@ const ProductDetailsPage = () => {
              </Button>
           </div>
 
-          {/* --- MEETING SPOT --- */}
+          {/* MEETING SPOT */}
           <div className="bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 p-4 rounded-xl">
              <div className="flex items-start gap-3">
                 <div className="p-2 bg-background rounded-full shadow-sm shrink-0 text-blue-500">
@@ -247,7 +308,7 @@ const ProductDetailsPage = () => {
              </div>
           </div>
 
-          {/* --- DESCRIPTION --- */}
+          {/* DESCRIPTION */}
           <div className="space-y-2">
             <h3 className="font-bold text-lg">About this item</h3>
             <p className="text-sm text-muted-foreground leading-7 whitespace-pre-wrap">
@@ -255,7 +316,7 @@ const ProductDetailsPage = () => {
             </p>
           </div>
 
-          {/* --- SAFETY INFO (Accordion) --- */}
+          {/* SAFETY INFO */}
           <Collapsible className="border border-border rounded-lg">
              <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-sm font-medium hover:bg-muted/50 transition-colors">
                 <span className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-orange-500"/> Safety Guidelines</span>
@@ -269,7 +330,7 @@ const ProductDetailsPage = () => {
              </CollapsibleContent>
           </Collapsible>
 
-          {/* --- REVIEWS --- */}
+          {/* REVIEWS */}
           <div className="space-y-4 pt-2">
             <h3 className="font-bold text-lg">Reviews ({reviews.length})</h3>
             {reviews.length === 0 ? (
@@ -296,63 +357,87 @@ const ProductDetailsPage = () => {
         </div>
       </div>
 
-      {/* --- STICKY ACTION BAR --- */}
+      {/* STICKY ACTION BAR */}
       <div className="fixed bottom-0 left-0 right-0 p-3 bg-background/95 backdrop-blur-md border-t border-border z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
          <div className="max-w-3xl mx-auto flex gap-3">
             {user?.$id !== product.userId ? (
                 <>
-                    {/* BARGAIN BUTTON */}
-                    <Dialog open={isBargainDialogOpen} onOpenChange={setIsBargainDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button variant="outline" className="flex-1 h-12 border-secondary-neon text-secondary-neon hover:bg-secondary-neon/10 font-bold">
-                                <Gavel className="mr-2 h-4 w-4" /> Make Offer
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[400px]">
-                            <DialogHeader>
-                                <DialogTitle>Negotiate Price</DialogTitle>
-                                <DialogDescription>Enter your offer price. The seller will be notified.</DialogDescription>
-                            </DialogHeader>
-                            <div className="py-4 space-y-4">
-                                <div className="space-y-2">
-                                    <Label>Your Offer (₹)</Label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-3 text-muted-foreground font-bold">₹</span>
-                                        <Input 
-                                            type="number" 
-                                            className="pl-8 text-lg font-bold" 
-                                            placeholder={product.price.replace(/\D/g, '')}
-                                            value={bargainAmount}
-                                            onChange={(e) => setBargainAmount(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded text-xs text-yellow-700 dark:text-yellow-400">
-                                    If accepted, the price will update instantly for you to purchase.
-                                </div>
-                            </div>
-                            <DialogFooter>
-                                <Button onClick={handleBargain} disabled={!bargainAmount || isNegotiating} className="w-full bg-secondary-neon text-primary-foreground">
-                                    {isNegotiating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Offer"}
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                    {/* BARGAIN DIALOG */}
+                    {!isBargainAccepted && (
+                      <Dialog open={isBargainDialogOpen} onOpenChange={setIsBargainDialogOpen}>
+                          <DialogTrigger asChild>
+                              <Button 
+                                variant="outline" 
+                                className="flex-1 h-12 border-secondary-neon text-secondary-neon hover:bg-secondary-neon/10 font-bold"
+                                disabled={currentBargainStatus === 'pending' || currentBargainStatus === 'denied'}
+                              >
+                                  <Gavel className="mr-2 h-4 w-4" /> 
+                                  {currentBargainStatus === 'pending' ? 'Pending' : currentBargainStatus === 'denied' ? 'Denied' : 'Make Offer'}
+                              </Button>
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-[400px]">
+                              <DialogHeader>
+                                  <DialogTitle>Negotiate Price</DialogTitle>
+                                  <DialogDescription>Enter your offer. 15% discount limit usually applies.</DialogDescription>
+                              </DialogHeader>
+                              <div className="py-4 space-y-4">
+                                  <div className="space-y-2">
+                                      <Label>Your Offer (₹)</Label>
+                                      <div className="relative">
+                                          <span className="absolute left-3 top-3 text-muted-foreground font-bold">₹</span>
+                                          <Input 
+                                              type="number" 
+                                              className="pl-8 text-lg font-bold" 
+                                              placeholder={(originalPriceVal * 0.85).toFixed(0)}
+                                              value={bargainAmount}
+                                              onChange={(e) => setBargainAmount(e.target.value)}
+                                          />
+                                      </div>
+                                  </div>
+                              </div>
+                              <DialogFooter>
+                                  <Button onClick={handleSendBargainRequest} disabled={!bargainAmount || isProcessing} className="w-full bg-secondary-neon text-primary-foreground">
+                                      {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Offer"}
+                                  </Button>
+                              </DialogFooter>
+                          </DialogContent>
+                      </Dialog>
+                    )}
 
-                    {/* BUY BUTTON */}
+                    {/* BUY DIALOG */}
                     <Dialog open={isBuyDialogOpen} onOpenChange={setIsBuyDialogOpen}>
                         <DialogTrigger asChild>
                             <Button className="flex-[1.5] h-12 bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 font-bold text-base shadow-lg shadow-secondary-neon/20">
-                                <ShoppingCart className="mr-2 h-5 w-5" /> Buy Now
+                                <ShoppingCart className="mr-2 h-5 w-5" /> {isBargainAccepted ? `Buy @ ₹${finalPrice}` : 'Buy Now'}
                             </Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-[425px]">
-                            <DialogHeader><DialogTitle>Secure Purchase</DialogTitle></DialogHeader>
-                            <BuyProductDialog 
-                                product={{...product, price: currentPrice}} 
-                                onPurchaseInitiated={() => setIsBuyDialogOpen(false)} 
-                                onCancel={() => setIsBuyDialogOpen(false)} 
-                            />
+                            <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2">
+                                    <DollarSign className="h-5 w-5 text-secondary-neon" /> Confirm Purchase
+                                </DialogTitle>
+                                <DialogDescription>Review details before payment.</DialogDescription>
+                            </DialogHeader>
+                            
+                            <div className="space-y-4 py-2">
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted-foreground">Price:</span>
+                                    <span className="font-bold text-lg">₹{finalPrice.toFixed(2)}</span>
+                                </div>
+                                <AmbassadorDeliveryOption 
+                                    ambassadorDelivery={ambassadorDelivery}
+                                    setAmbassadorDelivery={setAmbassadorDelivery}
+                                    ambassadorMessage={ambassadorMessage}
+                                    setAmbassadorMessage={setAmbassadorMessage}
+                                />
+                            </div>
+
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setIsBuyDialogOpen(false)}>Cancel</Button>
+                                <Button onClick={handleInitiatePayment} disabled={isProcessing} className="bg-secondary-neon text-primary-foreground">
+                                    {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Pay Now"}
+                                </Button>
+                            </DialogFooter>
                         </DialogContent>
                     </Dialog>
                 </>
