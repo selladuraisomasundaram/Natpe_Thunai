@@ -7,12 +7,14 @@ import {
   APPWRITE_DATABASE_ID, 
   APPWRITE_PRODUCTS_COLLECTION_ID, 
   APPWRITE_SERVICE_REVIEWS_COLLECTION_ID, 
-  APPWRITE_TRANSACTIONS_COLLECTION_ID 
+  APPWRITE_TRANSACTIONS_COLLECTION_ID,
+  APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID 
 } from "@/lib/appwrite";
 import { Query, ID } from "appwrite";
 import { DEVELOPER_UPI_ID } from '@/lib/config';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
@@ -245,7 +247,9 @@ const ProductDetailsPage = () => {
   }
 
   if (!product) return null;
-  const isOwner = user?.$id === product.userId;
+  
+  // IMPORTANT: Ensure this logic correctly identifies if YOU are the owner
+  const isOwner = user && product && user.$id === product.userId;
 
   return (
     <div className="min-h-screen bg-background pb-32 relative">
@@ -335,7 +339,7 @@ const ProductDetailsPage = () => {
              </Button>
           </div>
 
-          {/* MEETING SPOT */}
+          {/* MEETING SPOT - FIX: Use specific location or generic fallback */}
           <div className="bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 p-4 rounded-xl">
              <div className="flex items-start gap-3">
                 <div className="p-2 bg-background rounded-full shadow-sm shrink-0 text-blue-500">
@@ -343,8 +347,9 @@ const ProductDetailsPage = () => {
                 </div>
                 <div>
                    <h3 className="font-bold text-sm text-foreground">Meeting Spot</h3>
+                   {/* FIXED LOCATION DISPLAY */}
                    <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                     {product.location || "Main Canteen Entrance"}
+                     {product.location ? product.location : "Contact seller for meeting details"}
                    </p>
                    <p className="text-[10px] text-blue-500/80 mt-2 font-medium flex items-center">
                      <ShieldCheck className="h-3 w-3 mr-1" /> Safe Exchange Zone Verified
@@ -389,8 +394,8 @@ const ProductDetailsPage = () => {
       </div>
 
       {/* --- STICKY ACTION BAR --- */}
-      {/* FORCE Z-INDEX 50 AND WHITE BACKGROUND FOR VISIBILITY */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border z-50 shadow-[0_-5px_30px_rgba(0,0,0,0.1)]">
+      {/* FIXED: Added z-[100] to appear above BottomNavbar */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border z-[100] shadow-[0_-5px_30px_rgba(0,0,0,0.1)]">
          <div className="max-w-3xl mx-auto flex gap-3 h-12">
             {/* Logic: If Owner, Show 'Your Listing'. If not, show Actions */}
             {!isOwner ? (
