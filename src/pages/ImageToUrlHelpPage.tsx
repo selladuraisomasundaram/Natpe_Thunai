@@ -4,7 +4,7 @@ import React from "react";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Image, Link as LinkIcon, UploadCloud } from "lucide-react";
+import { ArrowLeft, Image, Link as LinkIcon, UploadCloud, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const ImageToUrlHelpPage = () => {
@@ -29,54 +29,64 @@ const ImageToUrlHelpPage = () => {
               <Image className="h-5 w-5 text-secondary-neon" /> How to Get an Image URL
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-4 pt-0 space-y-4">
+          <CardContent className="p-4 pt-0 space-y-6">
             <p className="text-sm text-muted-foreground">
-              Many forms on Natpe🤝Thunai require an image URL. Here's how you can easily convert your images into shareable links:
+              To display images in the app (like for products or profile pictures), you need a direct link. Here are the most reliable methods:
             </p>
 
-            <div className="space-y-3">
+            {/* METHOD 1: POSTIMAGES (REPLACES IMGUR) */}
+            <div className="space-y-3 p-3 bg-secondary/5 rounded-lg border border-border/50">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <UploadCloud className="h-4 w-4 text-primary" /> 1. Using Google Drive
+                <UploadCloud className="h-4 w-4 text-green-500" /> 1. Using PostImages (Easiest)
               </h3>
-              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1 pl-4">
-                <li>Upload your image to Google Drive.</li>
-                <li>Right-click the image and select "Share".</li>
-                <li>Change "General access" to "Anyone with the link".</li>
-                <li>Copy the link.</li>
-                <li>**Important:** The copied link will look like `https://drive.google.com/file/d/FILE_ID/view?usp=sharing`. You need to modify it to `https://drive.google.com/uc?export=view&id=FILE_ID` for direct embedding. Replace `FILE_ID` with the actual ID from your link.</li>
+              <p className="text-xs text-muted-foreground mb-2">No sign-up required. Fast and reliable.</p>
+              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1.5 pl-2">
+                <li>Go to <strong>PostImages.org</strong>.</li>
+                <li>Click <strong>"Choose images"</strong> and upload your file.</li>
+                <li>Once uploaded, look for the box labeled <strong>"Direct link"</strong> (usually the second option).</li>
+                <li>Copy that link. It should end with <code>.jpg</code> or <code>.png</code>.</li>
               </ul>
-              <Button variant="link" onClick={() => handleExternalLink("https://drive.google.com/")} className="p-0 h-auto text-secondary-neon hover:underline">
-                Go to Google Drive <LinkIcon className="ml-1 h-3 w-3" />
-              </Button>
+              <div className="pt-2">
+                <Button variant="outline" onClick={() => handleExternalLink("https://postimages.org/")} className="h-8 text-xs w-full sm:w-auto border-secondary-neon/50 text-secondary-neon hover:bg-secondary-neon/10">
+                  Open PostImages <LinkIcon className="ml-2 h-3 w-3" />
+                </Button>
+              </div>
             </div>
 
-            <div className="space-y-3">
+            {/* METHOD 2: GOOGLE DRIVE */}
+            <div className="space-y-3 p-3 bg-secondary/5 rounded-lg border border-border/50">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <UploadCloud className="h-4 w-4 text-primary" /> 2. Using Imgur
+                <UploadCloud className="h-4 w-4 text-blue-500" /> 2. Using Google Drive
               </h3>
-              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1 pl-4">
-                <li>Go to Imgur.com and click "New Post".</li>
-                <li>Upload your image.</li>
-                <li>Once uploaded, right-click the image and select "Copy Image Address" (or "Copy Image Link"). This will give you a direct URL.</li>
+              <p className="text-xs text-muted-foreground mb-2">Best if you want to keep files in your own cloud.</p>
+              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1.5 pl-2">
+                <li>Upload your image to Drive.</li>
+                <li>Right-click &gt; <strong>Share</strong> &gt; Change access to <strong>"Anyone with the link"</strong>.</li>
+                <li>Copy the link. It looks like: <br/><code className="text-[10px] bg-muted p-0.5 rounded">drive.google.com/file/d/FILE_ID/view</code></li>
+                <li className="text-foreground font-medium">To make it work in the app, use this format:</li>
+                <code className="block text-[10px] bg-black/80 text-white p-2 rounded mt-1 break-all">
+                  https://drive.google.com/uc?export=view&id=FILE_ID
+                </code>
+                <li className="text-xs italic mt-1">(Replace <code>FILE_ID</code> with the long code from your link).</li>
               </ul>
-              <Button variant="link" onClick={() => handleExternalLink("https://imgur.com/")} className="p-0 h-auto text-secondary-neon hover:underline">
-                Go to Imgur <LinkIcon className="ml-1 h-3 w-3" />
-              </Button>
+              <div className="pt-2">
+                <Button variant="outline" onClick={() => handleExternalLink("https://drive.google.com/")} className="h-8 text-xs w-full sm:w-auto border-blue-500/50 text-blue-500 hover:bg-blue-500/10">
+                  Open Google Drive <LinkIcon className="ml-2 h-3 w-3" />
+                </Button>
+              </div>
             </div>
 
-            <div className="space-y-3">
-              <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <UploadCloud className="h-4 w-4 text-primary" /> 3. Other Image Hosting Services
-              </h3>
-              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1 pl-4">
-                <li>Many other services like Cloudinary, Flickr, or even your own website can host images.</li>
-                <li>Always look for an option to "Copy Image Address" or "Direct Link" after uploading.</li>
-              </ul>
+            {/* VERIFICATION TIP */}
+            <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded-md flex gap-3 items-start">
+                <CheckCircle2 className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
+                <div className="text-sm">
+                    <p className="font-bold text-yellow-700 dark:text-yellow-500">How to verify?</p>
+                    <p className="text-muted-foreground text-xs mt-1">
+                        Paste the URL in a new browser tab. If the image loads <strong>alone</strong> (without a website wrapper around it), it is a valid direct link.
+                    </p>
+                </div>
             </div>
 
-            <p className="text-sm text-destructive-foreground mt-4">
-              **Important:** Ensure the link you provide directly points to the image file (usually ends with .jpg, .png, .gif, etc.) and is publicly accessible.
-            </p>
           </CardContent>
         </Card>
       </div>
