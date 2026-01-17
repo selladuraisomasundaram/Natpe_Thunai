@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { 
   AlertTriangle, ChevronLeft, ChevronRight, Compass, Inbox, 
-  ShoppingBag, Briefcase, Utensils, ArrowRight 
+  ShoppingBag, Briefcase, Utensils
 } from "lucide-react";
 import { useMarketListings } from '@/hooks/useMarketListings';
 import { useServiceListings } from '@/hooks/useServiceListings';
@@ -74,17 +74,14 @@ const DiscoveryFeed: React.FC = () => {
   // 4. Action Handler
   const handleItemAction = (item: any) => {
     if (item.feedType === 'product') {
-        // Products have dedicated detail pages
         navigate(`/market/${item.$id}`);
     } else {
-        // Services/Food don't have individual pages in this router setup yet, 
-        // so we direct them to the relevant category tab where they can interact.
         const isFood = ['homemade-meals', 'wellness-remedies', 'snacks'].includes(item.category);
         const targetPath = isFood ? '/services/food-wellness' : '/services/freelance';
         const actionLabel = isFood ? "ordering" : "hiring";
         
         toast.info(`Redirecting to ${isFood ? 'Food Court' : 'Freelance Hub'}...`, {
-            description: `Find this post there to start ${actionLabel}.`
+            description: `Find this listing there to start ${actionLabel}.`
         });
         navigate(targetPath);
     }
@@ -150,25 +147,33 @@ const DiscoveryFeed: React.FC = () => {
             return (
               <div key={item.$id} className="group relative flex flex-col h-full rounded-xl transition-all duration-300 hover:shadow-lg border border-transparent hover:border-border/50">
                 
-                {/* Render Appropriate Card */}
+                {/* NOTE: We pass 'hideDefaultAction' to tell the child card NOT to render its own button.
+                   If your card components don't support this prop yet, please update them to accept it 
+                   and conditionally render their footer buttons.
+                */}
                 <div className="flex-1">
                     {item.feedType === 'product' ? (
-                    <ProductListingCard product={item} />
+                    <ProductListingCard 
+                        product={item} 
+                        // @ts-ignore: Custom prop for suppressing default button
+                        hideDefaultAction={true} 
+                    />
                     ) : (
                     <ServiceListingCard
                         service={item}
                         isFoodOrWellnessCategory={isFood}
                         onOpenBargainDialog={() => {}} 
                         onOpenReviewDialog={() => {}}
+                        // @ts-ignore: Custom prop for suppressing default button
+                        hideDefaultAction={true}
                     />
                     )}
                 </div>
 
-                {/* Context Action Button (Appended to Card) */}
-                <div className="mt-[-1px] bg-card border-x border-b border-border rounded-b-xl p-3 pt-0 shadow-sm group-hover:shadow-md transition-shadow">
+                {/* THE ONLY ACTION BUTTON (Neon Green Context Based) */}
+                <div className="mt-[-4px] bg-card border-x border-b border-border rounded-b-xl p-3 pt-1 shadow-sm group-hover:shadow-md transition-shadow z-10 relative">
                     <Button 
-                        className="w-full font-bold shadow-sm flex items-center justify-center gap-2"
-                        variant={item.feedType === 'product' ? "default" : "secondary"}
+                        className="w-full font-bold shadow-lg shadow-secondary-neon/20 flex items-center justify-center gap-2 bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90"
                         onClick={() => handleItemAction(item)}
                     >
                         {item.feedType === 'product' && <><ShoppingBag className="h-4 w-4" /> View & Buy</>}
@@ -202,8 +207,6 @@ const DiscoveryFeed: React.FC = () => {
             
             <div className="flex items-center gap-1">
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    // Simple logic to show a window of pages around current would go here
-                    // For now, simple list
                     const p = i + 1;
                     return (
                         <Button
