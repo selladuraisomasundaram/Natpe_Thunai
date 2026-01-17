@@ -17,7 +17,14 @@ import {
   MessageCircle, Briefcase, Wallet, Lock, MapPin
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID, APPWRITE_PRODUCTS_COLLECTION_ID, APPWRITE_CHAT_ROOMS_COLLECTION_ID } from "@/lib/appwrite";
+import { 
+  databases, 
+  APPWRITE_DATABASE_ID, 
+  APPWRITE_TRANSACTIONS_COLLECTION_ID, 
+  APPWRITE_FOOD_ORDERS_COLLECTION_ID, 
+  APPWRITE_PRODUCTS_COLLECTION_ID, 
+  APPWRITE_CHAT_ROOMS_COLLECTION_ID 
+} from "@/lib/appwrite";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { Query, ID } from "appwrite";
@@ -28,7 +35,7 @@ import { DEVELOPER_UPI_ID } from "@/lib/config";
 const CLOUD_NAME = "dpusuqjvo";
 const UPLOAD_PRESET = "natpe_thunai_preset";
 
-// --- CLOUDINARY UPLOAD ---
+// --- HELPERS ---
 const uploadToCloudinary = async (file: File): Promise<string> => {
   const formData = new FormData();
   formData.append("file", file);
@@ -43,6 +50,22 @@ const uploadToCloudinary = async (file: File): Promise<string> => {
   }
 };
 
+const mapAppwriteStatusToTrackingStatus = (status: string): string => {
+  const map: Record<string, string> = {
+    "negotiating": "Negotiating",
+    "initiated": "Payment Pending",
+    "payment_confirmed_to_developer": "Verifying Payment",
+    "commission_deducted": "Active / In Progress",
+    "active": "Active / In Progress",
+    "seller_confirmed_delivery": "Work Done / Delivered",
+    "meeting_scheduled": "Meeting Scheduled",
+    "completed": "Completed",
+    "failed": "Cancelled",
+    "disputed": "Disputed"
+  };
+  return map[status] || status;
+};
+
 // --- INTERFACES ---
 export interface BaseTrackingItem {
   id: string;
@@ -51,8 +74,6 @@ export interface BaseTrackingItem {
   status: string;
   isUserProvider: boolean;
   timestamp: number;
-  ambassadorDelivery?: boolean;
-  ambassadorMessage?: string;
 }
 
 export interface MarketTransactionItem extends BaseTrackingItem {
@@ -69,7 +90,6 @@ export interface MarketTransactionItem extends BaseTrackingItem {
   handoverEvidenceUrl?: string;
   returnEvidenceUrl?: string;
   isDisputed?: boolean;
-  disputeReason?: string;
 }
 
 export interface FoodOrderItem extends BaseTrackingItem {
@@ -87,23 +107,6 @@ export interface FoodOrderItem extends BaseTrackingItem {
 }
 
 type TrackingItem = MarketTransactionItem | FoodOrderItem;
-
-// --- UTILS ---
-const mapAppwriteStatusToTrackingStatus = (status: string): string => {
-  const map: Record<string, string> = {
-    "negotiating": "Negotiating",
-    "initiated": "Payment Pending",
-    "payment_confirmed_to_developer": "Verifying Payment",
-    "commission_deducted": "Active / In Progress",
-    "active": "Active / In Progress",
-    "seller_confirmed_delivery": "Work Done / Delivered",
-    "meeting_scheduled": "Meeting Scheduled",
-    "completed": "Completed",
-    "failed": "Cancelled",
-    "disputed": "Disputed"
-  };
-  return map[status] || status;
-};
 
 // --- COMPONENT: EVIDENCE MODAL ---
 const EvidenceModal = ({ isOpen, onClose, title, onUpload, isUploading, viewOnlyUrl }: any) => {
@@ -165,7 +168,6 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
   const marketItem = isMarket ? (item as MarketTransactionItem) : null;
   const isCompleted = item.status.toLowerCase().includes('completed') || item.status === 'Cancelled' || item.status === 'Disputed';
 
-  // --- ICONS ---
   const getIcon = () => {
     switch (item.type) {
       case "Rental": return <Clock className="h-5 w-5 text-purple-500" />;
@@ -188,7 +190,7 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
   const partnerName = item.isUserProvider ? (item as any).buyerName : (item.type === 'Food Order' ? (item as any).providerName : (item as any).sellerName);
 
   return (
-    <Card className={cn("border-l-4 transition-all bg-card shadow-sm mb-4 group hover:shadow-md", 
+    <Card className={cn("border-l-4 transition-all bg-card shadow-sm mb-4 group hover:shadow-md animate-in fade-in zoom-in-95 duration-300", 
       item.isUserProvider ? "border-l-secondary-neon" : "border-l-blue-500",
       marketItem?.isDisputed && "border-l-destructive border-destructive/50"
     )}>
@@ -222,7 +224,7 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
                 {isCompleted ? "Chat Closed" : `Chat with ${partnerName ? partnerName.split(' ')[0] : 'User'}`}
             </Button>
 
-            {/* --- MARKET/SERVICE PAY BUTTON (Explicitly Exclude Cash Exchange) --- */}
+            {/* --- PAY BUTTON (Explicitly Exclude Cash Exchange & Food) --- */}
             {marketItem && item.type !== 'Cash Exchange' && !item.isUserProvider && (marketItem.appwriteStatus === 'negotiating' || marketItem.appwriteStatus === 'initiated') && (
                 <Button 
                     size="sm" 
@@ -238,21 +240,14 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
         {item.type === 'Cash Exchange' && !isCompleted && (
             <div className="bg-green-50 dark:bg-green-900/10 p-3 rounded-lg border border-green-200 dark:border-green-800 mb-3 text-center">
                 <p className="text-xs text-muted-foreground mb-2">Meet in person to exchange cash.</p>
-                <div className="flex gap-2 justify-center">
-                    {!item.isUserProvider ? (
-                        <Button className="h-8 text-xs bg-green-600 hover:bg-green-700 text-white w-full" onClick={() => onAction("confirm_receipt_sale", item.id)}>
-                            <CheckCircle className="h-3 w-3 mr-2" /> Mark Cash Received
-                        </Button>
-                    ) : (
-                        <Button variant="ghost" disabled className="h-8 text-xs w-full">Waiting for receiver...</Button>
-                    )}
-                </div>
+                {/* Note: Connect / Mark Complete happens in Listings Page or via Chat logic */}
+                <div className="text-[10px] text-muted-foreground italic">Use the Listings page to mark as completed.</div>
             </div>
         )}
 
         {/* --- MARKET / SERVICE / RENTAL LOGIC --- */}
         {marketItem && item.type !== 'Cash Exchange' && (
-          <div className="bg-muted/20 p-3 rounded-lg border border-border/50 mb-3 space-y-3 animate-in fade-in">
+          <div className="bg-muted/20 p-3 rounded-lg border border-border/50 mb-3 space-y-3">
             <div className="flex justify-between items-center text-xs">
                 <span className="text-muted-foreground">Amount: <b className="text-foreground flex items-center gap-0.5"><IndianRupee className="h-3 w-3"/>{marketItem.amount}</b></span>
                 {marketItem.appwriteStatus === 'negotiating' && <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-[4px] text-[10px] font-bold">Negotiating</span>}
@@ -275,7 +270,6 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
                                 </Button>
                             </div>
                         )}
-                        {/* Rental Return */}
                         {item.isUserProvider && marketItem.appwriteStatus === 'active' && (
                             <div className="flex gap-2 pt-2 border-t border-border/50">
                                 <Button variant="destructive" className="flex-1 h-9 text-xs" onClick={() => { setEvidenceMode("upload_return"); setShowEvidenceModal(true); }}>Report Damage</Button>
@@ -288,7 +282,6 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
                 {/* SERVICES / ERRANDS / TRANSACTIONS */}
                 {(item.type === 'Service' || item.type === 'Errand' || item.type === 'Transaction') && (
                     <>
-                        {/* Provider Actions */}
                         {item.isUserProvider && (marketItem.appwriteStatus === 'payment_confirmed_to_developer' || marketItem.appwriteStatus === 'commission_deducted') && (
                             <Button className="w-full bg-blue-600 text-white h-9 text-xs" onClick={() => onAction(item.type === 'Transaction' ? "mark_delivered" : "start_work", item.id)}>
                                 {item.type === 'Transaction' ? 'Mark Delivered' : 'Start Work'}
@@ -299,8 +292,6 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
                                 <PackageCheck className="h-3 w-3 mr-2" /> Mark Completed
                             </Button>
                         )}
-                        
-                        {/* Client Actions */}
                         {!item.isUserProvider && marketItem.appwriteStatus === 'seller_confirmed_delivery' && (
                             <Button className="w-full bg-green-600 text-white h-9 text-xs" onClick={() => onAction("confirm_receipt_sale", item.id, { productId: marketItem.productId })}>
                                 <CheckCircle className="h-3 w-3 mr-2" /> Confirm & Release Pay
@@ -312,12 +303,12 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
           </div>
         )}
 
-        {/* --- FOOD ACTIONS --- */}
+        {/* --- FOOD ACTIONS (Live Update Targets) --- */}
         {item.type === "Food Order" && !item.status.includes("Delivered") && (
              <div className="mt-3 pt-3 border-t border-border/50 flex justify-end gap-2">
                 {item.isUserProvider ? (
                     <>
-                        {(item as any).orderStatus === "Pending Confirmation" && <Button size="sm" onClick={() => onAction("food_update", item.id, { status: "Confirmed" })}>Accept</Button>}
+                        {(item as any).orderStatus === "Pending Confirmation" && <Button size="sm" onClick={() => onAction("food_update", item.id, { status: "Confirmed" })}>Accept Order</Button>}
                         {(item as any).orderStatus === "Confirmed" && <Button size="sm" onClick={() => onAction("food_update", item.id, { status: "Preparing" })}>Start Cooking</Button>}
                         {(item as any).orderStatus === "Preparing" && <Button size="sm" onClick={() => onAction("food_update", item.id, { status: "Out for Delivery" })}>Dispatch</Button>}
                     </>
@@ -345,14 +336,65 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
   );
 };
 
+// --- DATA PROCESSING HELPERS ---
+const processTransactionDoc = (doc: any, currentUserId: string): MarketTransactionItem => {
+    let type: MarketTransactionItem['type'] = 'Transaction';
+    if (doc.type === 'service') type = 'Service';
+    else if (doc.type === 'errand') type = 'Errand';
+    else if (doc.type === 'rent') type = 'Rental';
+    else if (doc.type === 'cash-exchange') type = 'Cash Exchange';
+
+    return {
+        id: doc.$id,
+        type: type,
+        productId: doc.productId,
+        productTitle: doc.productTitle || "Untitled Item",
+        description: doc.productTitle,
+        status: mapAppwriteStatusToTrackingStatus(doc.status),
+        appwriteStatus: doc.status,
+        date: new Date(doc.$createdAt).toLocaleDateString(),
+        timestamp: new Date(doc.$createdAt).getTime(),
+        amount: doc.amount,
+        sellerName: doc.sellerName,
+        buyerName: doc.buyerName,
+        sellerId: doc.sellerId,
+        buyerId: doc.buyerId,
+        isUserProvider: doc.sellerId === currentUserId,
+        handoverEvidenceUrl: doc.handoverEvidenceUrl,
+        isDisputed: doc.isDisputed
+    };
+};
+
+const processFoodDoc = (doc: any, currentUserId: string): FoodOrderItem => {
+    return {
+        id: doc.$id,
+        type: "Food Order",
+        offeringTitle: doc.offeringTitle,
+        description: doc.offeringTitle,
+        status: doc.status,
+        orderStatus: doc.status,
+        totalAmount: doc.totalAmount,
+        providerName: doc.providerName,
+        buyerName: doc.buyerName,
+        providerId: doc.providerId,
+        buyerId: doc.buyerId,
+        isUserProvider: doc.providerId === currentUserId,
+        timestamp: new Date(doc.$createdAt).getTime(),
+        date: new Date(doc.$createdAt).toLocaleDateString(),
+        quantity: doc.quantity,
+        deliveryLocation: doc.deliveryLocation
+    };
+};
+
 // --- MAIN PAGE ---
 const TrackingPage = () => {
   const { user, userProfile } = useAuth();
-  const { orders: foodOrders } = useFoodOrders();
+  const { orders: initialFoodOrders } = useFoodOrders();
   const [items, setItems] = useState<TrackingItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
+  // --- INITIAL DATA FETCH ---
   const refreshData = useCallback(async () => {
     if (!user?.$id) return;
     setIsLoading(true);
@@ -361,56 +403,15 @@ const TrackingPage = () => {
       
       const uniqueItemsMap = new Map<string, TrackingItem>();
 
-      // 1. Process Market/Service/Cash Transactions
+      // 1. Process Transactions
       response.documents.forEach((doc: any) => {
-        let type: MarketTransactionItem['type'] = 'Transaction';
-        if (doc.type === 'service') type = 'Service';
-        else if (doc.type === 'errand') type = 'Errand';
-        else if (doc.type === 'rent') type = 'Rental';
-        else if (doc.type === 'cash-exchange') type = 'Cash Exchange';
-
-        const item: MarketTransactionItem = {
-            id: doc.$id,
-            type: type,
-            productId: doc.productId,
-            productTitle: doc.productTitle || "Untitled Item",
-            description: doc.productTitle,
-            status: mapAppwriteStatusToTrackingStatus(doc.status),
-            appwriteStatus: doc.status,
-            date: new Date(doc.$createdAt).toLocaleDateString(),
-            timestamp: new Date(doc.$createdAt).getTime(),
-            amount: doc.amount,
-            sellerName: doc.sellerName,
-            buyerName: doc.buyerName,
-            sellerId: doc.sellerId,
-            buyerId: doc.buyerId,
-            isUserProvider: doc.sellerId === user.$id,
-            handoverEvidenceUrl: doc.handoverEvidenceUrl,
-            isDisputed: doc.isDisputed
-        };
+        const item = processTransactionDoc(doc, user.$id);
         uniqueItemsMap.set(item.id, item);
       });
 
-      // 2. Process Food Orders
-      foodOrders.forEach(o => {
-        const item: FoodOrderItem = {
-            id: o.$id,
-            type: "Food Order",
-            offeringTitle: o.offeringTitle,
-            description: o.offeringTitle,
-            status: o.status,
-            orderStatus: o.status,
-            totalAmount: o.totalAmount,
-            providerName: o.providerName,
-            buyerName: o.buyerName,
-            providerId: o.providerId,
-            buyerId: o.buyerId,
-            isUserProvider: o.providerId === user.$id,
-            timestamp: new Date(o.$createdAt).getTime(),
-            date: new Date(o.$createdAt).toLocaleDateString(),
-            quantity: o.quantity,
-            deliveryLocation: o.deliveryLocation
-        };
+      // 2. Process Food Orders (from hook or initial fetch)
+      initialFoodOrders.forEach(o => {
+        const item = processFoodDoc(o, user.$id);
         uniqueItemsMap.set(item.id, item);
       });
 
@@ -419,11 +420,70 @@ const TrackingPage = () => {
 
     } catch (e) { toast.error("Sync failed."); } 
     finally { setIsLoading(false); }
-  }, [user, foodOrders]);
+  }, [user, initialFoodOrders]);
 
-  useEffect(() => { refreshData(); }, [refreshData]);
+  // --- REAL-TIME SUBSCRIPTION ---
+  useEffect(() => {
+    if (!user?.$id) return;
 
-  // --- SMART CHAT NAVIGATION ---
+    // Load initial data
+    refreshData();
+
+    // Subscribe to BOTH collections
+    const unsubscribe = databases.client.subscribe(
+        [
+            `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_TRANSACTIONS_COLLECTION_ID}.documents`,
+            `databases.${APPWRITE_DATABASE_ID}.collections.${APPWRITE_FOOD_ORDERS_COLLECTION_ID}.documents`
+        ],
+        (response) => {
+            const doc = response.payload as any;
+            const eventType = response.events[0]; // e.g., create, update, delete
+
+            // 1. Check if this document belongs to the current user
+            const isRelevant = 
+                doc.buyerId === user.$id || 
+                doc.sellerId === user.$id || 
+                doc.providerId === user.$id;
+
+            if (isRelevant) {
+                setItems((prevItems) => {
+                    const newItemsMap = new Map(prevItems.map(i => [i.id, i]));
+                    
+                    // Determine Type (Transaction vs Food) based on fields present
+                    let newItem: TrackingItem | null = null;
+
+                    if (doc.productTitle) { // It's a Transaction
+                        newItem = processTransactionDoc(doc, user.$id);
+                    } else if (doc.offeringTitle) { // It's a Food Order
+                        newItem = processFoodDoc(doc, user.$id);
+                    }
+
+                    if (newItem) {
+                        // If it's a delete event (rare but possible), remove it
+                        if (eventType.includes('.delete')) {
+                            newItemsMap.delete(newItem.id);
+                        } else {
+                            // Update or Add
+                            newItemsMap.set(newItem.id, newItem);
+                        }
+                    }
+
+                    // Re-sort
+                    return Array.from(newItemsMap.values()).sort((a, b) => b.timestamp - a.timestamp);
+                });
+                
+                // Optional: Play a subtle sound or visual cue for update
+                // toast.info("Activity updated!");
+            }
+        }
+    );
+
+    return () => {
+        unsubscribe();
+    };
+  }, [user, refreshData]);
+
+  // --- ACTIONS ---
   const handleChatNavigation = async (item: TrackingItem) => {
     try {
         const rooms = await databases.listDocuments(APPWRITE_DATABASE_ID, APPWRITE_CHAT_ROOMS_COLLECTION_ID, [Query.equal('transactionId', item.id)]);
@@ -431,7 +491,6 @@ const TrackingPage = () => {
             navigate(`/chat/${rooms.documents[0].$id}`);
         } else {
             const marketItem = item as MarketTransactionItem;
-            // Logic for Buyer/Provider IDs based on type
             const buyerId = item.isUserProvider ? marketItem.buyerId : user!.$id;
             const providerId = item.isUserProvider ? user!.$id : marketItem.sellerId;
             const buyerName = item.isUserProvider ? marketItem.buyerName : user!.name;
@@ -472,7 +531,7 @@ const TrackingPage = () => {
             await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID, id, { status: payload.status });
             toast.success("Updated.");
         }
-        refreshData();
+        // No need to call refreshData() manually, the subscription will catch it!
     } catch (e) { toast.error("Action Failed"); }
   };
 
