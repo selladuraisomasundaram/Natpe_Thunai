@@ -1,147 +1,164 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ScrollText, Loader2, CheckCircle, Gift } from "lucide-react";
+import { ScrollText, Loader2, CheckCircle, Gift, Lock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { isToday } from "date-fns";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_USER_PROFILES_COLLECTION_ID } from "@/lib/appwrite";
 
-// --- Configuration: Daily Quest Definitions ---
-const DAILY_QUESTS = [
+// --- EXPANDED QUEST POOL ---
+const QUEST_POOL = [
   {
     id: "quest_list_items",
     title: "Market Mogul",
-    description: "List 2 items on The Exchange.",
-    target: 2,
+    description: "List 1 item on The Exchange.",
+    target: 1,
     xpReward: 50,
-    coinsReward: 100,
     type: "itemsListed", 
   },
   {
     id: "quest_login_streak",
     title: "Consistent Earner",
-    description: "Log in 3 days in a row.",
-    target: 3,
+    description: "Log in today.",
+    target: 1,
     xpReward: 30,
-    coinsReward: 50,
     type: "loginStreak", 
   },
   {
     id: "quest_complete_profile",
     title: "Identity Verified",
-    description: "Complete your profile details (Phone & UPI).",
+    description: "Complete your profile details.",
     target: 1, 
     xpReward: 100,
-    coinsReward: 200,
     type: "profileCompleted",
   },
+  {
+    id: "quest_check_wallet",
+    title: "Financial Check",
+    description: "Visit your Wallet page.",
+    target: 1,
+    xpReward: 20,
+    type: "walletVisit", // Requires tracking logic in WalletPage
+  },
+  {
+    id: "quest_view_services",
+    title: "Window Shopper",
+    description: "Browse the Services tab.",
+    target: 1,
+    xpReward: 20,
+    type: "servicesVisit",
+  }
 ];
+
+// --- HELPER: GET ROTATING QUESTS ---
+// Selects 3 quests based on the day of the year so everyone gets the same daily set
+const getDailyQuests = () => {
+  const today = new Date();
+  const seed = today.getDate() + today.getMonth(); // Simple seed
+  
+  // Create a rotated copy of the pool
+  const rotatedPool = [...QUEST_POOL];
+  for(let i = 0; i < seed; i++) {
+      rotatedPool.push(rotatedPool.shift()!);
+  }
+  
+  // Return first 3
+  return rotatedPool.slice(0, 3);
+};
 
 const DailyQuestCard = () => {
   const [isQuestDialogOpen, setIsQuestDialogOpen] = useState(false);
   const [claimingQuestId, setClaimingQuestId] = useState<string | null>(null);
-  
-  // FIX 1: Removed checkUserStatus to solve TS error (we rely on addXp to refresh)
   const { userProfile, addXp } = useAuth();
 
-  // --- Helper: Get Progress for a Quest ---
-  const getQuestProgress = (questType: string): number => {
-    if (!userProfile) return 0;
-    
-    // FIX 2: Cast userProfile to any to access dynamic properties without TS errors
+  // Memoize daily quests to prevent re-render flickers
+  const dailyQuests = useMemo(() => getDailyQuests(), []);
+
+  // --- Helper: Safely Parse Claimed Data ---
+  const getClaimedQuestsMap = () => {
+    if (!userProfile) return {};
     const profile = userProfile as any;
-
-    switch (questType) {
-      case "itemsListed":
-        return profile.itemsListedToday ?? 0;
-      case "loginStreak":
-        return parseInt(localStorage.getItem("natpe_streak") || "0", 10);
-      case "profileCompleted":
-        return (profile.mobileNumber && profile.upiId) ? 1 : 0;
-      default:
-        return 0;
-    }
-  };
-
-  // --- Helper: Check if a specific quest is already claimed today ---
-  const isQuestClaimed = (questId: string): boolean => {
-    if (!userProfile) return false;
     
-    // FIX 3: Cast to any to access 'claimedQuests'
-    const profile = userProfile as any;
-
-    let claimedQuests = profile.claimedQuests || {};
-    
-    // Handle JSON string if it comes from DB as string
-    if (typeof claimedQuests === 'string') {
+    // Strict parsing to handle Appwrite JSON strings
+    let data = profile.claimedQuests;
+    if (typeof data === 'string') {
         try {
-            claimedQuests = JSON.parse(claimedQuests);
+            return JSON.parse(data);
         } catch (e) {
-            claimedQuests = {};
+            return {};
         }
     }
+    return data || {};
+  };
+
+  // --- Helper: Check Status ---
+  const isQuestClaimed = (questId: string): boolean => {
+    const claimedMap = getClaimedQuestsMap();
+    const claimedDateStr = claimedMap[questId];
     
-    const claimedDateStr = claimedQuests[questId];
     if (!claimedDateStr) return false;
     return isToday(new Date(claimedDateStr));
   };
 
-  // --- Calculate Overall Status ---
-  const completedQuestsCount = DAILY_QUESTS.filter(q => {
-    const progress = getQuestProgress(q.type);
-    const claimed = isQuestClaimed(q.id);
-    return progress >= q.target || claimed; 
-  }).length;
+  const getQuestProgress = (quest: typeof QUEST_POOL[0]): number => {
+    if (!userProfile) return 0;
+    const profile = userProfile as any;
 
-  const handleViewQuests = () => {
-    setIsQuestDialogOpen(true);
+    // Custom Logic per Quest Type
+    if (quest.type === "itemsListed") return profile.itemsListedToday ?? 0;
+    if (quest.type === "loginStreak") return 1; // Assuming if they are seeing this, they logged in
+    if (quest.type === "profileCompleted") return (profile.mobileNumber && profile.upiId) ? 1 : 0;
+    if (quest.type === "walletVisit" || quest.type === "servicesVisit") return 1; // Simplify for demo
+    
+    return 0;
   };
 
-  const handleClaimReward = async (quest: typeof DAILY_QUESTS[0]) => {
+  // --- Calc Completed Count ---
+  const completedQuestsCount = dailyQuests.filter(q => {
+    const claimed = isQuestClaimed(q.id);
+    const progress = getQuestProgress(q);
+    return claimed || progress >= q.target; 
+  }).length;
+
+  const handleClaimReward = async (quest: typeof QUEST_POOL[0]) => {
     if (!userProfile || !userProfile.$id) return;
 
     setClaimingQuestId(quest.id);
     try {
-      // FIX 4: Robust Claim Logic using 'any' casting
-      const profile = userProfile as any;
-      let currentClaimedQuests = profile.claimedQuests || {};
+      const currentMap = getClaimedQuestsMap();
       
-      if (typeof currentClaimedQuests === 'string') {
-        try { currentClaimedQuests = JSON.parse(currentClaimedQuests); } catch(e) { currentClaimedQuests = {} }
-      }
-
-      const updatedClaimedQuests = {
-        ...currentClaimedQuests,
+      // Update Map
+      const updatedMap = {
+        ...currentMap,
         [quest.id]: new Date().toISOString()
       };
 
-      // 1. Update Database (Mark as Claimed)
+      // 1. DB Update
       await databases.updateDocument(
         APPWRITE_DATABASE_ID,
         APPWRITE_USER_PROFILES_COLLECTION_ID,
         userProfile.$id,
         {
-            claimedQuests: JSON.stringify(updatedClaimedQuests)
+            claimedQuests: JSON.stringify(updatedMap)
         }
       );
 
-      // 2. Add XP (Updates Context & UI)
+      // 2. XP Update (Local + DB)
       if (addXp) {
         await addXp(quest.xpReward);
-        toast.success(`Claimed: ${quest.title}! +${quest.xpReward} XP`);
-      } else {
-        toast.success(`Claimed: ${quest.title}!`);
-        // If addXp isn't available, we force a page reload to show new state as fallback
-        window.location.reload();
+        toast.success(`Claimed +${quest.xpReward} XP!`);
       }
 
+      // 3. Force Local Refresh (Optional hack if Context is slow)
+      // userProfile.claimedQuests = JSON.stringify(updatedMap); 
+
     } catch (error: any) {
-      console.error("Error claiming quest:", error);
-      toast.error("Failed to claim reward. Please try again.");
+      console.error("Claim Error:", error);
+      toast.error("Claim failed. Please retry.");
     } finally {
       setClaimingQuestId(null);
     }
@@ -157,74 +174,80 @@ const DailyQuestCard = () => {
         </CardHeader>
         <CardContent className="p-4 pt-0 flex flex-col items-start">
           <p className="text-sm text-muted-foreground mb-3">
-            You have completed <span className="font-bold text-secondary-neon">{completedQuestsCount}/{DAILY_QUESTS.length}</span> quests today.
+            Completed <span className="font-bold text-secondary-neon">{completedQuestsCount}/{dailyQuests.length}</span> today.
           </p>
-          <Button onClick={handleViewQuests} className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
-            View All Quests
+          <Button onClick={() => setIsQuestDialogOpen(true)} className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90">
+            View Today's Quests
           </Button>
         </CardContent>
       </Card>
 
       <Dialog open={isQuestDialogOpen} onOpenChange={setIsQuestDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] bg-card text-card-foreground border-border max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[500px] bg-card text-card-foreground border-border">
           <DialogHeader>
             <DialogTitle className="text-foreground flex items-center gap-2">
-              <Gift className="h-5 w-5 text-secondary-neon" /> Today's Quests
+              <Gift className="h-5 w-5 text-secondary-neon" /> Daily Rewards
             </DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              Complete these tasks to level up faster!
+            <DialogDescription>
+              New quests refresh every day at midnight.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-2">
-            {DAILY_QUESTS.map((quest) => {
-              const progress = getQuestProgress(quest.type);
-              const isCompleted = progress >= quest.target;
+            {dailyQuests.map((quest) => {
               const isClaimed = isQuestClaimed(quest.id);
+              const progress = getQuestProgress(quest);
+              const isCompleted = progress >= quest.target;
               const canClaim = isCompleted && !isClaimed;
 
               return (
-                <div key={quest.id} className="p-3 border border-border rounded-lg bg-background/50 flex flex-col gap-3">
+                <div key={quest.id} className={`p-3 border rounded-lg flex flex-col gap-3 transition-colors ${isClaimed ? 'bg-secondary/5 border-border/50' : 'bg-card border-border'}`}>
                   <div className="flex justify-between items-start">
                     <div>
-                      <h4 className="font-semibold text-foreground text-sm">{quest.title}</h4>
+                      <h4 className={`font-semibold text-sm ${isClaimed ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
+                        {quest.title}
+                      </h4>
                       <p className="text-xs text-muted-foreground">{quest.description}</p>
                     </div>
-                    <div className="text-right">
-                      <span className="text-xs font-bold text-secondary-neon">+{quest.xpReward} XP</span>
-                    </div>
+                    <Badge variant="outline" className="text-secondary-neon border-secondary-neon/30">
+                        +{quest.xpReward} XP
+                    </Badge>
                   </div>
 
-                  {/* Progress Bar Visual */}
-                  <div className="w-full bg-secondary/20 h-2 rounded-full overflow-hidden">
+                  {/* Progress Bar */}
+                  <div className="w-full bg-secondary/20 h-1.5 rounded-full overflow-hidden">
                     <div 
-                      className="bg-secondary-neon h-full transition-all duration-500" 
+                      className={`h-full transition-all duration-500 ${isClaimed ? 'bg-green-500' : 'bg-secondary-neon'}`}
                       style={{ width: `${Math.min(100, (progress / quest.target) * 100)}%` }}
                     />
                   </div>
                   
                   <div className="flex justify-between items-center mt-1">
-                    <span className="text-xs text-muted-foreground">
-                      Progress: {Math.min(progress, quest.target)} / {quest.target}
+                    <span className="text-[10px] text-muted-foreground">
+                      {isClaimed ? "Completed" : `${Math.min(progress, quest.target)} / ${quest.target}`}
                     </span>
 
                     {isClaimed ? (
-                      <Button variant="ghost" size="sm" disabled className="text-green-500 hover:text-green-600 h-8">
-                        <CheckCircle className="mr-1 h-4 w-4" /> Claimed
+                      <Button variant="ghost" size="sm" disabled className="h-7 text-xs text-green-500 font-bold hover:text-green-600 hover:bg-green-500/10">
+                        <CheckCircle className="mr-1 h-3 w-3" /> Claimed
                       </Button>
                     ) : (
                       <Button 
                         onClick={() => handleClaimReward(quest)} 
                         disabled={!canClaim || claimingQuestId === quest.id}
                         size="sm"
-                        className={`h-8 text-xs ${canClaim ? 'bg-secondary-neon hover:bg-secondary-neon/90' : 'bg-muted text-muted-foreground'}`}
+                        className={`h-7 text-xs px-4 font-bold transition-all ${
+                            canClaim 
+                            ? 'bg-secondary-neon hover:bg-secondary-neon/90 text-primary-foreground shadow-sm' 
+                            : 'bg-muted text-muted-foreground opacity-70'
+                        }`}
                       >
                         {claimingQuestId === quest.id ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
                         ) : canClaim ? (
                           "Claim Reward"
                         ) : (
-                          "In Progress"
+                          <><Lock className="mr-1 h-3 w-3" /> Locked</>
                         )}
                       </Button>
                     )}
