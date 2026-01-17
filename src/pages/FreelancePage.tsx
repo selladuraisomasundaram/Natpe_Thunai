@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { 
   Briefcase, PlusCircle, Loader2, Search, Filter, Star, 
   Code, PenTool, Camera, GraduationCap, Calendar, Wrench, 
-  Handshake, Percent, CheckCircle2, MessageSquarePlus
+  Handshake, Percent, CheckCircle2, MessageSquarePlus, Wallet
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -21,10 +21,11 @@ import {
   APPWRITE_DATABASE_ID, 
   APPWRITE_SERVICES_COLLECTION_ID, 
   APPWRITE_TRANSACTIONS_COLLECTION_ID,
-  APPWRITE_SERVICE_REVIEWS_COLLECTION_ID // Ensure this is exported in your lib/appwrite
+  APPWRITE_SERVICE_REVIEWS_COLLECTION_ID
 } from "@/lib/appwrite";
 import { ID, Query } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
+import { DEVELOPER_UPI_ID } from "@/lib/config"; // Import Developer UPI ID
 
 // --- CONFIGURATION ---
 const FREELANCE_CATEGORIES = [
@@ -47,7 +48,7 @@ const GigCard = ({
   service, 
   onHire, 
   onBargain,
-  onReview, // New Prop
+  onReview, 
   isOwner,
   bargainStatus 
 }: { 
@@ -60,13 +61,12 @@ const GigCard = ({
 }) => {
   
   const originalPrice = parseFloat(service.price);
-  const discountedPrice = (originalPrice * 0.85).toFixed(0); // 15% Off
+  const discountedPrice = (originalPrice * 0.85).toFixed(0); 
   const isAccepted = bargainStatus === 'accepted';
 
   return (
     <Card className="group flex flex-col h-full border-border/60 hover:shadow-xl transition-all duration-300 bg-card relative overflow-hidden">
       
-      {/* Status Badge Overlay */}
       {isAccepted && (
          <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg shadow-sm z-10 flex items-center gap-1">
             <CheckCircle2 className="h-3 w-3" /> 15% OFF APPLIED
@@ -117,7 +117,6 @@ const GigCard = ({
                 )}
             </div>
             
-            {/* REVIEW BUTTON (Small, Icon only to save space) */}
             {!isOwner && (
                 <Button 
                     variant="ghost" 
@@ -137,7 +136,6 @@ const GigCard = ({
           </Button>
         ) : (
           <div className="flex gap-2 w-full">
-             {/* BARGAIN BUTTON */}
              {!isAccepted && (
                  <Button 
                     variant="outline"
@@ -156,7 +154,6 @@ const GigCard = ({
                  </Button>
              )}
 
-             {/* HIRE BUTTON */}
              <Button 
                 size="sm" 
                 onClick={() => onHire(service, isAccepted ? parseFloat(discountedPrice) : originalPrice)}
@@ -182,6 +179,9 @@ const FreelancePage = () => {
   // Transaction / Hire States
   const [selectedGig, setSelectedGig] = useState<ServicePost | null>(null);
   const [finalHirePrice, setFinalHirePrice] = useState<number>(0);
+  // NEW: Payment Step State
+  const [paymentStep, setPaymentStep] = useState<'confirm' | 'verify'>('confirm');
+  const [transactionId, setTransactionId] = useState("");
   
   // Bargain Logic States
   const [isConfirmBargainOpen, setIsConfirmBargainOpen] = useState(false);
@@ -330,7 +330,7 @@ const FreelancePage = () => {
                 reviewerId: user.$id,
                 reviewerName: user.name,
                 rating: reviewRating,
-                comment: "", // Explicitly empty as requested
+                comment: "", 
             }
         );
         toast.success(`Rated ${reviewTargetGig.title} ${reviewRating} stars!`);
@@ -342,7 +342,7 @@ const FreelancePage = () => {
     }
   };
 
-  // --- LOGIC: Hire ---
+  // --- LOGIC: Hire & Pay (Updated with UTR Flow) ---
   const handleHireClick = (gig: ServicePost, price: number) => {
     if (!user) {
       toast.error("Login to hire freelancers.");
@@ -350,11 +350,29 @@ const FreelancePage = () => {
     }
     setSelectedGig(gig);
     setFinalHirePrice(price);
+    setPaymentStep('confirm'); // Reset to initial step
+    setTransactionId(""); // Clear previous UTR
     setIsHireDialogOpen(true);
   };
 
-  const confirmHire = async () => {
+  const initiatePayment = () => {
+      if (!selectedGig) return;
+      
+      const note = `Service Hire: ${selectedGig.title}`;
+      const upiLink = `upi://pay?pa=${DEVELOPER_UPI_ID}&pn=NatpeThunaiEscrow&am=${finalHirePrice.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`;
+      
+      window.open(upiLink, '_blank');
+      toast.info("Opening UPI App... Complete payment and enter UTR.");
+      setPaymentStep('verify');
+  };
+
+  const confirmHireWithUTR = async () => {
     if (!selectedGig || !user) return;
+    if (!transactionId.trim()) {
+        toast.error("Please enter the UTR (Transaction ID).");
+        return;
+    }
+
     setIsProcessing(true);
     try {
       await databases.createDocument(
@@ -370,16 +388,19 @@ const FreelancePage = () => {
           sellerId: selectedGig.posterId,
           sellerName: selectedGig.posterName,
           collegeName: selectedGig.collegeName,
-          status: "negotiating",
+          status: "payment_confirmed_to_developer", // Updated Status
           type: "service",
           ambassadorDelivery: false,
-          ambassadorMessage: `Interested in gig`
+          ambassadorMessage: `Service Payment via UTR`,
+          utrId: transactionId // Store UTR
         }
       );
-      toast.success("Interest sent! Check your Activity tab.");
+      
+      toast.success("Payment Verified! Check Activity tab.");
       setIsHireDialogOpen(false);
     } catch (error) {
-      toast.error("Failed to connect.");
+      console.error(error);
+      toast.error("Failed to verify transaction.");
     } finally {
       setIsProcessing(false);
     }
@@ -388,7 +409,7 @@ const FreelancePage = () => {
   return (
     <div className="min-h-screen bg-background text-foreground p-4 pb-20">
       
-      {/* --- HEADER --- */}
+      {/* --- HEADER & SEARCH --- */}
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
@@ -550,41 +571,73 @@ const FreelancePage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* --- HIRE DIALOG --- */}
+      {/* --- HIRE DIALOG (UPDATED WITH UTR FLOW) --- */}
       <Dialog open={isHireDialogOpen} onOpenChange={setIsHireDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Handshake className="h-5 w-5 text-secondary-neon" /> Connect with {selectedGig?.posterName}
+              <Handshake className="h-5 w-5 text-secondary-neon" /> 
+              {paymentStep === 'confirm' ? `Connect with ${selectedGig?.posterName}` : 'Confirm Payment'}
             </DialogTitle>
             <DialogDescription>
-              Start a conversation for <b>{selectedGig?.title}</b>.
+              {paymentStep === 'confirm' ? `Hire for ${selectedGig?.title}.` : `Enter UTR to verify payment.`}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="bg-muted/30 p-4 rounded-lg space-y-2 text-sm">
-             <div className="flex justify-between">
-                <span className="text-muted-foreground">Price:</span>
-                <span className={`font-bold ${finalHirePrice < parseFloat(selectedGig?.price || "0") ? "text-green-500" : ""}`}>
-                    ₹{finalHirePrice}
-                </span>
-             </div>
-             {finalHirePrice < parseFloat(selectedGig?.price || "0") && (
-                 <div className="text-[10px] text-green-500 text-right font-medium">
-                    (Discount Applied)
-                 </div>
+          <div className="bg-muted/30 p-4 rounded-lg space-y-3 text-sm">
+             {paymentStep === 'confirm' ? (
+                 <>
+                    <div className="flex justify-between">
+                        <span className="text-muted-foreground">Price:</span>
+                        <span className={`font-bold ${finalHirePrice < parseFloat(selectedGig?.price || "0") ? "text-green-500" : ""}`}>
+                            ₹{finalHirePrice}
+                        </span>
+                    </div>
+                    {finalHirePrice < parseFloat(selectedGig?.price || "0") && (
+                        <div className="text-[10px] text-green-500 text-right font-medium">
+                            (Discount Applied)
+                        </div>
+                    )}
+                    <div className="flex justify-between pt-2 border-t border-border/50 mt-2">
+                        <span className="text-muted-foreground">Provider:</span>
+                        <span className="font-bold">{selectedGig?.posterName}</span>
+                    </div>
+                 </>
+             ) : (
+                 // VERIFICATION UI
+                 <>
+                    <div className="text-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-800">
+                        <p className="text-xs text-yellow-800 dark:text-yellow-200 font-bold">Payment Initiated</p>
+                        <p className="text-[10px] text-yellow-600 dark:text-yellow-400">Complete pay in UPI app & enter UTR.</p>
+                    </div>
+                    <div>
+                        <Input 
+                            placeholder="Enter Transaction ID (UTR)" 
+                            value={transactionId} 
+                            onChange={(e) => setTransactionId(e.target.value)}
+                            className="text-center font-mono tracking-widest uppercase"
+                        />
+                    </div>
+                 </>
              )}
-             <div className="flex justify-between pt-2 border-t border-border/50 mt-2">
-                <span className="text-muted-foreground">Provider:</span>
-                <span className="font-bold">{selectedGig?.posterName}</span>
-             </div>
           </div>
 
-          <DialogFooter>
-             <Button variant="outline" onClick={() => setIsHireDialogOpen(false)}>Cancel</Button>
-             <Button onClick={confirmHire} disabled={isProcessing} className="bg-secondary-neon text-primary-foreground font-bold">
-               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm & Chat"}
-             </Button>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+             {paymentStep === 'confirm' ? (
+                 <>
+                    <Button variant="outline" onClick={() => setIsHireDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={initiatePayment} className="bg-secondary-neon text-primary-foreground font-bold">
+                        <Wallet className="mr-2 h-4 w-4" /> Pay Now
+                    </Button>
+                 </>
+             ) : (
+                 <>
+                    <Button variant="ghost" onClick={() => setPaymentStep('confirm')}>Back</Button>
+                    <Button onClick={confirmHireWithUTR} disabled={isProcessing || !transactionId} className="bg-green-600 hover:bg-green-700 text-white font-bold">
+                        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify & Hire"}
+                    </Button>
+                 </>
+             )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
