@@ -41,7 +41,7 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
   // BUY MODE STATE
   const [quantity, setQuantity] = useState(1);
   const [deliveryLocation, setDeliveryLocation] = useState("");
-  const [notes, setNotes] = useState(""); // Instructions
+  const [notes, setNotes] = useState(""); 
   const [paymentStep, setPaymentStep] = useState<'initial' | 'verify'>('initial');
   const [transactionId, setTransactionId] = useState("");
   
@@ -57,6 +57,15 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
   const [dietaryType, setDietaryType] = useState("veg");
   const [timeEstimate, setTimeEstimate] = useState("30 min");
 
+  // --- HELPER: ROBUST PRICE PARSER ---
+  const parsePrice = (priceStr: string | number): number => {
+    if (typeof priceStr === 'number') return priceStr;
+    if (!priceStr) return 0;
+    // Remove all non-numeric characters except '.'
+    const numericPart = priceStr.toString().replace(/[^0-9.]/g, '');
+    return parseFloat(numericPart) || 0;
+  };
+
   // --- BUY LOGIC (ORDERING) ---
   const handleInitiatePayment = () => {
     if (!user || !offering) return;
@@ -66,7 +75,7 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
         return;
     }
 
-    const priceVal = parseFloat(offering.price) || 0;
+    const priceVal = parsePrice(offering.price);
     const totalAmount = priceVal * quantity;
     const note = `Food Order: ${offering.title} x${quantity}`;
     
@@ -87,7 +96,7 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
 
     setIsProcessing(true);
     try {
-        const priceVal = parseFloat(offering.price) || 0;
+        const priceVal = parsePrice(offering.price);
         const totalAmount = priceVal * quantity;
         
         // Data Preparation
@@ -104,8 +113,8 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
             status: "Pending Confirmation",
             transactionId: String(transactionId),
             collegeName: String(userProfile?.collegeName || "Unknown"),
-            notes: String(notes), // Added Instructions
-            ambassadorDelivery: Boolean(ambassadorDelivery), // Added Ambassador Flag
+            notes: String(notes), 
+            ambassadorDelivery: Boolean(ambassadorDelivery), 
             ambassadorMessage: String(ambassadorMessage)
         };
 
@@ -157,7 +166,8 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
 
   // --- RENDER: BUY MODE (MATCHING UI) ---
   if (mode === "buy" && offering) {
-    const priceVal = parseFloat(offering.price) || 0;
+    // USE HELPER HERE TOO
+    const priceVal = parsePrice(offering.price);
     const total = (priceVal * quantity).toFixed(0);
 
     return (
@@ -182,7 +192,6 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
                     <div className="space-y-1.5">
                         <Label className="text-xs font-bold text-foreground/80">Qty</Label>
                         <div className="flex items-center justify-center border-2 border-primary/20 rounded-xl h-11 relative overflow-hidden bg-background focus-within:border-secondary-neon transition-colors">
-                            {/* Hidden native input for functionality */}
                             <Input 
                                 type="number" 
                                 min="1" 
@@ -190,7 +199,6 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
                                 onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                                 className="absolute inset-0 w-full h-full text-center text-lg font-bold bg-transparent border-none focus-visible:ring-0 px-0 z-10"
                             />
-                            {/* Visual indicator (optional) */}
                             <div className="absolute inset-0 bg-secondary-neon/5 pointer-events-none" />
                         </div>
                     </div>
@@ -241,7 +249,7 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
                 </div>
             </>
         ) : (
-            // VERIFICATION STEP (Kept visually consistent)
+            // VERIFICATION STEP
             <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 pt-2">
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-xl border border-yellow-200 dark:border-yellow-800 text-center space-y-2">
                     <Wallet className="h-8 w-8 text-yellow-600 mx-auto mb-1" />
