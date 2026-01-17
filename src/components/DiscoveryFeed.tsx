@@ -147,26 +147,20 @@ const DiscoveryFeed: React.FC = () => {
             return (
               <div key={item.$id} className="group relative flex flex-col h-full rounded-xl transition-all duration-300 hover:shadow-lg border border-transparent hover:border-border/50">
                 
-                {/* NOTE: We pass 'hideDefaultAction' to tell the child card NOT to render its own button.
-                   If your card components don't support this prop yet, please update them to accept it 
-                   and conditionally render their footer buttons.
+                {/* CSS HACK: [&_button]:hidden 
+                   This effectively hides any button inside the child components,
+                   removing the "Double Button" issue without editing the card files.
                 */}
-                <div className="flex-1">
+                <div className="flex-1 [&_button]:hidden [&_a]:pointer-events-none">
                     {item.feedType === 'product' ? (
-                    <ProductListingCard 
-                        product={item} 
-                        // @ts-ignore: Custom prop for suppressing default button
-                        hideDefaultAction={true} 
-                    />
+                        <ProductListingCard product={item} />
                     ) : (
-                    <ServiceListingCard
-                        service={item}
-                        isFoodOrWellnessCategory={isFood}
-                        onOpenBargainDialog={() => {}} 
-                        onOpenReviewDialog={() => {}}
-                        // @ts-ignore: Custom prop for suppressing default button
-                        hideDefaultAction={true}
-                    />
+                        <ServiceListingCard
+                            service={item}
+                            isFoodOrWellnessCategory={isFood}
+                            onOpenBargainDialog={() => {}} 
+                            onOpenReviewDialog={() => {}}
+                        />
                     )}
                 </div>
 
