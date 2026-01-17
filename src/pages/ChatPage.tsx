@@ -14,7 +14,13 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { databases, APPWRITE_DATABASE_ID, APPWRITE_CHAT_ROOMS_COLLECTION_ID, APPWRITE_CHAT_MESSAGES_COLLECTION_ID } from "@/lib/appwrite";
+import { 
+  databases, 
+  APPWRITE_DATABASE_ID, 
+  APPWRITE_CHAT_ROOMS_COLLECTION_ID, 
+  APPWRITE_CHAT_MESSAGES_COLLECTION_ID,
+  APPWRITE_REPORTS_COLLECTION_ID // Imported Reports Collection
+} from "@/lib/appwrite";
 import { Models, ID, Query } from "appwrite";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
@@ -70,10 +76,10 @@ const ChatPage = () => {
           chatRoomId
         ) as unknown as ChatRoom;
 
-        // Security Check: Ensure user belongs to this room
+        // Security Check
         if (roomDoc.buyerId !== user.$id && roomDoc.providerId !== user.$id) {
           toast.error("Access denied.");
-          navigate("/activity"); // Redirect to activity/tracking page
+          navigate("/activity"); 
           return;
         }
         setChatRoom(roomDoc);
@@ -98,7 +104,6 @@ const ChatPage = () => {
               const payload = response.payload as unknown as ChatMessage;
               if (payload.chatRoomId === chatRoomId) {
                 setMessages((prev) => {
-                    // Prevent duplicates
                     if (prev.some(m => m.$id === payload.$id)) return prev;
                     return [...prev, payload];
                 });
@@ -129,7 +134,7 @@ const ChatPage = () => {
     }
   }, [messages, isLoadingChat]);
 
-  // --- 3. SEND MESSAGE (FIXED) ---
+  // --- 3. SEND MESSAGE ---
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedMessage = newMessage.trim();
@@ -138,7 +143,6 @@ const ChatPage = () => {
 
     setIsSendingMessage(true);
     try {
-      // Create Document in Appwrite
       await databases.createDocument(
         APPWRITE_DATABASE_ID,
         APPWRITE_CHAT_MESSAGES_COLLECTION_ID,
@@ -146,31 +150,53 @@ const ChatPage = () => {
         {
           chatRoomId: chatRoomId,
           senderId: user.$id,
-          senderUsername: user.name, // Ensure 'name' exists on user object
+          senderUsername: user.name,
           content: trimmedMessage,
           type: "text"
         }
       );
-      
-      // Clear input immediately for better UX
       setNewMessage(""); 
-      
-      // Optional: Manually focus input back if needed
-      // inputRef.current?.focus();
-
     } catch (error: any) {
       console.error("Send Message Failed:", error);
-      // Detailed error for debugging
       toast.error(`Failed to send: ${error.message || "Unknown error"}`);
     } finally {
       setIsSendingMessage(false);
     }
   };
 
-  // --- 4. REPORT USER LOGIC ---
-  const handleReportUser = async () => {
-    toast.success("User reported. Our safety team has been notified.");
-    setIsReportDialogOpen(false);
+  // --- 4. REPORT USER LOGIC (CONNECTED TO BACKEND) ---
+  const handleReportUser = async (reason: string) => {
+    if (!user || !chatRoom) return;
+
+    // Identify the "Other" person being reported
+    const reportedUserId = user.$id === chatRoom.buyerId ? chatRoom.providerId : chatRoom.buyerId;
+    const reportedUserName = user.$id === chatRoom.buyerId ? chatRoom.providerUsername : chatRoom.buyerUsername;
+
+    try {
+        await databases.createDocument(
+            APPWRITE_DATABASE_ID,
+            APPWRITE_REPORTS_COLLECTION_ID,
+            ID.unique(),
+            {
+                reporterId: user.$id,
+                reporterName: user.name,
+                sellerId: reportedUserId, // Using 'sellerId' field for the reported user's ID to match Schema
+                productTitle: `Chat Report: ${reportedUserName}`, // Context
+                reason: reason,
+                message: `Reported from chat room ID: ${chatRoom.$id}. Transaction Ref: ${chatRoom.transactionId}`,
+                status: "Pending",
+                collegeName: chatRoom.collegeName
+            }
+        );
+        toast.success("User reported successfully.", {
+            description: "Our safety team has been notified and will review the chat logs."
+        });
+    } catch (error: any) {
+        console.error("Report Error:", error);
+        toast.error("Failed to submit report. Please try again.");
+    } finally {
+        setIsReportDialogOpen(false);
+    }
   };
 
   if (isLoadingChat || isAuthLoading) {
@@ -253,7 +279,7 @@ const ChatPage = () => {
                 </p>
               </div>
 
-              {/* --- 2. NEW ORGANIC DRIVE TIP --- */}
+              {/* --- 2. DRIVE LINK TIP --- */}
               <div className="mx-auto max-w-[95%] bg-amber-50/50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800 rounded-lg p-2 flex items-start gap-2.5">
                  <div className="p-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-full shrink-0 mt-0.5">
                     <Cloud className="h-3 w-3 text-amber-600 dark:text-amber-400" />
@@ -287,7 +313,7 @@ const ChatPage = () => {
                       )}>
                         {!isMe && <p className="text-[9px] font-bold opacity-70 mb-0.5 text-secondary-neon">{msg.senderUsername}</p>}
                         
-                        {/* Render Content - Auto-detect Links */}
+                        {/* Auto-detect Links */}
                         <p className="leading-relaxed whitespace-pre-wrap">
                             {msg.content.split(/(https?:\/\/[^\s]+)/g).map((part, i) => (
                                 part.match(/https?:\/\/[^\s]+/) ? (
@@ -331,7 +357,7 @@ const ChatPage = () => {
           </CardContent>
         </Card>
 
-        {/* Report Dialog */}
+        {/* Report Dialog - Connected to Backend */}
         <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
@@ -339,16 +365,16 @@ const ChatPage = () => {
                 <AlertTriangle className="h-5 w-5" /> Report User
               </DialogTitle>
               <DialogDescription>
-                Is this user behaving suspiciously? We take this seriously.
+                Is this user behaving suspiciously? This report will be sent to the developer dashboard immediately.
               </DialogDescription>
             </DialogHeader>
             <div className="py-2 space-y-2">
-                <p className="text-sm font-medium">Reason:</p>
+                <p className="text-sm font-medium">Select Reason:</p>
                 <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline" size="sm" onClick={handleReportUser} className="text-xs">Rude / Abusive</Button>
-                    <Button variant="outline" size="sm" onClick={handleReportUser} className="text-xs">Scam / Fraud</Button>
-                    <Button variant="outline" size="sm" onClick={handleReportUser} className="text-xs">Safety Threat</Button>
-                    <Button variant="outline" size="sm" onClick={handleReportUser} className="text-xs">Other</Button>
+                    <Button variant="outline" size="sm" onClick={() => handleReportUser("Rude / Abusive")} className="text-xs">Rude / Abusive</Button>
+                    <Button variant="outline" size="sm" onClick={() => handleReportUser("Scam / Fraud")} className="text-xs">Scam / Fraud</Button>
+                    <Button variant="outline" size="sm" onClick={() => handleReportUser("Safety Threat")} className="text-xs">Safety Threat</Button>
+                    <Button variant="outline" size="sm" onClick={() => handleReportUser("Other Suspicious Behavior")} className="text-xs">Other</Button>
                 </div>
             </div>
             <DialogFooter>
