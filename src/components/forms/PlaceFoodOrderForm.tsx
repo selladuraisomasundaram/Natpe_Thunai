@@ -7,17 +7,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Plus, Minus, MapPin, IndianRupee, CheckCircle, Wallet } from "lucide-react";
+import { Loader2, Plus, Minus, MapPin, IndianRupee, CheckCircle, Wallet, Flame, X, AlertCircle, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { 
   databases, 
   APPWRITE_DATABASE_ID, 
   APPWRITE_FOOD_ORDERS_COLLECTION_ID,
-  APPWRITE_TRANSACTIONS_COLLECTION_ID // Import Transactions Collection ID
+  APPWRITE_TRANSACTIONS_COLLECTION_ID 
 } from "@/lib/appwrite";
 import { ID } from "appwrite";
 import { DEVELOPER_UPI_ID } from "@/lib/config";
+import AmbassadorDeliveryOption from "@/components/AmbassadorDeliveryOption";
 
 interface PlaceFoodOrderFormProps {
   mode: "buy" | "sell" | "request";
@@ -40,8 +41,13 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
   // BUY MODE STATE
   const [quantity, setQuantity] = useState(1);
   const [deliveryLocation, setDeliveryLocation] = useState("");
+  const [notes, setNotes] = useState(""); // Instructions
   const [paymentStep, setPaymentStep] = useState<'initial' | 'verify'>('initial');
   const [transactionId, setTransactionId] = useState("");
+  
+  // Ambassador State
+  const [ambassadorDelivery, setAmbassadorDelivery] = useState(false);
+  const [ambassadorMessage, setAmbassadorMessage] = useState("");
 
   // SELL/REQUEST MODE STATE
   const [title, setTitle] = useState("");
@@ -56,11 +62,10 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
     if (!user || !offering) return;
     
     if (!deliveryLocation.trim()) {
-        toast.error("Please enter a delivery location (e.g., Room 304, Main Gate).");
+        toast.error("Please enter a delivery spot (e.g., Room 304).");
         return;
     }
 
-    // Parse price safely
     const priceVal = parseFloat(offering.price) || 0;
     const totalAmount = priceVal * quantity;
     const note = `Food Order: ${offering.title} x${quantity}`;
@@ -76,76 +81,53 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
   const handleConfirmOrder = async () => {
     if (!user || !offering) return;
     if (!transactionId.trim()) {
-        toast.error("Please enter the Transaction ID (UTR) from your UPI app.");
+        toast.error("Please enter the Transaction ID (UTR).");
         return;
     }
 
     setIsProcessing(true);
     try {
-        // 1. Calculate and Sanitize Data
         const priceVal = parseFloat(offering.price) || 0;
         const totalAmount = priceVal * quantity;
-        const safeOfferingId = String(offering.$id);
-        const safeOfferingTitle = String(offering.title).substring(0, 99);
-        const safeProviderId = String(offering.posterId);
-        const safeProviderName = String(offering.posterName);
-        const safeBuyerId = String(user.$id);
-        const safeBuyerName = String(user.name);
-        const safeLocation = String(deliveryLocation);
-        const safeCollege = String(userProfile?.collegeName || "Unknown");
-        const safeUtr = String(transactionId);
-        const safeSellerUpi = offering.sellerUpiId || "default@upi"; // Fallback if missing
-
-        // 2. Prepare Food Order Payload (Kitchen/Status Tracking)
-        const foodOrderPayload = {
-            offeringId: safeOfferingId,
-            offeringTitle: safeOfferingTitle,
-            providerId: safeProviderId,
-            providerName: safeProviderName,
-            buyerId: safeBuyerId,
-            buyerName: safeBuyerName,
+        
+        // Data Preparation
+        const safeData = {
+            offeringId: String(offering.$id),
+            offeringTitle: String(offering.title).substring(0, 99),
+            providerId: String(offering.posterId),
+            providerName: String(offering.posterName),
+            buyerId: String(user.$id),
+            buyerName: String(user.name),
             quantity: Number(quantity),
             totalAmount: Number(totalAmount.toFixed(2)),
-            deliveryLocation: safeLocation,
+            deliveryLocation: String(deliveryLocation),
             status: "Pending Confirmation",
-            transactionId: safeUtr,
-            collegeName: safeCollege
+            transactionId: String(transactionId),
+            collegeName: String(userProfile?.collegeName || "Unknown"),
+            notes: String(notes), // Added Instructions
+            ambassadorDelivery: Boolean(ambassadorDelivery), // Added Ambassador Flag
+            ambassadorMessage: String(ambassadorMessage)
         };
 
-        // 3. Prepare Transaction Payload (Developer Dashboard/Financial Tracking)
-        const transactionPayload = {
-            productId: safeOfferingId,
-            productTitle: `Food: ${safeOfferingTitle} (x${quantity})`, // Descriptive title
-            buyerId: safeBuyerId,
-            buyerName: safeBuyerName,
-            sellerId: safeProviderId,
-            sellerName: safeProviderName,
-            sellerUpiId: safeSellerUpi,
-            amount: Number(totalAmount.toFixed(2)),
-            status: "payment_confirmed_to_developer", // Set status so Developer sees it immediately
-            type: "food", // Explicit type for filtering
-            collegeName: safeCollege,
-            ambassadorDelivery: false, // Food is usually direct delivery
-            utrId: safeUtr, // Link the payment reference
-            isBargain: false
-        };
-
-        console.log("Submitting Orders...");
-
-        // 4. Send to Appwrite (Parallel Execution for speed)
+        // Parallel Writes
         await Promise.all([
-            databases.createDocument(
-                APPWRITE_DATABASE_ID,
-                APPWRITE_FOOD_ORDERS_COLLECTION_ID,
-                ID.unique(),
-                foodOrderPayload
-            ),
-            databases.createDocument(
-                APPWRITE_DATABASE_ID,
-                APPWRITE_TRANSACTIONS_COLLECTION_ID,
-                ID.unique(),
-                transactionPayload
-            )
+            databases.createDocument(APPWRITE_DATABASE_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID, ID.unique(), safeData),
+            databases.createDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, ID.unique(), {
+                productId: safeData.offeringId,
+                productTitle: `Food: ${safeData.offeringTitle} (x${quantity})`,
+                buyerId: safeData.buyerId,
+                buyerName: safeData.buyerName,
+                sellerId: safeData.providerId,
+                sellerName: safeData.providerName,
+                sellerUpiId: offering.sellerUpiId || "default@upi",
+                amount: safeData.totalAmount,
+                status: "payment_confirmed_to_developer",
+                type: "food",
+                collegeName: safeData.collegeName,
+                ambassadorDelivery: safeData.ambassadorDelivery,
+                utrId: safeData.transactionId,
+                isBargain: false
+            })
         ]);
 
         toast.success("Order Placed Successfully!");
@@ -159,102 +141,134 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
     }
   };
 
-  // --- SELL/REQUEST LOGIC (POSTING) ---
+  // --- SELL/REQUEST LOGIC ---
   const handlePostSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !price || !description) {
       toast.error("Please fill all fields.");
       return;
     }
-    
     const postData = {
-      title,
-      description,
-      price, 
-      category,
-      dietaryType,
-      timeEstimate,
-      isCustomOrder: mode === "request",
-      status: "active"
+      title, description, price, category, dietaryType, timeEstimate,
+      isCustomOrder: mode === "request", status: "active"
     };
-
     if (onSubmit) onSubmit(postData);
   };
 
-  // --- RENDER: BUY MODE ---
+  // --- RENDER: BUY MODE (MATCHING UI) ---
   if (mode === "buy" && offering) {
     const priceVal = parseFloat(offering.price) || 0;
     const total = (priceVal * quantity).toFixed(0);
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-5 pt-2">
         {paymentStep === 'initial' ? (
             <>
-                <div className="flex items-center justify-between bg-muted/30 p-3 rounded-lg">
-                    <span className="font-bold text-sm">{offering.title}</span>
-                    <span className="font-mono text-lg">₹{offering.price}</span>
+                {/* 1. NO CANCELLATION BANNER */}
+                <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-lg p-3 flex items-start gap-3">
+                    <div className="p-1 bg-red-100 dark:bg-red-900/30 rounded-full mt-0.5">
+                        <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                        <h4 className="text-sm font-bold text-red-700 dark:text-red-400">No Cancellation</h4>
+                        <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5 leading-snug">
+                            Orders cannot be cancelled once preparation starts.
+                        </p>
+                    </div>
                 </div>
 
-                <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                        <Label>Quantity</Label>
-                        <div className="flex items-center gap-3 bg-secondary/10 px-2 py-1 rounded-md">
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setQuantity(Math.max(1, quantity - 1))}><Minus className="h-3 w-3" /></Button>
-                            <span className="font-bold w-4 text-center">{quantity}</span>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setQuantity(quantity + 1)}><Plus className="h-3 w-3" /></Button>
-                        </div>
-                    </div>
-
-                    <div className="space-y-1">
-                        <Label className="text-xs">Delivery Location</Label>
-                        <div className="relative">
-                            <MapPin className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                {/* 2. GRID: QTY & DELIVERY */}
+                <div className="grid grid-cols-[80px_1fr] gap-4">
+                    <div className="space-y-1.5">
+                        <Label className="text-xs font-bold text-foreground/80">Qty</Label>
+                        <div className="flex items-center justify-center border-2 border-primary/20 rounded-xl h-11 relative overflow-hidden bg-background focus-within:border-secondary-neon transition-colors">
+                            {/* Hidden native input for functionality */}
                             <Input 
-                                placeholder="Hostel Block A, Room 302..." 
-                                className="pl-9"
-                                value={deliveryLocation}
-                                onChange={(e) => setDeliveryLocation(e.target.value)}
+                                type="number" 
+                                min="1" 
+                                value={quantity} 
+                                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                className="absolute inset-0 w-full h-full text-center text-lg font-bold bg-transparent border-none focus-visible:ring-0 px-0 z-10"
                             />
+                            {/* Visual indicator (optional) */}
+                            <div className="absolute inset-0 bg-secondary-neon/5 pointer-events-none" />
                         </div>
                     </div>
-                </div>
 
-                <div className="pt-2 border-t border-dashed border-border mt-2">
-                    <div className="flex justify-between items-center text-lg font-bold">
-                        <span>Total to Pay:</span>
-                        <span className="text-green-600">₹{total}</span>
+                    <div className="space-y-1.5">
+                        <Label className="text-xs font-bold text-foreground/80">Delivery Spot</Label>
+                        <Input 
+                            placeholder="e.g. Block C, Room 404" 
+                            className="h-11 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-secondary-neon"
+                            value={deliveryLocation}
+                            onChange={(e) => setDeliveryLocation(e.target.value)}
+                        />
                     </div>
                 </div>
 
-                <div className="flex gap-2 pt-2">
-                    <Button variant="outline" className="flex-1" onClick={onCancel}>Cancel</Button>
-                    <Button onClick={handleInitiatePayment} className="flex-[2] bg-green-600 hover:bg-green-700 text-white font-bold">
-                        <Wallet className="mr-2 h-4 w-4" /> Pay Now
+                {/* 3. INSTRUCTIONS */}
+                <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-foreground/80">Instructions</Label>
+                    <Textarea 
+                        placeholder="e.g. Extra spicy, don't ring bell..." 
+                        className="min-h-[80px] rounded-xl bg-muted/30 border-border/50 resize-none focus-visible:ring-secondary-neon"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                    />
+                </div>
+
+                {/* 4. AMBASSADOR TOGGLE */}
+                <div className="py-2">
+                    <AmbassadorDeliveryOption 
+                        ambassadorDelivery={ambassadorDelivery}
+                        setAmbassadorDelivery={setAmbassadorDelivery}
+                        ambassadorMessage={ambassadorMessage}
+                        setAmbassadorMessage={setAmbassadorMessage}
+                    />
+                </div>
+
+                {/* 5. FOOTER BUTTONS */}
+                <div className="flex gap-3 pt-2">
+                    <Button variant="outline" className="flex-1 h-12 rounded-xl font-bold border-border/60 hover:bg-muted" onClick={onCancel}>
+                        <X className="w-4 h-4 mr-2" /> Close
+                    </Button>
+                    <Button 
+                        onClick={handleInitiatePayment} 
+                        className="flex-[2] h-12 rounded-xl bg-[#22c55e] hover:bg-[#16a34a] text-white font-black text-lg shadow-lg shadow-green-500/20"
+                    >
+                        Pay ₹{total}
                     </Button>
                 </div>
             </>
         ) : (
-            // PAYMENT VERIFICATION STEP
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 text-center">
-                    <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">Payment Initiated</p>
-                    <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">Please enter the Transaction ID (UTR) from your UPI app to confirm.</p>
+            // VERIFICATION STEP (Kept visually consistent)
+            <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 pt-2">
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-xl border border-yellow-200 dark:border-yellow-800 text-center space-y-2">
+                    <Wallet className="h-8 w-8 text-yellow-600 mx-auto mb-1" />
+                    <h4 className="text-base font-bold text-yellow-800 dark:text-yellow-200">Payment Initiated</h4>
+                    <p className="text-xs text-yellow-600 dark:text-yellow-400 leading-relaxed">
+                        Complete the payment of <strong>₹{total}</strong> in your UPI app and paste the UTR (Transaction ID) below.
+                    </p>
                 </div>
 
                 <div className="space-y-2">
-                    <Label>Transaction ID (UTR)</Label>
+                    <Label className="text-xs font-bold text-foreground/80 uppercase tracking-wider">Transaction ID (UTR)</Label>
                     <Input 
                         placeholder="e.g. 329104829102" 
                         value={transactionId}
                         onChange={(e) => setTransactionId(e.target.value)}
-                        className="font-mono text-center tracking-widest uppercase"
+                        className="h-12 text-center font-mono text-lg tracking-widest uppercase rounded-xl border-border/60 bg-muted/30 focus-visible:ring-secondary-neon"
                     />
                 </div>
 
-                <div className="flex gap-2 pt-2">
-                    <Button variant="outline" className="flex-1" onClick={() => setPaymentStep('initial')}>Back</Button>
-                    <Button onClick={handleConfirmOrder} disabled={isProcessing || !transactionId} className="flex-[2] bg-secondary-neon text-primary-foreground font-bold">
-                        {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="mr-2 h-4 w-4" /> Confirm Order</>}
+                <div className="flex gap-3 pt-2">
+                    <Button variant="outline" className="flex-1 h-12 rounded-xl font-bold" onClick={() => setPaymentStep('initial')}>Back</Button>
+                    <Button 
+                        onClick={handleConfirmOrder} 
+                        disabled={isProcessing || !transactionId} 
+                        className="flex-[2] h-12 rounded-xl bg-secondary-neon text-primary-foreground font-bold hover:bg-secondary-neon/90"
+                    >
+                        {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : "Confirm Order"}
                     </Button>
                 </div>
             </div>
@@ -263,14 +277,13 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
     );
   }
 
-  // --- RENDER: SELL / REQUEST MODE ---
+  // --- RENDER: SELL / REQUEST MODE (Untouched) ---
   return (
     <form onSubmit={handlePostSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label>Dish Name {mode === 'request' && "(What do you want?)"}</Label>
         <Input placeholder="e.g. Chicken Biryani / Ginger Tea" value={title} onChange={(e) => setTitle(e.target.value)} />
       </div>
-
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Price (₹)</Label>
@@ -293,7 +306,6 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
           </Select>
         </div>
       </div>
-
       <div className="space-y-2">
         <Label>Dietary Type</Label>
         <RadioGroup value={dietaryType} onValueChange={setDietaryType} className="flex gap-4">
@@ -307,7 +319,6 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
           </div>
         </RadioGroup>
       </div>
-
       <div className="space-y-2">
         <Label>Description & Ingredients</Label>
         <Textarea 
@@ -317,7 +328,6 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
           onChange={(e) => setDescription(e.target.value)}
         />
       </div>
-
       <div className="flex gap-2 pt-2">
         <Button type="button" variant="outline" className="flex-1" onClick={onCancel}>Cancel</Button>
         <Button type="submit" className="flex-[2] bg-primary text-primary-foreground font-bold">
