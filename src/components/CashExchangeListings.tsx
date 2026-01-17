@@ -9,19 +9,19 @@ import { MapPin, Clock, Handshake, CheckCircle, Loader2, AlertTriangle, Users, T
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress"; // Ensure you have this shadcn component
+import { Progress } from "@/components/ui/progress"; 
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, APPWRITE_CASH_EXCHANGE_COLLECTION_ID } from "@/lib/appwrite";
-import { ID } from "appwrite";
+import { ID, Query } from "appwrite";
 
 interface Listing {
   $id: string;
   $createdAt: string;
   type: "request" | "offer" | "group-contribution";
   amount: number;
-  collectedAmount?: number; // New Field
-  contributors?: string; // New Field (JSON String)
+  collectedAmount?: number; 
+  contributors?: string; 
   notes: string;
   status: string;
   meetingLocation: string;
@@ -73,6 +73,56 @@ const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, i
         setContributionAmount(remaining.toString());
     }
     setIsConfirmDialogOpen(true);
+  };
+
+  // --- MARK COMPLETED HANDLER (POSTER ONLY) ---
+  const handleMarkCompleted = async (listing: Listing) => {
+    if (!user || user.$id !== listing.posterId) return;
+    
+    if(!window.confirm("Are you sure? This will close the deal and lock the chat.")) return;
+
+    setIsProcessing(true);
+    try {
+        // 1. Update the Listing Document
+        await databases.updateDocument(
+            APPWRITE_DATABASE_ID,
+            APPWRITE_CASH_EXCHANGE_COLLECTION_ID,
+            listing.$id,
+            { status: "Completed" }
+        );
+
+        // 2. Find and Update the Transaction Document
+        // This is crucial: The Tracking Page listens to the 'transactions' collection.
+        // Setting this to 'completed' triggers the chat lock logic downstream.
+        const transactionList = await databases.listDocuments(
+            APPWRITE_DATABASE_ID,
+            APPWRITE_TRANSACTIONS_COLLECTION_ID,
+            [
+                Query.equal('productId', listing.$id),
+                Query.equal('type', 'cash-exchange')
+            ]
+        );
+
+        if (transactionList.documents.length > 0) {
+            await Promise.all(transactionList.documents.map(doc => 
+                databases.updateDocument(
+                    APPWRITE_DATABASE_ID,
+                    APPWRITE_TRANSACTIONS_COLLECTION_ID,
+                    doc.$id,
+                    { status: "completed" } // Lowercase matches TrackingPage logic
+                )
+            ));
+        }
+
+        toast.success("Exchange marked as Completed. Chat locked.");
+        window.location.reload();
+
+    } catch (error: any) {
+        console.error("Completion Error:", error);
+        toast.error("Failed to mark completed.");
+    } finally {
+        setIsProcessing(false);
+    }
   };
 
   const handleConfirmAction = async () => {
@@ -206,7 +256,8 @@ const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, i
     <div className="space-y-4">
       {listings.map((listing) => {
         const isOwner = user?.$id === listing.posterId;
-        const isActive = listing.status !== "Completed" && listing.status !== "Accepted";
+        // Logic: Is Active if not completed.
+        const isActive = listing.status !== "Completed"; 
         
         // Group Logic Calculation
         const collected = listing.collectedAmount || 0;
@@ -239,7 +290,7 @@ const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, i
               <div className="flex justify-between items-center my-3">
                 <span className="text-2xl font-bold text-foreground">₹{listing.amount}</span>
                 {!isActive ? (
-                  <Badge variant="secondary">{listing.status}</Badge>
+                  <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">Completed</Badge>
                 ) : (
                   <Badge variant="outline" className="text-green-500 border-green-500">Open</Badge>
                 )}
@@ -269,8 +320,8 @@ const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, i
                 </div>
               </div>
 
-              {/* ACTION BUTTON */}
-              {!isOwner && isActive && (
+              {/* ACTION BUTTON (For Non-Owners) */}
+              {!isOwner && isActive && listing.status !== "Accepted" && (
                 <Button 
                   className="w-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 font-semibold shadow-sm"
                   onClick={() => handleActionClick(listing)}
@@ -280,11 +331,25 @@ const CashExchangeListings: React.FC<CashExchangeListingsProps> = ({ listings, i
                 </Button>
               )}
 
-              {isOwner && (
-                <div className="w-full text-center text-xs text-muted-foreground py-2 border-t border-dashed border-border mt-2">
-                  (This is your post)
+              {/* OWNER ACTION: MARK COMPLETED */}
+              {isOwner && isActive && (
+                <Button 
+                    variant="outline" 
+                    className="w-full mt-2 border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/10 font-bold"
+                    onClick={() => handleMarkCompleted(listing)}
+                    disabled={isProcessing}
+                >
+                    {isProcessing ? <Loader2 className="h-4 w-4 animate-spin"/> : <><CheckCircle className="mr-2 h-4 w-4" /> Mark Completed</>}
+                </Button>
+              )}
+
+              {/* Completed State Footer */}
+              {!isActive && (
+                <div className="w-full text-center text-xs text-muted-foreground py-2 border-t border-dashed border-border mt-2 flex justify-center items-center gap-1">
+                   <CheckCircle className="h-3 w-3 text-green-500" /> Exchange Closed
                 </div>
               )}
+
             </CardContent>
           </Card>
         );
