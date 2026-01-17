@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge"; // FIXED: Added missing import
 import { ScrollText, Loader2, CheckCircle, Gift, Lock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -42,7 +43,7 @@ const QUEST_POOL = [
     description: "Visit your Wallet page.",
     target: 1,
     xpReward: 20,
-    type: "walletVisit", // Requires tracking logic in WalletPage
+    type: "walletVisit", 
   },
   {
     id: "quest_view_services",
@@ -55,18 +56,15 @@ const QUEST_POOL = [
 ];
 
 // --- HELPER: GET ROTATING QUESTS ---
-// Selects 3 quests based on the day of the year so everyone gets the same daily set
 const getDailyQuests = () => {
   const today = new Date();
-  const seed = today.getDate() + today.getMonth(); // Simple seed
+  const seed = today.getDate() + today.getMonth(); 
   
-  // Create a rotated copy of the pool
   const rotatedPool = [...QUEST_POOL];
   for(let i = 0; i < seed; i++) {
       rotatedPool.push(rotatedPool.shift()!);
   }
   
-  // Return first 3
   return rotatedPool.slice(0, 3);
 };
 
@@ -75,7 +73,6 @@ const DailyQuestCard = () => {
   const [claimingQuestId, setClaimingQuestId] = useState<string | null>(null);
   const { userProfile, addXp } = useAuth();
 
-  // Memoize daily quests to prevent re-render flickers
   const dailyQuests = useMemo(() => getDailyQuests(), []);
 
   // --- Helper: Safely Parse Claimed Data ---
@@ -83,7 +80,6 @@ const DailyQuestCard = () => {
     if (!userProfile) return {};
     const profile = userProfile as any;
     
-    // Strict parsing to handle Appwrite JSON strings
     let data = profile.claimedQuests;
     if (typeof data === 'string') {
         try {
@@ -108,16 +104,14 @@ const DailyQuestCard = () => {
     if (!userProfile) return 0;
     const profile = userProfile as any;
 
-    // Custom Logic per Quest Type
     if (quest.type === "itemsListed") return profile.itemsListedToday ?? 0;
-    if (quest.type === "loginStreak") return 1; // Assuming if they are seeing this, they logged in
+    if (quest.type === "loginStreak") return 1; 
     if (quest.type === "profileCompleted") return (profile.mobileNumber && profile.upiId) ? 1 : 0;
-    if (quest.type === "walletVisit" || quest.type === "servicesVisit") return 1; // Simplify for demo
+    if (quest.type === "walletVisit" || quest.type === "servicesVisit") return 1; 
     
     return 0;
   };
 
-  // --- Calc Completed Count ---
   const completedQuestsCount = dailyQuests.filter(q => {
     const claimed = isQuestClaimed(q.id);
     const progress = getQuestProgress(q);
@@ -131,13 +125,11 @@ const DailyQuestCard = () => {
     try {
       const currentMap = getClaimedQuestsMap();
       
-      // Update Map
       const updatedMap = {
         ...currentMap,
         [quest.id]: new Date().toISOString()
       };
 
-      // 1. DB Update
       await databases.updateDocument(
         APPWRITE_DATABASE_ID,
         APPWRITE_USER_PROFILES_COLLECTION_ID,
@@ -147,14 +139,10 @@ const DailyQuestCard = () => {
         }
       );
 
-      // 2. XP Update (Local + DB)
       if (addXp) {
         await addXp(quest.xpReward);
         toast.success(`Claimed +${quest.xpReward} XP!`);
       }
-
-      // 3. Force Local Refresh (Optional hack if Context is slow)
-      // userProfile.claimedQuests = JSON.stringify(updatedMap); 
 
     } catch (error: any) {
       console.error("Claim Error:", error);
@@ -214,7 +202,6 @@ const DailyQuestCard = () => {
                     </Badge>
                   </div>
 
-                  {/* Progress Bar */}
                   <div className="w-full bg-secondary/20 h-1.5 rounded-full overflow-hidden">
                     <div 
                       className={`h-full transition-all duration-500 ${isClaimed ? 'bg-green-500' : 'bg-secondary-neon'}`}
