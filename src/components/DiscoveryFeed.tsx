@@ -6,24 +6,30 @@ import ProductListingCard from "@/components/ProductListingCard";
 import ServiceListingCard from "@/components/ServiceListingCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, ChevronLeft, ChevronRight, Compass, Inbox } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { 
+  AlertTriangle, ChevronLeft, ChevronRight, Compass, Inbox, 
+  ShoppingBag, Briefcase, Utensils, ArrowRight 
+} from "lucide-react";
 import { useMarketListings } from '@/hooks/useMarketListings';
 import { useServiceListings } from '@/hooks/useServiceListings';
-import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 const ITEMS_PER_PAGE = 6; 
 
 const DiscoveryFeed: React.FC = () => {
   const { userProfile } = useAuth();
+  const navigate = useNavigate();
   
-  // 1. Fetch both Products and Services
+  // 1. Fetch Data
   const { products, isLoading: productsLoading, error: productsError } = useMarketListings();
   const { services, isLoading: servicesLoading, error: servicesError } = useServiceListings(undefined);
 
   // State for Pagination
   const [currentPage, setCurrentPage] = useState(1);
 
-  // 2. Combine and Sort Data (Memoized for performance)
+  // 2. Combine, Tag & Sort Data
   const combinedFeed = useMemo(() => {
     const taggedProducts = products.map(p => ({ ...p, feedType: 'product' }));
     const taggedServices = services.map(s => ({ ...s, feedType: 'service' }));
@@ -39,22 +45,48 @@ const DiscoveryFeed: React.FC = () => {
   const isLoading = productsLoading || servicesLoading;
   const error = productsError || servicesError;
 
-  // 3. Calculate Pagination
+  // 3. Pagination Logic
   const totalPages = Math.ceil(combinedFeed.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const currentItems = combinedFeed.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
+  const scrollToTop = () => {
+    const element = document.getElementById('discovery-feed-top');
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const handleNext = () => {
     if (currentPage < totalPages) {
       setCurrentPage(prev => prev + 1);
-      document.getElementById('discovery-feed-top')?.scrollIntoView({ behavior: 'smooth' });
+      setTimeout(scrollToTop, 100);
     }
   };
 
   const handlePrev = () => {
     if (currentPage > 1) {
       setCurrentPage(prev => prev - 1);
-      document.getElementById('discovery-feed-top')?.scrollIntoView({ behavior: 'smooth' });
+      setTimeout(scrollToTop, 100);
+    }
+  };
+
+  // 4. Action Handler
+  const handleItemAction = (item: any) => {
+    if (item.feedType === 'product') {
+        // Products have dedicated detail pages
+        navigate(`/market/${item.$id}`);
+    } else {
+        // Services/Food don't have individual pages in this router setup yet, 
+        // so we direct them to the relevant category tab where they can interact.
+        const isFood = ['homemade-meals', 'wellness-remedies', 'snacks'].includes(item.category);
+        const targetPath = isFood ? '/services/food-wellness' : '/services/freelance';
+        const actionLabel = isFood ? "ordering" : "hiring";
+        
+        toast.info(`Redirecting to ${isFood ? 'Food Court' : 'Freelance Hub'}...`, {
+            description: `Find this post there to start ${actionLabel}.`
+        });
+        navigate(targetPath);
     }
   };
 
@@ -66,7 +98,7 @@ const DiscoveryFeed: React.FC = () => {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
-            <Skeleton key={i} className="h-72 w-full rounded-lg bg-muted/20" />
+            <Skeleton key={i} className="h-80 w-full rounded-xl bg-muted/20" />
             ))}
         </div>
       </div>
@@ -79,7 +111,7 @@ const DiscoveryFeed: React.FC = () => {
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Error Loading Feed</AlertTitle>
-          <AlertDescription>Failed to load listings: {error}</AlertDescription>
+          <AlertDescription>Failed to load listings. Please check your connection.</AlertDescription>
         </Alert>
       </div>
     );
@@ -91,12 +123,12 @@ const DiscoveryFeed: React.FC = () => {
         <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
            <Compass className="h-6 w-6 text-secondary-neon" /> Discovery Feed
         </h2>
-        <div className="text-center py-12 bg-card border border-dashed border-border rounded-xl">
-            <div className="bg-muted/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Inbox className="h-8 w-8 text-muted-foreground" />
+        <div className="text-center py-16 bg-card border border-dashed border-border rounded-xl">
+            <div className="bg-muted/30 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Inbox className="h-10 w-10 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-medium text-foreground">No Listings Yet</h3>
-            <p className="text-muted-foreground mt-1">Be the first to post a product or service!</p>
+            <h3 className="text-xl font-bold text-foreground">No Listings Yet</h3>
+            <p className="text-muted-foreground mt-2">Be the first to post a product or service!</p>
         </div>
       </div>
     );
@@ -112,50 +144,91 @@ const DiscoveryFeed: React.FC = () => {
 
       {/* Feed Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
-        {currentItems.map((item: any) => (
-          <div key={item.$id} className="h-full w-full animate-in fade-in zoom-in duration-500"> 
-            {item.feedType === 'product' ? (
-              <ProductListingCard
-                product={item}
-              />
-            ) : (
-              <ServiceListingCard
-                service={item}
-                // These props are placeholders if not using direct interaction in the feed
-                // The actual logic lives inside the Service Details or specific Service Page
-                isFoodOrWellnessCategory={['homemade-meals', 'wellness-remedies'].includes(item.category)}
-                onOpenBargainDialog={() => {}} 
-                onOpenReviewDialog={() => {}}
-              />
-            )}
-          </div>
-        ))}
+        {currentItems.map((item: any) => {
+            const isFood = ['homemade-meals', 'wellness-remedies', 'snacks'].includes(item.category);
+            
+            return (
+              <div key={item.$id} className="group relative flex flex-col h-full rounded-xl transition-all duration-300 hover:shadow-lg border border-transparent hover:border-border/50">
+                
+                {/* Render Appropriate Card */}
+                <div className="flex-1">
+                    {item.feedType === 'product' ? (
+                    <ProductListingCard product={item} />
+                    ) : (
+                    <ServiceListingCard
+                        service={item}
+                        isFoodOrWellnessCategory={isFood}
+                        onOpenBargainDialog={() => {}} 
+                        onOpenReviewDialog={() => {}}
+                    />
+                    )}
+                </div>
+
+                {/* Context Action Button (Appended to Card) */}
+                <div className="mt-[-1px] bg-card border-x border-b border-border rounded-b-xl p-3 pt-0 shadow-sm group-hover:shadow-md transition-shadow">
+                    <Button 
+                        className="w-full font-bold shadow-sm flex items-center justify-center gap-2"
+                        variant={item.feedType === 'product' ? "default" : "secondary"}
+                        onClick={() => handleItemAction(item)}
+                    >
+                        {item.feedType === 'product' && <><ShoppingBag className="h-4 w-4" /> View & Buy</>}
+                        {item.feedType === 'service' && isFood && <><Utensils className="h-4 w-4" /> Order Now</>}
+                        {item.feedType === 'service' && !isFood && <><Briefcase className="h-4 w-4" /> Hire / Connect</>}
+                    </Button>
+                </div>
+
+              </div>
+            );
+        })}
       </div>
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-4 mt-8 pb-4">
-          <Button
-            variant="outline"
-            onClick={handlePrev}
-            disabled={currentPage === 1}
-            className="flex items-center gap-1 border-secondary-neon text-secondary-neon hover:bg-secondary-neon/10"
-          >
-            <ChevronLeft className="h-4 w-4" /> Previous
-          </Button>
-          
-          <span className="text-sm font-medium text-muted-foreground">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-8 pt-6 border-t border-border">
+          <span className="text-sm font-medium text-muted-foreground order-2 sm:order-1">
             Page {currentPage} of {totalPages}
           </span>
 
-          <Button
-            variant="outline"
-            onClick={handleNext}
-            disabled={currentPage === totalPages}
-            className="flex items-center gap-1 border-secondary-neon text-secondary-neon hover:bg-secondary-neon/10"
-          >
-            Next <ChevronRight className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2 order-1 sm:order-2">
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrev}
+                disabled={currentPage === 1}
+                className="h-9 px-4 border-input hover:bg-accent hover:text-accent-foreground"
+            >
+                <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+            </Button>
+            
+            <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    // Simple logic to show a window of pages around current would go here
+                    // For now, simple list
+                    const p = i + 1;
+                    return (
+                        <Button
+                            key={p}
+                            variant={currentPage === p ? "default" : "ghost"}
+                            size="icon"
+                            className={`h-9 w-9 ${currentPage === p ? "bg-secondary-neon text-primary-foreground font-bold" : "text-muted-foreground"}`}
+                            onClick={() => { setCurrentPage(p); setTimeout(scrollToTop, 100); }}
+                        >
+                            {p}
+                        </Button>
+                    );
+                })}
+            </div>
+
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNext}
+                disabled={currentPage === totalPages}
+                className="h-9 px-4 border-input hover:bg-accent hover:text-accent-foreground"
+            >
+                Next <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
         </div>
       )}
     </div>
