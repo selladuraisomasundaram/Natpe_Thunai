@@ -14,7 +14,7 @@ import {
   IndianRupee, Loader2, Utensils, CheckCircle, 
   Handshake, Clock, ShoppingBag, Activity, Camera, 
   AlertTriangle, Eye, ShieldCheck, XCircle, PackageCheck,
-  MessageCircle, Briefcase, Wallet, Lock
+  MessageCircle, Briefcase, Wallet, Lock, MapPin
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { databases, APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID, APPWRITE_PRODUCTS_COLLECTION_ID, APPWRITE_CHAT_ROOMS_COLLECTION_ID } from "@/lib/appwrite";
@@ -94,10 +94,10 @@ const mapAppwriteStatusToTrackingStatus = (status: string): string => {
     "negotiating": "Negotiating",
     "initiated": "Payment Pending",
     "payment_confirmed_to_developer": "Verifying Payment",
-    "commission_deducted": "Active / Handover",
+    "commission_deducted": "Active / In Progress",
     "active": "Active / In Progress",
-    "seller_confirmed_delivery": "Delivered / Done",
-    "meeting_scheduled": "Meeting Set",
+    "seller_confirmed_delivery": "Work Done / Delivered",
+    "meeting_scheduled": "Meeting Scheduled",
     "completed": "Completed",
     "failed": "Cancelled",
     "disputed": "Disputed"
@@ -163,22 +163,23 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
 
   const isMarket = item.type !== "Food Order";
   const marketItem = isMarket ? (item as MarketTransactionItem) : null;
-  const isRental = item.type === "Rental"; 
   const isCompleted = item.status.toLowerCase().includes('completed') || item.status === 'Cancelled' || item.status === 'Disputed';
 
+  // --- ICONS ---
   const getIcon = () => {
     switch (item.type) {
       case "Rental": return <Clock className="h-5 w-5 text-purple-500" />;
       case "Transaction": return <ShoppingBag className="h-5 w-5 text-blue-500" />;
       case "Service": return <Briefcase className="h-5 w-5 text-indigo-500" />;
+      case "Errand": return <PackageCheck className="h-5 w-5 text-pink-500" />;
       case "Food Order": return <Utensils className="h-5 w-5 text-orange-500" />;
+      case "Cash Exchange": return <IndianRupee className="h-5 w-5 text-green-600" />;
       default: return <Activity className="h-5 w-5 text-gray-500" />;
     }
   };
 
   const initiatePayment = () => {
       if(!marketItem) return;
-      // Use UPI Intent
       const upiLink = `upi://pay?pa=${DEVELOPER_UPI_ID}&pn=NatpeThunaiEscrow&am=${marketItem.amount}&tn=Payment for ${marketItem.productTitle}`;
       window.open(upiLink, '_blank');
       setShowPaymentModal(true);
@@ -208,9 +209,8 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
           </Badge>
         </div>
 
-        {/* --- ACTIONS SECTION (Top) --- */}
+        {/* --- COMMON ACTIONS: CHAT --- */}
         <div className="mb-3 w-full space-y-2">
-            {/* Chat Button (Always Visible unless completed) */}
             <Button 
                 size="sm" 
                 variant="outline" 
@@ -222,20 +222,36 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
                 {isCompleted ? "Chat Closed" : `Chat with ${partnerName ? partnerName.split(' ')[0] : 'User'}`}
             </Button>
 
-            {/* Explicit Pay Button (Below Chat) */}
-            {marketItem && !item.isUserProvider && (marketItem.appwriteStatus === 'negotiating' || marketItem.appwriteStatus === 'initiated') && (
+            {/* --- MARKET/SERVICE PAY BUTTON (Explicitly Exclude Cash Exchange) --- */}
+            {marketItem && item.type !== 'Cash Exchange' && !item.isUserProvider && (marketItem.appwriteStatus === 'negotiating' || marketItem.appwriteStatus === 'initiated') && (
                 <Button 
                     size="sm" 
                     className="h-8 w-full bg-green-600 hover:bg-green-700 text-white gap-2 font-semibold shadow-sm" 
                     onClick={initiatePayment}
                 >
-                    <Wallet className="h-3 w-3" /> Pay Now (₹{marketItem.amount})
+                    <Wallet className="h-3 w-3" /> Pay Escrow (₹{marketItem.amount})
                 </Button>
             )}
         </div>
 
+        {/* --- CASH EXCHANGE SPECIFIC VIEW --- */}
+        {item.type === 'Cash Exchange' && !isCompleted && (
+            <div className="bg-green-50 dark:bg-green-900/10 p-3 rounded-lg border border-green-200 dark:border-green-800 mb-3 text-center">
+                <p className="text-xs text-muted-foreground mb-2">Meet in person to exchange cash.</p>
+                <div className="flex gap-2 justify-center">
+                    {!item.isUserProvider ? (
+                        <Button className="h-8 text-xs bg-green-600 hover:bg-green-700 text-white w-full" onClick={() => onAction("confirm_receipt_sale", item.id)}>
+                            <CheckCircle className="h-3 w-3 mr-2" /> Mark Cash Received
+                        </Button>
+                    ) : (
+                        <Button variant="ghost" disabled className="h-8 text-xs w-full">Waiting for receiver...</Button>
+                    )}
+                </div>
+            </div>
+        )}
+
         {/* --- MARKET / SERVICE / RENTAL LOGIC --- */}
-        {marketItem && (
+        {marketItem && item.type !== 'Cash Exchange' && (
           <div className="bg-muted/20 p-3 rounded-lg border border-border/50 mb-3 space-y-3 animate-in fade-in">
             <div className="flex justify-between items-center text-xs">
                 <span className="text-muted-foreground">Amount: <b className="text-foreground flex items-center gap-0.5"><IndianRupee className="h-3 w-3"/>{marketItem.amount}</b></span>
@@ -243,8 +259,8 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
             </div>
 
             <div className="flex flex-col gap-2">
-                {/* Handshake (Rentals Only) */}
-                {isRental && (
+                {/* RENTALS */}
+                {item.type === 'Rental' && (
                     <>
                         {item.isUserProvider && !marketItem.handoverEvidenceUrl && marketItem.appwriteStatus === 'commission_deducted' && (
                             <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white h-9 text-xs" onClick={() => { setEvidenceMode("upload_handover"); setShowEvidenceModal(true); }}>
@@ -254,17 +270,25 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
                         {!item.isUserProvider && marketItem.handoverEvidenceUrl && marketItem.appwriteStatus === 'commission_deducted' && (
                             <div className="flex gap-2">
                                 <Button variant="outline" className="flex-1 h-9 text-xs" onClick={() => { setEvidenceMode("view_handover"); setShowEvidenceModal(true); }}>View Proof</Button>
-                                <Button className="flex-1 bg-green-600 text-white h-9 text-xs" onClick={() => onAction("accept_handover", item.id, { type: item.type })}>
+                                <Button className="flex-1 bg-green-600 text-white h-9 text-xs" onClick={() => onAction("accept_handover", item.id)}>
                                     <Handshake className="h-3 w-3 mr-2" /> Accept & Rent
                                 </Button>
+                            </div>
+                        )}
+                        {/* Rental Return */}
+                        {item.isUserProvider && marketItem.appwriteStatus === 'active' && (
+                            <div className="flex gap-2 pt-2 border-t border-border/50">
+                                <Button variant="destructive" className="flex-1 h-9 text-xs" onClick={() => { setEvidenceMode("upload_return"); setShowEvidenceModal(true); }}>Report Damage</Button>
+                                <Button className="flex-1 bg-green-600 text-white h-9 text-xs" onClick={() => onAction("confirm_completion", item.id)}>Return Verified</Button>
                             </div>
                         )}
                     </>
                 )}
 
-                {/* Service/Freelance/Sale Flow */}
-                {!isRental && (
+                {/* SERVICES / ERRANDS / TRANSACTIONS */}
+                {(item.type === 'Service' || item.type === 'Errand' || item.type === 'Transaction') && (
                     <>
+                        {/* Provider Actions */}
                         {item.isUserProvider && (marketItem.appwriteStatus === 'payment_confirmed_to_developer' || marketItem.appwriteStatus === 'commission_deducted') && (
                             <Button className="w-full bg-blue-600 text-white h-9 text-xs" onClick={() => onAction(item.type === 'Transaction' ? "mark_delivered" : "start_work", item.id)}>
                                 {item.type === 'Transaction' ? 'Mark Delivered' : 'Start Work'}
@@ -272,23 +296,17 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
                         )}
                         {item.isUserProvider && marketItem.appwriteStatus === 'active' && (
                             <Button className="w-full bg-purple-600 text-white h-9 text-xs" onClick={() => onAction("deliver_work", item.id)}>
-                                <PackageCheck className="h-3 w-3 mr-2" /> Mark Work Done
+                                <PackageCheck className="h-3 w-3 mr-2" /> Mark Completed
                             </Button>
                         )}
+                        
+                        {/* Client Actions */}
                         {!item.isUserProvider && marketItem.appwriteStatus === 'seller_confirmed_delivery' && (
                             <Button className="w-full bg-green-600 text-white h-9 text-xs" onClick={() => onAction("confirm_receipt_sale", item.id, { productId: marketItem.productId })}>
-                                <CheckCircle className="h-3 w-3 mr-2" /> Confirm Completion
+                                <CheckCircle className="h-3 w-3 mr-2" /> Confirm & Release Pay
                             </Button>
                         )}
                     </>
-                )}
-
-                {/* Rental Return */}
-                {isRental && item.isUserProvider && marketItem.appwriteStatus === 'active' && (
-                    <div className="flex gap-2 pt-2 border-t border-border/50">
-                        <Button variant="destructive" className="flex-1 h-9 text-xs" onClick={() => { setEvidenceMode("upload_return"); setShowEvidenceModal(true); }}>Report Damage</Button>
-                        <Button className="flex-1 bg-green-600 text-white h-9 text-xs" onClick={() => onAction("confirm_completion", item.id)}>Return Verified</Button>
-                    </div>
                 )}
             </div>
           </div>
@@ -341,24 +359,64 @@ const TrackingPage = () => {
     try {
       const response = await databases.listDocuments(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, [Query.or([Query.equal('buyerId', user.$id), Query.equal('sellerId', user.$id)]), Query.orderDesc('$createdAt')]);
       
-      const transactions = response.documents.map((doc: any) => ({
-        id: doc.$id,
-        type: doc.type === 'product' ? 'Transaction' : (doc.type === 'service' ? 'Service' : (doc.type === 'errand' ? 'Errand' : 'Rental')), 
-        productId: doc.productId, productTitle: doc.productTitle, description: doc.productTitle,
-        status: mapAppwriteStatusToTrackingStatus(doc.status), appwriteStatus: doc.status,
-        date: new Date(doc.$createdAt).toLocaleDateString(), timestamp: new Date(doc.$createdAt).getTime(),
-        amount: doc.amount, sellerName: doc.sellerName, buyerName: doc.buyerName, sellerId: doc.sellerId, buyerId: doc.buyerId,
-        isUserProvider: doc.sellerId === user.$id, handoverEvidenceUrl: doc.handoverEvidenceUrl, isDisputed: doc.isDisputed
-      } as MarketTransactionItem));
+      const uniqueItemsMap = new Map<string, TrackingItem>();
 
-      const foodItems = foodOrders.map(o => ({
-        id: o.$id, type: "Food Order", offeringTitle: o.offeringTitle, description: o.offeringTitle, status: o.status, orderStatus: o.status,
-        totalAmount: o.totalAmount, providerName: o.providerName, buyerName: o.buyerName, providerId: o.providerId, buyerId: o.buyerId,
-        isUserProvider: o.providerId === user.$id, timestamp: new Date(o.$createdAt).getTime(), date: new Date(o.$createdAt).toLocaleDateString(), 
-        quantity: o.quantity, deliveryLocation: o.deliveryLocation
-      } as FoodOrderItem));
+      // 1. Process Market/Service/Cash Transactions
+      response.documents.forEach((doc: any) => {
+        let type: MarketTransactionItem['type'] = 'Transaction';
+        if (doc.type === 'service') type = 'Service';
+        else if (doc.type === 'errand') type = 'Errand';
+        else if (doc.type === 'rent') type = 'Rental';
+        else if (doc.type === 'cash-exchange') type = 'Cash Exchange';
 
-      setItems([...transactions, ...foodItems].sort((a, b) => b.timestamp - a.timestamp));
+        const item: MarketTransactionItem = {
+            id: doc.$id,
+            type: type,
+            productId: doc.productId,
+            productTitle: doc.productTitle || "Untitled Item",
+            description: doc.productTitle,
+            status: mapAppwriteStatusToTrackingStatus(doc.status),
+            appwriteStatus: doc.status,
+            date: new Date(doc.$createdAt).toLocaleDateString(),
+            timestamp: new Date(doc.$createdAt).getTime(),
+            amount: doc.amount,
+            sellerName: doc.sellerName,
+            buyerName: doc.buyerName,
+            sellerId: doc.sellerId,
+            buyerId: doc.buyerId,
+            isUserProvider: doc.sellerId === user.$id,
+            handoverEvidenceUrl: doc.handoverEvidenceUrl,
+            isDisputed: doc.isDisputed
+        };
+        uniqueItemsMap.set(item.id, item);
+      });
+
+      // 2. Process Food Orders
+      foodOrders.forEach(o => {
+        const item: FoodOrderItem = {
+            id: o.$id,
+            type: "Food Order",
+            offeringTitle: o.offeringTitle,
+            description: o.offeringTitle,
+            status: o.status,
+            orderStatus: o.status,
+            totalAmount: o.totalAmount,
+            providerName: o.providerName,
+            buyerName: o.buyerName,
+            providerId: o.providerId,
+            buyerId: o.buyerId,
+            isUserProvider: o.providerId === user.$id,
+            timestamp: new Date(o.$createdAt).getTime(),
+            date: new Date(o.$createdAt).toLocaleDateString(),
+            quantity: o.quantity,
+            deliveryLocation: o.deliveryLocation
+        };
+        uniqueItemsMap.set(item.id, item);
+      });
+
+      const sortedItems = Array.from(uniqueItemsMap.values()).sort((a, b) => b.timestamp - a.timestamp);
+      setItems(sortedItems);
+
     } catch (e) { toast.error("Sync failed."); } 
     finally { setIsLoading(false); }
   }, [user, foodOrders]);
@@ -373,6 +431,7 @@ const TrackingPage = () => {
             navigate(`/chat/${rooms.documents[0].$id}`);
         } else {
             const marketItem = item as MarketTransactionItem;
+            // Logic for Buyer/Provider IDs based on type
             const buyerId = item.isUserProvider ? marketItem.buyerId : user!.$id;
             const providerId = item.isUserProvider ? user!.$id : marketItem.sellerId;
             const buyerName = item.isUserProvider ? marketItem.buyerName : user!.name;
@@ -430,11 +489,13 @@ const TrackingPage = () => {
                 <TabsTrigger value="history" className="text-xs font-bold">History</TabsTrigger>
             </TabsList>
             <TabsContent value="all" className="space-y-4 pt-4">
+                 {items.filter(i => !i.status.toLowerCase().includes('completed') && i.status !== 'Cancelled' && !(i as any).isDisputed).length === 0 && <div className="text-center text-muted-foreground text-sm py-10">No active tasks.</div>}
                  {items.filter(i => !i.status.toLowerCase().includes('completed') && i.status !== 'Cancelled' && !(i as any).isDisputed).map(item => (
                     <TrackingCard key={item.id} item={item} onAction={handleAction} currentUser={user} onChat={handleChatNavigation} />
                 ))}
             </TabsContent>
             <TabsContent value="history" className="space-y-4 pt-4">
+                 {items.filter(i => i.status.toLowerCase().includes('completed') || i.status === 'Cancelled' || (i as any).isDisputed).length === 0 && <div className="text-center text-muted-foreground text-sm py-10">No history yet.</div>}
                  {items.filter(i => i.status.toLowerCase().includes('completed') || i.status === 'Cancelled' || (i as any).isDisputed).map(item => (
                     <TrackingCard key={item.id} item={item} onAction={handleAction} currentUser={user} onChat={handleChatNavigation} />
                 ))}
