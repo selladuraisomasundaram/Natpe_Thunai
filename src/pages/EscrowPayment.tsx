@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { 
@@ -24,11 +24,10 @@ import {
 } from "@/lib/appwrite";
 
 // Config Constants
-const DEVELOPER_UPI = "8903480105@superyes"; // Replace if needed
-const DEVELOPER_NAME = "Natpe Thunai Dev";
+const DEVELOPER_UPI = "8903480105@superyes"; 
 
 const EscrowPayment = () => {
-  const { transactionId } = useParams<{ transactionId: string }>(); // Appwrite Document ID
+  const { transactionId } = useParams<{ transactionId: string }>(); 
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
@@ -38,9 +37,6 @@ const EscrowPayment = () => {
   const [utrNumber, setUtrNumber] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Get data from URL params (passed from previous page)
-  // Note: We use searchParams for display data to avoid an extra fetch, 
-  // but the ID from useParams is critical for the DB update.
   const amount = searchParams.get("amount") || "0";
   const itemTitle = searchParams.get("title") || "Order Payment";
 
@@ -54,19 +50,19 @@ const EscrowPayment = () => {
   };
 
   const triggerUPI = () => {
-    // 1. CLEAN UPI LINK GENERATION
-    // Removing 'tr' (Transaction Ref) is crucial for P2P success.
-    // Keeping the Note ('tn') short and alphanumeric helps compatibility.
-    const encodedName = encodeURIComponent(DEVELOPER_NAME);
+    // --- CRITICAL FIX: MINIMALIST UPI STRING ---
+    // 1. Removed 'pn' (Payee Name): Forces app to fetch registered name from bank (Fixes "Invalid Merchant" error).
+    // 2. Removed 'cu', 'tr', 'mc': Removes non-merchant parameters that cause failures.
+    // 3. Simple Note: Keeps it clean.
+    
     const cleanNote = itemTitle.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 20); 
     const encodedNote = encodeURIComponent(cleanNote);
 
-    const upiUri = `upi://pay?pa=${DEVELOPER_UPI}&pn=${encodedName}&am=${formattedAmount}&cu=INR&tn=${encodedNote}`;
+    // BARE MINIMUM URL: Address + Amount + Note
+    const upiUri = `upi://pay?pa=${DEVELOPER_UPI}&am=${formattedAmount}&tn=${encodedNote}`;
 
-    // 2. OPEN UPI APP
     window.location.href = upiUri;
 
-    // 3. UPDATE UI TO ASK FOR UTR
     setPaymentStep('verifying');
     toast.info("App opened. Please complete payment and enter UTR here.");
   };
@@ -85,20 +81,19 @@ const EscrowPayment = () => {
     setIsSubmitting(true);
 
     try {
-        // UPDATE APPWRITE DATABASE
         await databases.updateDocument(
             APPWRITE_DATABASE_ID,
             APPWRITE_TRANSACTIONS_COLLECTION_ID,
-            transactionId, // The Document ID
+            transactionId, 
             {
-                transactionId: utrNumber, // Saving the User's UTR here
+                transactionId: utrNumber, // User entered UTR
                 status: "payment_confirmed_to_developer",
-                utrId: utrNumber // Saving to dedicated UTR column if schema allows
+                utrId: utrNumber // Dedicated column
             }
         );
 
         toast.success("Payment Submitted for Verification!");
-        navigate("/activity/tracking"); // Redirect to tracking
+        navigate("/activity/tracking"); 
 
     } catch (error: any) {
         console.error("Verification Failed:", error);
