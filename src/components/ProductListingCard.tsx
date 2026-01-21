@@ -27,7 +27,6 @@ const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
-    // Check if imageUrl exists and is valid, otherwise set fallback immediately
     if (product.imageUrl && product.imageUrl.trim() !== "") {
         setImageSrc(product.imageUrl);
         setHasError(false);
@@ -54,6 +53,28 @@ const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
     navigate(`/market/${product.$id}`);
   };
 
+  /**
+   * ESCROW INTEGRATION LOGIC
+   * Triggered after the user confirms the purchase in the Dialog.
+   * Redirects to the central Escrow Gateway with pre-filled details.
+   */
+  const handlePurchaseInitiated = () => {
+    setIsBuyDialogOpen(false);
+    
+    // Extract price value (handling potential string symbols like ₹)
+    const numericPrice = typeof product.price === 'string' 
+      ? product.price.replace(/[^0-9.]/g, '') 
+      : product.price;
+
+    const queryParams = new URLSearchParams({
+      amount: String(numericPrice),
+      txnId: product.$id, // Using product ID as initial reference
+      title: product.title
+    }).toString();
+
+    navigate(`/escrow-payment?${queryParams}`);
+  };
+
   return (
     <Card 
       onClick={handleCardClick}
@@ -67,7 +88,6 @@ const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
           alt={product.title}
           className={cn(
             "w-full h-full transition-transform duration-700 group-hover:scale-110",
-            // If it's the logo (error state), use 'object-contain' and add padding so it looks nice
             hasError ? "object-contain p-8 opacity-90" : "object-cover"
           )}
           onError={() => { 
@@ -76,7 +96,6 @@ const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
           }}
         />
         
-        {/* Overlay Gradient (Only if real image) */}
         {!hasError && <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60" />}
 
         <div className="absolute top-3 left-3">
@@ -140,7 +159,7 @@ const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
                 <DialogHeader><DialogTitle>Confirm Purchase</DialogTitle></DialogHeader>
                 <BuyProductDialog 
                   product={product} 
-                  onPurchaseInitiated={() => setIsBuyDialogOpen(false)} 
+                  onPurchaseInitiated={handlePurchaseInitiated} 
                   onCancel={() => setIsBuyDialogOpen(false)} 
                 />
             </DialogContent>
