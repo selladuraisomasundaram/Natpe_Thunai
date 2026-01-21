@@ -31,28 +31,23 @@ const FoodOfferingCard: React.FC<FoodOfferingCardProps> = ({ offering }) => {
   const imageUrl = `https://source.unsplash.com/400x300/?food,${imageKeyword}&sig=${foodItem.$id}`;
   
   const isNonVeg = 
-     foodItem.dietaryType === 'non-veg' || 
-     foodItem.title.toLowerCase().includes("chicken");
+      foodItem.dietaryType === 'non-veg' || 
+      foodItem.title.toLowerCase().includes("chicken");
 
   const prepTime = foodItem.timeEstimate || "20-30 min";
 
   /**
    * ESCROW REDIRECTION LOGIC
-   * This is triggered after the PlaceFoodOrderForm successfully 
-   * creates a document in the Appwrite Food Orders collection.
+   * This callback is triggered by PlaceFoodOrderForm upon successful DB creation.
+   * We expect PlaceFoodOrderForm to pass the transaction details here.
    */
-  const handleOrderSuccess = (orderData: { transactionId: string; totalAmount: number }) => {
+  const handleOrderSuccess = () => {
     setIsOrderDialogOpen(false);
-
-    // Construct query parameters for the new Escrow Gateway
-    const queryParams = new URLSearchParams({
-      amount: orderData.totalAmount.toString(),
-      txnId: orderData.transactionId,
-      title: foodItem.title
-    }).toString();
-
-    // Redirect to the bug-free payment page
-    navigate(`/escrow-payment?${queryParams}`);
+    
+    // Since the PlaceFoodOrderForm component handles the redirection internally 
+    // in its own handleConfirmOrder function (as per previous updates),
+    // we simply close the dialog here to clean up the UI.
+    // The navigation happens inside the form component now.
   };
 
   return (
@@ -62,7 +57,7 @@ const FoodOfferingCard: React.FC<FoodOfferingCardProps> = ({ offering }) => {
       <div className="relative h-44 w-full bg-muted overflow-hidden">
         <img 
           src={imageUrl} 
-          alt={foodItem.title}
+          alt={foodItem.title} 
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
           onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'; }}
         />
@@ -123,10 +118,14 @@ const FoodOfferingCard: React.FC<FoodOfferingCardProps> = ({ offering }) => {
                  <Flame className="h-5 w-5 text-orange-500" /> Order Details
               </DialogTitle>
             </DialogHeader>
+            
+            {/* Correction: We pass a void function here because the Form component 
+                handles the logic.
+            */}
             <PlaceFoodOrderForm 
               mode="buy"
               offering={foodItem}
-              onOrderPlaced={(data) => handleOrderSuccess(data)}
+              onOrderPlaced={handleOrderSuccess} 
               onCancel={() => setIsOrderDialogOpen(false)}
             />
           </DialogContent>
