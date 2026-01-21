@@ -109,6 +109,7 @@ const OnlineRoutes = () => {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/help/image-to-url" element={<ImageToUrlHelpPage />} />
+      <Route path="/escrow-payment" element={<EscrowPayment />} />
       
       <Route element={<AppLayout />}>
         <Route path="/home" element={<HomePage />} />
