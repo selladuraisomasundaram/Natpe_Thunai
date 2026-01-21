@@ -159,10 +159,9 @@ const ProductDetailsPage = () => {
 
 
   // --- CALCULATE PRICES ---
-  const originalPriceVal = product ? parseFloat(product.price.replace(/[₹,]/g, '').split('/')[0].trim()) : 0;
+  const originalPriceVal = product ? parseFloat(product.price.toString().replace(/[₹,]/g, '').split('/')[0].trim()) : 0;
   const isBargainAccepted = myBargainRequest?.status === 'accepted';
   
-  // FIXED PRICE LOGIC: Either Bargain Price (85%) OR Original
   const discountAmount = originalPriceVal * 0.15;
   const bargainPrice = originalPriceVal - discountAmount;
   const finalPrice = isBargainAccepted ? bargainPrice : originalPriceVal;
@@ -182,7 +181,6 @@ const ProductDetailsPage = () => {
             description: "Wait for the seller to accept via the Buzz tab."
         });
         
-        // Optimistic Update
         setMyBargainRequest({ status: 'pending', requestedAmount: bargainPrice });
 
     } catch (error: any) {
@@ -192,17 +190,18 @@ const ProductDetailsPage = () => {
     }
   };
 
-  // --- PAYMENT ACTION ---
+  /**
+   * ESCROW INTEGRATION: PAYMENT ACTION
+   * Replaced window.open logic with navigation to /escrow-payment
+   */
   const handleInitiatePayment = async () => {
     if (!user || !userProfile || !product) return;
     setIsProcessing(true);
 
     const transactionType = product.type === 'sell' ? 'buy' : 'rent';
-    const transactionNote = isBargainAccepted 
-      ? `Bargain Deal (${product.title})` 
-      : `${transactionType}: ${product.title}`;
 
     try {
+      // 1. Create the transaction record in Appwrite first
       const newTransaction = await databases.createDocument(
         APPWRITE_DATABASE_ID,
         APPWRITE_TRANSACTIONS_COLLECTION_ID,
@@ -226,15 +225,20 @@ const ProductDetailsPage = () => {
       );
 
       const transactionId = newTransaction.$id;
+      
       if (ambassadorDelivery && incrementAmbassadorDeliveriesCount) {
         await incrementAmbassadorDeliveriesCount();
       }
 
-      const upiDeepLink = `upi://pay?pa=${DEVELOPER_UPI_ID}&pn=NatpeThunai&am=${finalPrice.toFixed(2)}&cu=INR&tn=${encodeURIComponent(transactionNote + ` #${transactionId.substring(0,6)}`)}`;
-      
-      window.open(upiDeepLink, "_blank");
+      // 2. Redirect to Escrow Gateway with proper parameters
+      const queryParams = new URLSearchParams({
+        amount: finalPrice.toFixed(2),
+        txnId: transactionId,
+        title: product.title
+      }).toString();
+
       setIsBuyDialogOpen(false);
-      navigate(`/market/confirm-payment/${transactionId}`);
+      navigate(`/escrow-payment?${queryParams}`);
 
     } catch (error: any) {
       console.error(error);
@@ -267,7 +271,6 @@ const ProductDetailsPage = () => {
                 reviewerName: user.name,
                 rating: reviewRating,
                 comment: reviewComment,
-                // createdAt is auto-handled by Appwrite usually, but we can rely on $createdAt
             }
         );
 
@@ -276,7 +279,6 @@ const ProductDetailsPage = () => {
         setReviewComment("");
         setReviewRating(5);
 
-        // Refresh reviews
         const reviewsRes = await databases.listDocuments(
             APPWRITE_DATABASE_ID,
             APPWRITE_SERVICE_REVIEWS_COLLECTION_ID,
@@ -421,7 +423,6 @@ const ProductDetailsPage = () => {
           <div className="space-y-4 pt-2">
             <div className="flex items-center justify-between">
                 <h3 className="font-bold text-lg">Reviews ({reviews.length})</h3>
-                {/* REVIEW BUTTON */}
                 {!isOwner && (
                     <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
                         <DialogTrigger asChild>
@@ -497,7 +498,6 @@ const ProductDetailsPage = () => {
          <div className="max-w-3xl mx-auto flex gap-3 h-12">
             {!isOwner ? (
                 <>
-                    {/* BARGAIN BUTTON */}
                     {!isBargainAccepted && (
                       <Dialog open={isBargainDialogOpen} onOpenChange={setIsBargainDialogOpen}>
                           <DialogTrigger asChild>
@@ -533,7 +533,6 @@ const ProductDetailsPage = () => {
                       </Dialog>
                     )}
 
-                    {/* BUY BUTTON */}
                     <Dialog open={isBuyDialogOpen} onOpenChange={setIsBuyDialogOpen}>
                         <DialogTrigger asChild>
                             <Button className="flex-[1.5] h-full bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 font-bold text-base shadow-lg shadow-secondary-neon/20">
