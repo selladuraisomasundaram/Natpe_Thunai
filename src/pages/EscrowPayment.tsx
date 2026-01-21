@@ -27,7 +27,7 @@ import {
 const DEVELOPER_UPI = "8903480105@superyes"; // Replace if needed
 const DEVELOPER_NAME = "Natpe Thunai Dev";
 
-const PaymentConfirmationPage = () => {
+const EscrowPayment = () => {
   const { transactionId } = useParams<{ transactionId: string }>(); // Appwrite Document ID
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
