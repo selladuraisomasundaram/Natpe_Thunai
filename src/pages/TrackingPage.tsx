@@ -115,7 +115,6 @@ const StatusStepper = ({ currentStep }: { currentStep: number }) => {
     
     return (
         <div className="flex items-center justify-between w-full px-1 my-4 relative">
-            {/* Connecting Line */}
             <div className="absolute left-0 top-2.5 w-full h-0.5 bg-muted -z-10" />
             <div 
                 className="absolute left-0 top-2.5 h-0.5 bg-secondary-neon transition-all duration-500 -z-10" 
@@ -209,7 +208,6 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
   const marketItem = isMarket ? (item as MarketTransactionItem) : null;
   const foodItem = !isMarket ? (item as FoodOrderItem) : null;
   
-  // DETERMINE STEP FOR STEPPER
   let currentStep = 0;
   if (marketItem) {
       if (marketItem.appwriteStatus === 'completed') currentStep = 4;
@@ -218,14 +216,13 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
       else if (marketItem.appwriteStatus === 'commission_deducted' || marketItem.appwriteStatus === 'payment_confirmed_to_developer') currentStep = 1;
       else currentStep = 0;
   } else if (foodItem) {
-      if (foodItem.orderStatus === 'Delivered' || foodItem.status === 'completed') currentStep = 4;
+      if (foodItem.orderStatus === 'Delivered' || (foodItem as any).status === 'completed') currentStep = 4;
       else if (foodItem.orderStatus === 'Out for Delivery') currentStep = 3;
       else if (foodItem.orderStatus === 'Preparing') currentStep = 2;
       else if (foodItem.orderStatus === 'Confirmed') currentStep = 1;
       else currentStep = 0;
   }
 
-  // STATUS FLAGS
   const isCompleted = currentStep === 4 || item.status === 'Cancelled' || item.status === 'Disputed';
 
   const getIcon = () => {
@@ -240,11 +237,30 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
     }
   };
 
+  /**
+   * BUG FIX: UPI REDIRECTION REFACTOR
+   * 1. Added encodeURIComponent to handle special characters/spaces in titles and names.
+   * 2. Added .toFixed(2) to Amount (Strictly required by most UPI apps).
+   * 3. Added 'tr' (Transaction Reference) using timestamp to prevent "Duplicate Transaction" errors.
+   * 4. Switched to window.location.href for better mobile intent handling.
+   */
   const initiatePayment = () => {
       if(!marketItem) return;
-      const upiLink = `upi://pay?pa=${DEVELOPER_UPI_ID}&pn=NatpeThunaiEscrow&am=${marketItem.amount}&tn=Payment for ${marketItem.productTitle}`;
-      window.open(upiLink, '_blank');
-      setShowPaymentModal(true);
+      
+      const payeeId = DEVELOPER_UPI_ID;
+      const payeeName = encodeURIComponent("Natpe Thunai Escrow");
+      const transactionNote = encodeURIComponent(`Payment for ${marketItem.productTitle}`);
+      const amount = Number(marketItem.amount).toFixed(2); // Fixes 50 -> 50.00
+      const transactionRef = `NT${marketItem.id.substring(0,8)}${Date.now()}`; // Unique ID
+
+      const upiLink = `upi://pay?pa=${payeeId}&pn=${payeeName}&am=${amount}&cu=INR&tn=${transactionNote}&tr=${transactionRef}`;
+      
+      try {
+        window.location.href = upiLink; // Safer than window.open for deep links
+        setShowPaymentModal(true);
+      } catch (err) {
+        toast.error("Could not open UPI apps. Please try manual payment.");
+      }
   };
 
   const partnerName = item.isUserProvider ? (item as any).buyerName : (item.type === 'Food Order' ? (item as any).providerName : (item as any).sellerName);
@@ -255,7 +271,6 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
       marketItem?.isDisputed && "border-l-destructive border-destructive/50"
     )}>
       <CardContent className="p-4">
-        {/* Header */}
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-muted/50 rounded-xl border border-border/50">{getIcon()}</div>
@@ -271,12 +286,10 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
           </Badge>
         </div>
 
-        {/* --- LIVE TRACKING STEPPER --- */}
         {!isCompleted && item.type !== 'Cash Exchange' && (
             <StatusStepper currentStep={currentStep} />
         )}
 
-        {/* --- COMMON ACTIONS: CHAT --- */}
         <div className="mb-3 w-full space-y-2">
             <Button 
                 size="sm" 
@@ -294,7 +307,6 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
                 {isCompleted ? "Chat Locked (Deal Closed)" : `Chat with ${partnerName ? partnerName.split(' ')[0] : 'User'}`}
             </Button>
 
-            {/* --- PAY BUTTON (BUYER ONLY) --- */}
             {!isCompleted && marketItem && item.type !== 'Cash Exchange' && !item.isUserProvider && (marketItem.appwriteStatus === 'negotiating' || marketItem.appwriteStatus === 'initiated') && (
                 <Button 
                     size="sm" 
@@ -306,7 +318,6 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
             )}
         </div>
 
-        {/* --- MARKET LOGIC (STRICT) --- */}
         {marketItem && item.type !== 'Cash Exchange' && !isCompleted && (
           <div className="bg-muted/20 p-3 rounded-lg border border-border/50 mb-3 space-y-3">
             <div className="flex justify-between items-center text-xs">
@@ -314,7 +325,6 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
             </div>
 
             <div className="flex flex-col gap-2">
-                {/* 1. RENTAL FLOW */}
                 {item.type === 'Rental' && (
                     <>
                         {item.isUserProvider && !marketItem.handoverEvidenceUrl && marketItem.appwriteStatus === 'commission_deducted' && (
@@ -339,31 +349,26 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
                     </>
                 )}
 
-                {/* 2. GENERAL FLOW (Service / Product / Errand) */}
                 {(item.type === 'Service' || item.type === 'Errand' || item.type === 'Transaction') && (
                     <>
-                        {/* PROVIDER: Start Work */}
                         {item.isUserProvider && (marketItem.appwriteStatus === 'payment_confirmed_to_developer' || marketItem.appwriteStatus === 'commission_deducted') && (
                             <Button className="w-full bg-blue-600 text-white h-9 text-xs font-bold shadow-sm" onClick={() => onAction(item.type === 'Transaction' ? "mark_delivered" : "start_work", item.id)}>
                                 {item.type === 'Transaction' ? '🚚 Mark Shipped' : '🚀 Start Work'}
                             </Button>
                         )}
                         
-                        {/* PROVIDER: Mark Completed */}
                         {item.isUserProvider && marketItem.appwriteStatus === 'active' && (
                             <Button className="w-full bg-purple-600 text-white h-9 text-xs font-bold shadow-sm" onClick={() => onAction("deliver_work", item.id)}>
                                 <PackageCheck className="h-3 w-3 mr-2" /> Mark Done / Delivered
                             </Button>
                         )}
 
-                        {/* PROVIDER: Waiting State */}
                         {item.isUserProvider && marketItem.appwriteStatus === 'seller_confirmed_delivery' && (
                             <Button variant="secondary" disabled className="w-full h-9 text-xs opacity-80 border border-border">
                                 <Hourglass className="h-3 w-3 mr-2 animate-spin" /> Waiting for Confirmation...
                             </Button>
                         )}
 
-                        {/* CLIENT: Confirm & Release */}
                         {!item.isUserProvider && marketItem.appwriteStatus === 'seller_confirmed_delivery' && (
                             <Button className="w-full bg-green-600 text-white h-9 text-xs font-bold shadow-lg shadow-green-500/20" onClick={() => onAction("confirm_receipt_sale", item.id, { productId: marketItem.productId })}>
                                 <CheckCircle className="h-3 w-3 mr-2" /> 🔓 Confirm & Release Payment
@@ -375,7 +380,6 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
           </div>
         )}
 
-        {/* --- FOOD ACTIONS --- */}
         {item.type === "Food Order" && !isCompleted && (
              <div className="mt-3 pt-3 border-t border-border/50 flex justify-end gap-2">
                 {item.isUserProvider ? (
@@ -391,7 +395,6 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
              </div>
         )}
 
-        {/* Modals */}
         {showEvidenceModal && marketItem && (
             <EvidenceModal isOpen={showEvidenceModal} onClose={() => setShowEvidenceModal(false)} title={evidenceMode.includes('upload') ? "Upload Proof" : "View Proof"} onUpload={handleEvidenceUpload} isUploading={isUploading} viewOnlyUrl={evidenceMode === 'view_handover' ? marketItem.handoverEvidenceUrl : undefined} />
         )}
@@ -400,7 +403,6 @@ const TrackingCard = ({ item, onAction, currentUser, onChat }: { item: TrackingI
             <PaymentVerificationModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)} onVerify={(utr) => { onAction("verify_payment", item.id, { utr }); setShowPaymentModal(false); }} amount={marketItem.amount} />
         )}
 
-        {/* Footer Info */}
         <div className="flex justify-between items-center text-[10px] text-muted-foreground/70 mt-3 pt-2 border-t border-border/30">
            <span>Role: {item.isUserProvider ? "Provider" : "Client"}</span>
            <span className="font-mono opacity-50">ID: {item.id.substring(0, 6)}</span>
@@ -425,7 +427,7 @@ const processTransactionDoc = (doc: any, currentUserId: string): MarketTransacti
         productTitle: doc.productTitle || "Untitled Item",
         description: doc.productTitle,
         status: mapAppwriteStatusToTrackingStatus(doc.status),
-        appwriteStatus: doc.status, // KEEP RAW STATUS FOR LOGIC
+        appwriteStatus: doc.status,
         date: new Date(doc.$createdAt).toLocaleDateString(),
         timestamp: new Date(doc.$createdAt).getTime(),
         amount: doc.amount,
@@ -468,7 +470,6 @@ const TrackingPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // --- HELPER: LOCK CHAT ROOM ---
   const lockChatRoom = async (transactionId: string) => {
     try {
         const rooms = await databases.listDocuments(
@@ -483,14 +484,12 @@ const TrackingPage = () => {
                 rooms.documents[0].$id,
                 { status: "closed" }
             );
-            console.log("🔒 Chat room locked for transaction:", transactionId);
         }
     } catch (error) {
         console.error("Failed to lock chat room:", error);
     }
   };
 
-  // --- INITIAL DATA FETCH ---
   const refreshData = useCallback(async () => {
     if (!user?.$id) return;
     setIsLoading(true);
@@ -516,7 +515,6 @@ const TrackingPage = () => {
     finally { setIsLoading(false); }
   }, [user, initialFoodOrders]);
 
-  // --- REAL-TIME SUBSCRIPTION ---
   useEffect(() => {
     if (!user?.$id) return;
     refreshData();
@@ -562,9 +560,7 @@ const TrackingPage = () => {
     return () => { unsubscribe(); };
   }, [user, refreshData]);
 
-  // --- ACTIONS ---
   const handleChatNavigation = async (item: TrackingItem) => {
-    // 1. SAFETY GUARD: Check completion status
     const isCompleted = item.status.toLowerCase().includes('completed') || 
                         item.status.toLowerCase().includes('delivered') ||
                         item.status === 'Cancelled' || 
@@ -608,29 +604,26 @@ const TrackingPage = () => {
             await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "active" });
             toast.success("Started!");
         }
-        // MARK DELIVERED LOGIC
         else if (action === "deliver_work" || action === "mark_delivered") {
             await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "seller_confirmed_delivery" });
             toast.success("Marked Delivered. Waiting for Client.");
         }
         else if (action === "confirm_receipt_sale" || action === "confirm_completion") {
-            // MARK COMPLETED -> LOCK CHAT
             await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "completed" });
             if (payload?.productId) { try { await databases.deleteDocument(APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID, payload.productId); } catch {} }
-            await lockChatRoom(id); // TRIGGER LOCK
+            await lockChatRoom(id); 
             toast.success("Completed! Chat has been closed.");
         }
         else if (action === "food_update") {
             await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_FOOD_ORDERS_COLLECTION_ID, id, { status: payload.status });
             if (payload.status === "Delivered") {
-                await lockChatRoom(id); // TRIGGER LOCK FOR FOOD
+                await lockChatRoom(id);
                 toast.success("Order Delivered! Chat closed.");
             } else {
                 toast.success("Updated.");
             }
         }
     } catch (e: any) { 
-        console.error("Action Failed:", e);
         toast.error("Action Failed: " + (e.message || "Unknown error")); 
     }
   };
