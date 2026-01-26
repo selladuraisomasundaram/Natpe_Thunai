@@ -61,7 +61,6 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
   const parsePrice = (priceStr: string | number): number => {
     if (typeof priceStr === 'number') return priceStr;
     if (!priceStr) return 0;
-    // Remove all non-numeric characters except '.'
     const numericPart = priceStr.toString().replace(/[^0-9.]/g, '');
     return parseFloat(numericPart) || 0;
   };
@@ -88,13 +87,14 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
   };
 
   const handleConfirmOrder = async () => {
+    if (isProcessing) return; // Prevent double click
     if (!user || !offering) return;
     if (!transactionId.trim()) {
         toast.error("Please enter the Transaction ID (UTR).");
         return;
     }
 
-    setIsProcessing(true);
+    setIsProcessing(true); // LOCK UI
     try {
         const priceVal = parsePrice(offering.price);
         const totalAmount = priceVal * quantity;
@@ -145,28 +145,36 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
     } catch (error: any) {
         console.error("Order Error:", error);
         toast.error(`Order Failed: ${error.message || "Unknown error"}`);
-    } finally {
-        setIsProcessing(false);
+        setIsProcessing(false); // Only unlock on error
     }
   };
 
   // --- SELL/REQUEST LOGIC ---
   const handlePostSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isProcessing) return; // Prevent double click
+
     if (!title || !price || !description) {
       toast.error("Please fill all fields.");
       return;
     }
+
+    setIsProcessing(true); // LOCK UI
     const postData = {
       title, description, price, category, dietaryType, timeEstimate,
       isCustomOrder: mode === "request", status: "active"
     };
+    
+    // Assume onSubmit handles the async call and will unlock/close
     if (onSubmit) onSubmit(postData);
+    
+    // We don't unlock here immediately because the parent component might be doing async work
+    // Ideally the parent should control the loading state or we use a timeout/callback
+    setTimeout(() => setIsProcessing(false), 3000); 
   };
 
   // --- RENDER: BUY MODE (MATCHING UI) ---
   if (mode === "buy" && offering) {
-    // USE HELPER HERE TOO
     const priceVal = parsePrice(offering.price);
     const total = (priceVal * quantity).toFixed(0);
 
@@ -174,7 +182,6 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
       <div className="space-y-5 pt-2">
         {paymentStep === 'initial' ? (
             <>
-                {/* 1. NO CANCELLATION BANNER */}
                 <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-lg p-3 flex items-start gap-3">
                     <div className="p-1 bg-red-100 dark:bg-red-900/30 rounded-full mt-0.5">
                         <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
@@ -187,7 +194,6 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
                     </div>
                 </div>
 
-                {/* 2. GRID: QTY & DELIVERY */}
                 <div className="grid grid-cols-[80px_1fr] gap-4">
                     <div className="space-y-1.5">
                         <Label className="text-xs font-bold text-foreground/80">Qty</Label>
@@ -214,7 +220,6 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
                     </div>
                 </div>
 
-                {/* 3. INSTRUCTIONS */}
                 <div className="space-y-1.5">
                     <Label className="text-xs font-bold text-foreground/80">Instructions</Label>
                     <Textarea 
@@ -225,7 +230,6 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
                     />
                 </div>
 
-                {/* 4. AMBASSADOR TOGGLE */}
                 <div className="py-2">
                     <AmbassadorDeliveryOption 
                         ambassadorDelivery={ambassadorDelivery}
@@ -235,7 +239,6 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
                     />
                 </div>
 
-                {/* 5. FOOTER BUTTONS */}
                 <div className="flex gap-3 pt-2">
                     <Button variant="outline" className="flex-1 h-12 rounded-xl font-bold border-border/60 hover:bg-muted" onClick={onCancel}>
                         <X className="w-4 h-4 mr-2" /> Close
@@ -249,7 +252,6 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
                 </div>
             </>
         ) : (
-            // VERIFICATION STEP
             <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 pt-2">
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-xl border border-yellow-200 dark:border-yellow-800 text-center space-y-2">
                     <Wallet className="h-8 w-8 text-yellow-600 mx-auto mb-1" />
@@ -270,7 +272,7 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                    <Button variant="outline" className="flex-1 h-12 rounded-xl font-bold" onClick={() => setPaymentStep('initial')}>Back</Button>
+                    <Button variant="outline" className="flex-1 h-12 rounded-xl font-bold" onClick={() => setPaymentStep('initial')} disabled={isProcessing}>Back</Button>
                     <Button 
                         onClick={handleConfirmOrder} 
                         disabled={isProcessing || !transactionId} 
@@ -285,24 +287,24 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
     );
   }
 
-  // --- RENDER: SELL / REQUEST MODE (Untouched) ---
+  // --- RENDER: SELL / REQUEST MODE ---
   return (
     <form onSubmit={handlePostSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label>Dish Name {mode === 'request' && "(What do you want?)"}</Label>
-        <Input placeholder="e.g. Chicken Biryani / Ginger Tea" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <Input placeholder="e.g. Chicken Biryani / Ginger Tea" value={title} onChange={(e) => setTitle(e.target.value)} disabled={isProcessing} />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Price (₹)</Label>
           <div className="relative">
              <IndianRupee className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-             <Input type="number" placeholder="50" className="pl-8" value={price} onChange={(e) => setPrice(e.target.value)} />
+             <Input type="number" placeholder="50" className="pl-8" value={price} onChange={(e) => setPrice(e.target.value)} disabled={isProcessing} />
           </div>
         </div>
         <div className="space-y-2">
           <Label>Prep Time</Label>
-          <Select value={timeEstimate} onValueChange={setTimeEstimate}>
+          <Select value={timeEstimate} onValueChange={setTimeEstimate} disabled={isProcessing}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="10 min">10 min</SelectItem>
@@ -316,7 +318,7 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
       </div>
       <div className="space-y-2">
         <Label>Dietary Type</Label>
-        <RadioGroup value={dietaryType} onValueChange={setDietaryType} className="flex gap-4">
+        <RadioGroup value={dietaryType} onValueChange={setDietaryType} className="flex gap-4" disabled={isProcessing}>
           <div className="flex items-center space-x-2 border p-2 rounded-md w-full cursor-pointer hover:bg-green-50/50 border-green-200">
             <RadioGroupItem value="veg" id="veg" className="text-green-600 border-green-600" />
             <Label htmlFor="veg" className="text-green-700 font-bold cursor-pointer">Veg</Label>
@@ -334,11 +336,13 @@ const PlaceFoodOrderForm: React.FC<PlaceFoodOrderFormProps> = ({
           className="h-20"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+          disabled={isProcessing}
         />
       </div>
       <div className="flex gap-2 pt-2">
-        <Button type="button" variant="outline" className="flex-1" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" className="flex-[2] bg-primary text-primary-foreground font-bold">
+        <Button type="button" variant="outline" className="flex-1" onClick={onCancel} disabled={isProcessing}>Cancel</Button>
+        <Button type="submit" className="flex-[2] bg-primary text-primary-foreground font-bold" disabled={isProcessing}>
+           {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
            {mode === 'sell' ? 'List Dish' : 'Post Request'}
         </Button>
       </div>
