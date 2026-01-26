@@ -30,10 +30,14 @@ const DEVELOPER_UPI = "8903480105@superyes";
 const DEVELOPER_NAME = "Natpe Thunai";
 
 const EscrowPayment = () => {
-  const { transactionId } = useParams<{ transactionId: string }>(); 
+  // FIX: Support both Path Params and Query Params for flexibility
+  const { transactionId: pathId } = useParams<{ transactionId: string }>(); 
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
+  // LOGIC: Check query param 'txnId' first (used by TrackingPage), fallback to path param
+  const transactionId = searchParams.get("txnId") || pathId;
+
   const [copiedVPA, setCopiedVPA] = useState(false);
   const [utrNumber, setUtrNumber] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -41,17 +45,11 @@ const EscrowPayment = () => {
   // Data
   const amount = searchParams.get("amount") || "0";
   const itemTitle = searchParams.get("title") || "Order";
-  // UPI standard requires 2 decimal places (e.g. 10.00)
   const formattedAmount = parseFloat(amount).toFixed(2);
 
   // --- 1. OPEN UPI APP HANDLER ---
   const handleOpenUPI = () => {
-    // Constructing the cleanest possible P2P Intent
-    // pa = Payee Address, pn = Payee Name, am = Amount, cu = Currency
-    // We avoid 'tr' (transaction ref) or 'tn' (notes) as they trigger merchant blocks on personal accounts.
     const upiLink = `upi://pay?pa=${DEVELOPER_UPI}&pn=${encodeURIComponent(DEVELOPER_NAME)}&am=${formattedAmount}&cu=INR`;
-    
-    // Open in new window/app
     window.location.href = upiLink;
     
     toast.info("Opening Payment App...", {
@@ -69,7 +67,6 @@ const EscrowPayment = () => {
 
   // --- 3. VERIFICATION HANDLER ---
   const handleVerifyPayment = async () => {
-    // Basic UTR Validation (Most banks use 12 digits)
     if (!utrNumber || utrNumber.length < 12) {
         toast.error("Invalid UTR Format", {
             description: "UTR numbers are typically 12 digits long. Please check your SMS/Banking History."
@@ -78,7 +75,9 @@ const EscrowPayment = () => {
     }
 
     if (!transactionId) {
-        toast.error("System Error: Invalid Order ID.");
+        toast.error("System Error: Order ID Missing", {
+            description: "Please go back to the Activity Log and try clicking 'Pay' again."
+        });
         return;
     }
 
@@ -101,7 +100,7 @@ const EscrowPayment = () => {
         });
         
         setTimeout(() => {
-            navigate("/activity/tracking"); 
+            navigate("/tracking"); 
         }, 1500);
 
     } catch (error: any) {
@@ -135,6 +134,8 @@ const EscrowPayment = () => {
             <p className="text-sm text-muted-foreground font-medium truncate px-4">
                 Escrow for: <span className="text-foreground font-bold">{itemTitle}</span>
             </p>
+            {/* Debug helper: Only visible if ID is missing */}
+            {!transactionId && <p className="text-[10px] text-red-500 font-mono">Error: Transaction ID not found in URL</p>}
         </div>
 
         {/* === PAYMENT DESK CARD === */}
@@ -148,7 +149,6 @@ const EscrowPayment = () => {
                     <ShieldCheck className="h-4 w-4 text-green-500" />
                 </div>
 
-                {/* Primary Button: Deep Link */}
                 <Button 
                     onClick={handleOpenUPI}
                     className="w-full h-14 bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 font-black text-lg shadow-lg shadow-secondary-neon/20 transition-transform active:scale-[0.98] rounded-xl"
@@ -156,7 +156,6 @@ const EscrowPayment = () => {
                     <Smartphone className="mr-2 h-5 w-5" /> OPEN PAYMENT APP
                 </Button>
                 
-                {/* Fallback: Manual Copy */}
                 <div className="bg-muted/40 p-4 rounded-xl border border-dashed border-border/60 space-y-2">
                     <div className="flex justify-between items-center text-[10px] text-muted-foreground font-bold uppercase">
                         <span>If redirection fails, copy ID:</span>
@@ -215,26 +214,24 @@ const EscrowPayment = () => {
         {/* === TRUST & ALPHA NOTES === */}
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-200">
             
-            {/* Warning Box */}
             <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-4 flex gap-3 items-start">
                 <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
                 <div className="space-y-1">
                     <h4 className="text-xs font-bold text-destructive uppercase">Verification Warning</h4>
                     <p className="text-[10px] text-muted-foreground leading-relaxed">
                         We are building a trusted student infrastructure. Please <strong>do not enter random or incorrect UTRs</strong>. 
-                        Accounts flagged for fake verifications will be permanently suspended to maintain platform integrity.
+                        Accounts flagged for fake verifications will be permanently suspended.
                     </p>
                 </div>
             </div>
 
-            {/* Alpha Note */}
             <div className="flex gap-3 items-start px-2">
                 <HeartHandshake className="h-5 w-5 text-secondary-neon shrink-0 mt-0.5" />
                 <div className="space-y-1">
                     <h4 className="text-xs font-bold text-secondary-neon uppercase">Dev Note: Alpha Phase</h4>
                     <p className="text-[10px] text-muted-foreground leading-relaxed">
                         Our goal isn't to make you work for payments! We are currently in the Alpha Stability Phase. 
-                        Once stable, this entire process will be fully automated. Thank you for cooperating with the manual UTR entry and supporting the hustle.
+                        Once stable, this entire process will be fully automated. Thank you for cooperating with the manual UTR entry.
                     </p>
                     <div className="pt-2">
                         <Button variant="link" className="h-auto p-0 text-[10px] text-primary" onClick={() => navigate("/developer-messages")}>
