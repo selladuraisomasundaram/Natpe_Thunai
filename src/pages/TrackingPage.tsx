@@ -10,11 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { 
   IndianRupee, Loader2, Utensils, CheckCircle, 
-  Handshake, Clock, ShoppingBag, Activity, Camera, 
-  ShieldCheck, XCircle, PackageCheck,
-  MessageCircle, Briefcase, Wallet, Ban, Hourglass,
-  Save, Zap, ArrowRight, UserCircle, Target, 
-  Lock as LockIcon 
+  Handshake, Clock, ShoppingBag, Activity, 
+  PackageCheck, MessageCircle, Briefcase, Wallet, Ban, Hourglass,
+  Save, ArrowRight, UserCircle, Target, Lock as LockIcon, CheckCircle2
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -22,8 +20,6 @@ import {
   databases, 
   APPWRITE_DATABASE_ID, 
   APPWRITE_TRANSACTIONS_COLLECTION_ID, 
-  APPWRITE_FOOD_ORDERS_COLLECTION_ID, 
-  APPWRITE_PRODUCTS_COLLECTION_ID, 
   APPWRITE_CHAT_ROOMS_COLLECTION_ID 
 } from "@/lib/appwrite";
 import { useAuth } from "@/context/AuthContext";
@@ -31,29 +27,13 @@ import { toast } from "sonner";
 import { Query, ID } from "appwrite";
 import { useFoodOrders, FoodOrder } from "@/hooks/useFoodOrders";
 
-// --- HELPERS ---
-const mapAppwriteStatusToTrackingStatus = (status: string): string => {
-  const map: Record<string, string> = {
-    "negotiating": "Negotiating",
-    "initiated": "Payment Pending",
-    "payment_confirmed_to_developer": "Verifying Payment",
-    "commission_deducted": "Ready to Start",
-    "active": "In Progress",
-    "seller_confirmed_delivery": "Delivered / Reviewing",
-    "completed": "Completed",
-    "failed": "Cancelled",
-    "disputed": "Disputed"
-  };
-  return map[status] || status;
-};
-
 // --- INTERFACES ---
 export interface BaseTrackingItem {
   id: string;
   description: string;
   date: string;
   status: string;
-  isUserProvider: boolean;
+  isUserProvider: boolean; // True if current user is Seller/Provider
   timestamp: number;
 }
 
@@ -82,9 +62,8 @@ export interface FoodOrderItem extends BaseTrackingItem {
 
 type TrackingItem = MarketTransactionItem | FoodOrderItem;
 
-// --- COMPONENT: PROGRESS STEPPER ---
-const StatusStepper = ({ currentStep }: { currentStep: number }) => {
-    const steps = ["Order", "Pay", "Work", "Ship", "Done"];
+// --- STEPPER COMPONENT ---
+const StatusStepper = ({ currentStep, steps }: { currentStep: number, steps: string[] }) => {
     return (
         <div className="flex items-center justify-between w-full px-2 my-6 relative">
             <div className="absolute left-0 top-3 w-full h-[1px] bg-muted -z-10" />
@@ -110,6 +89,107 @@ const StatusStepper = ({ currentStep }: { currentStep: number }) => {
     );
 };
 
+// --- ACTION BUTTON LOGIC ---
+const ActionButtons = ({ item, marketItem, onAction, initiatePayment, isCompleted }: any) => {
+    // 1. DETERMINE STATE
+    const status = marketItem?.appwriteStatus || 'initiated';
+    const isProvider = item.isUserProvider; // True = Seller/Worker/Chef
+    const type = item.type;
+
+    // 2. DEFINE BUTTONS BASED ON STATE & ROLE
+    if (isCompleted) {
+        return (
+            <Button variant="ghost" disabled className="w-full h-11 opacity-50 border-2 border-dashed">
+                <CheckCircle2 className="mr-2 h-4 w-4 text-green-500" /> Deal Closed
+            </Button>
+        );
+    }
+
+    // STATE: INITIATED (Waiting for Payment)
+    if (status === 'initiated' || status === 'negotiating') {
+        if (!isProvider) {
+            // Buyer needs to Pay
+            return (
+                <Button 
+                    className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-black text-xs uppercase rounded-xl shadow-lg animate-pulse" 
+                    onClick={initiatePayment} 
+                    disabled={marketItem.amount <= 0}
+                >
+                    {marketItem.amount > 0 ? (
+                      <span className="flex items-center gap-2"><Wallet className="h-4 w-4" /> Pay Escrow ₹{marketItem.amount}</span>
+                    ) : (
+                      <span className="flex items-center gap-2 opacity-50"><LockIcon className="h-3 w-3" /> Wait for Price</span>
+                    )}
+                </Button>
+            );
+        } else {
+            // Provider waits for payment
+            return (
+                <Button variant="secondary" disabled className="w-full h-11 opacity-70">
+                    <Hourglass className="mr-2 h-4 w-4 animate-spin" /> Waiting for Client Payment
+                </Button>
+            );
+        }
+    }
+
+    // STATE: PAYMENT CONFIRMED (Ready to Start)
+    if (status === 'payment_confirmed_to_developer' || status === 'commission_deducted') {
+        if (isProvider) {
+            // Provider accepts work
+            let label = "Accept & Start";
+            if (type === 'Food Order') label = "Confirm Order & Cook";
+            if (type === 'Transaction') label = "Confirm & Pack Item";
+            
+            return (
+                <Button className="w-full h-11 bg-secondary-neon text-primary-foreground font-black text-xs uppercase rounded-xl shadow-neon" onClick={() => onAction('start_work', item.id)}>
+                    <Handshake className="mr-2 h-4 w-4" /> {label}
+                </Button>
+            );
+        } else {
+            // Buyer waits for start
+            return <Button variant="secondary" disabled className="w-full h-11">Waiting for Provider to Accept...</Button>;
+        }
+    }
+
+    // STATE: ACTIVE (Work in Progress)
+    if (status === 'active') {
+        if (isProvider) {
+            // Provider marks complete/delivered
+            let label = "Mark Completed";
+            if (type === 'Food Order') label = "Out for Delivery";
+            if (type === 'Transaction') label = "Mark Shipped / Ready";
+            
+            return (
+                <Button className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase rounded-xl" onClick={() => onAction('mark_delivered', item.id)}>
+                    <PackageCheck className="mr-2 h-4 w-4" /> {label}
+                </Button>
+            );
+        } else {
+            return <Button variant="secondary" disabled className="w-full h-11">Work in Progress...</Button>;
+        }
+    }
+
+    // STATE: DELIVERED (Waiting for Confirmation)
+    if (status === 'seller_confirmed_delivery') {
+        if (!isProvider) {
+            // Buyer confirms receipt to release money
+            let label = "Confirm Receipt";
+            if (type === 'Food Order') label = "Food Received - Yummy!";
+            if (type === 'Service') label = "Job Done - Release Pay";
+
+            return (
+                <Button className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-black text-xs uppercase rounded-xl shadow-lg" onClick={() => onAction('confirm_receipt', item.id)}>
+                    <CheckCircle className="mr-2 h-4 w-4" /> {label}
+                </Button>
+            );
+        } else {
+            return <Button variant="secondary" disabled className="w-full h-11">Waiting for Client Confirmation...</Button>;
+        }
+    }
+
+    return null;
+};
+
 // --- COMPONENT: TRACKING CARD ---
 const TrackingCard = ({ item, onAction, onChat }: { item: TrackingItem, onAction: (action: string, id: string, payload?: any) => void, currentUser: any, onChat: (item: TrackingItem) => void }) => {
   const [newAmount, setNewAmount] = useState<string>(item.type === 'Errand' ? (item as MarketTransactionItem).amount.toString() : "0");
@@ -119,20 +199,16 @@ const TrackingCard = ({ item, onAction, onChat }: { item: TrackingItem, onAction
   const marketItem = isMarket ? (item as MarketTransactionItem) : null;
   const foodItem = !isMarket ? (item as FoodOrderItem) : null;
 
+  // --- STEPPER LOGIC ---
+  const status = marketItem?.appwriteStatus || 'initiated';
   let currentStep = 0;
-  if (marketItem) {
-      if (marketItem.appwriteStatus === 'completed') currentStep = 4;
-      else if (marketItem.appwriteStatus === 'seller_confirmed_delivery') currentStep = 3;
-      else if (marketItem.appwriteStatus === 'active') currentStep = 2;
-      else if (['commission_deducted', 'payment_confirmed_to_developer'].includes(marketItem.appwriteStatus)) currentStep = 1;
-  } else if (foodItem) {
-      if (['Delivered', 'completed'].includes(foodItem.orderStatus)) currentStep = 4;
-      else if (foodItem.orderStatus === 'Out for Delivery') currentStep = 3;
-      else if (foodItem.orderStatus === 'Preparing') currentStep = 2;
-      else if (foodItem.orderStatus === 'Confirmed') currentStep = 1;
-  }
+  if (status === 'completed') currentStep = 4;
+  else if (status === 'seller_confirmed_delivery') currentStep = 3;
+  else if (status === 'active') currentStep = 2;
+  else if (status === 'payment_confirmed_to_developer' || status === 'commission_deducted') currentStep = 1;
+  else currentStep = 0;
 
-  const isCompleted = currentStep === 4 || item.status === 'Cancelled' || item.status === 'Disputed';
+  const isCompleted = status === 'completed' || status === 'failed';
 
   const initiatePayment = () => {
       if(!marketItem) return;
@@ -144,16 +220,21 @@ const TrackingCard = ({ item, onAction, onChat }: { item: TrackingItem, onAction
       navigate(`/escrow-payment?${queryParams}`);
   };
 
-  const partnerName = item.isUserProvider ? (item as any).buyerName : (item.type === 'Food Order' ? (item as any).providerName : (item as any).sellerName);
+  const getStepsLabels = () => {
+      if (item.type === 'Food Order') return ["Ordered", "Paid", "Cooking", "Delivery", "Enjoyed"];
+      if (item.type === 'Service' || item.type === 'Errand') return ["Hired", "Escrow", "Working", "Review", "Done"];
+      return ["Deal", "Paid", "Processing", "Shipped", "Received"];
+  };
 
   return (
     <Card className={cn(
       "relative overflow-hidden border-2 transition-all bg-card shadow-sm mb-4 group hover:shadow-neon/10 animate-in fade-in zoom-in-95 duration-300 rounded-2xl", 
       item.isUserProvider ? "border-secondary-neon/20" : "border-blue-500/20"
     )}>
+      {/* Role Ribbon */}
       <div className={cn(
         "absolute top-0 left-0 w-1 h-full",
-        item.isUserProvider ? "bg-secondary-neon shadow-[2px_0_10px_rgba(0,243,255,0.4)]" : "bg-blue-500 shadow-[2px_0_10px_rgba(59,130,246,0.4)]"
+        item.isUserProvider ? "bg-secondary-neon" : "bg-blue-500"
       )} />
 
       <CardContent className="p-5">
@@ -162,6 +243,7 @@ const TrackingCard = ({ item, onAction, onChat }: { item: TrackingItem, onAction
             <div className="p-3 bg-muted/30 rounded-2xl border border-border/50">
                 {item.type === "Rental" ? <Clock className="h-5 w-5 text-purple-500" /> : 
                  item.type === "Food Order" ? <Utensils className="h-5 w-5 text-orange-500" /> :
+                 item.type === "Service" ? <Briefcase className="h-5 w-5 text-indigo-500" /> :
                  <ShoppingBag className="h-5 w-5 text-blue-500" />}
             </div>
             <div>
@@ -180,13 +262,13 @@ const TrackingCard = ({ item, onAction, onChat }: { item: TrackingItem, onAction
             "text-[9px] font-black uppercase tracking-widest px-2 py-1 border-0 shadow-sm",
             isCompleted ? "bg-muted text-muted-foreground" : "bg-secondary-neon/10 text-secondary-neon animate-pulse"
           )}>
-            {item.status}
+            {status.replace(/_/g, ' ')}
           </Badge>
         </div>
 
-        {!isCompleted && <StatusStepper currentStep={currentStep} />}
+        {!isCompleted && <StatusStepper currentStep={currentStep} steps={getStepsLabels()} />}
 
-        {/* ERRAND PRICE PANEL */}
+        {/* ERRAND PRICE NEGOTIATION */}
         {!isCompleted && item.type === 'Errand' && marketItem && (
           <div className="mb-5 p-4 bg-secondary-neon/5 rounded-2xl border border-secondary-neon/10 space-y-3">
               <div className="flex items-center justify-between">
@@ -201,12 +283,12 @@ const TrackingCard = ({ item, onAction, onChat }: { item: TrackingItem, onAction
                       type="number" 
                       value={newAmount} 
                       onChange={(e) => setNewAmount(e.target.value)} 
-                      disabled={!item.isUserProvider || marketItem.appwriteStatus !== 'initiated'} 
+                      disabled={!item.isUserProvider || status !== 'initiated'} 
                       className="h-12 pl-10 text-lg font-black bg-background border-2 border-border/50 rounded-xl focus:border-secondary-neon transition-all"
                       placeholder="0.00"
                    />
                 </div>
-                {item.isUserProvider && marketItem.appwriteStatus === 'initiated' && (
+                {item.isUserProvider && status === 'initiated' && (
                   <Button 
                     size="icon" 
                     className="h-12 w-12 bg-secondary-neon text-primary-foreground rounded-xl shadow-neon" 
@@ -219,7 +301,7 @@ const TrackingCard = ({ item, onAction, onChat }: { item: TrackingItem, onAction
           </div>
         )}
 
-        {/* ACTIONS */}
+        {/* DYNAMIC ACTION BUTTONS */}
         <div className="grid grid-cols-2 gap-3 mt-4">
             <Button 
               variant="outline" 
@@ -230,26 +312,27 @@ const TrackingCard = ({ item, onAction, onChat }: { item: TrackingItem, onAction
               onClick={() => onChat(item)} 
               disabled={isCompleted}
             >
-                <MessageCircle className="h-4 w-4" /> Chat
+                <MessageCircle className="h-4 w-4" /> {isCompleted ? "Chat Closed" : "Chat"}
             </Button>
 
-            {!isCompleted && marketItem && !item.isUserProvider && ['negotiating', 'initiated'].includes(marketItem.appwriteStatus) ? (
-                <Button 
-                  className="h-11 bg-green-600 hover:bg-green-700 text-white font-black text-xs uppercase rounded-xl shadow-lg" 
-                  onClick={initiatePayment} 
-                  disabled={marketItem.amount <= 0}
-                >
-                    {marketItem.amount > 0 ? (
-                      <span className="flex items-center gap-2"><Wallet className="h-4 w-4" /> Pay ₹{marketItem.amount}</span>
-                    ) : (
-                      <span className="flex items-center gap-2 opacity-50"><LockIcon className="h-3 w-3" /> Locked</span>
-                    )}
-                </Button>
-            ) : (
-               <Button variant="ghost" disabled className="h-11 opacity-30 font-black text-[10px] uppercase border-2 border-dashed rounded-xl">
-                  {isCompleted ? "Archived" : "In Progress"}
-               </Button>
-            )}
+            <ActionButtons 
+                item={item} 
+                marketItem={marketItem} 
+                onAction={onAction} 
+                initiatePayment={initiatePayment} 
+                isCompleted={isCompleted} 
+            />
+        </div>
+
+        {/* FOOTER INFO */}
+        <div className="mt-5 pt-3 border-t border-border/30 flex justify-between items-center">
+            <div className="flex items-center gap-2 opacity-60">
+               <UserCircle className="h-3 w-3" />
+               <span className="text-[9px] font-black uppercase tracking-widest">
+                  {item.isUserProvider ? "You are Provider" : "You are Client"}
+               </span>
+            </div>
+            <span className="text-[9px] font-mono text-muted-foreground opacity-40 uppercase">TX: {item.id.substring(item.id.length - 6)}</span>
         </div>
       </CardContent>
     </Card>
@@ -300,14 +383,9 @@ const TrackingPage = () => {
     return () => unsubscribe();
   }, [user, refreshData]);
 
-  /**
-   * FIXED CHAT NAVIGATION LOGIC
-   * Resolves the Chat Room ID correctly before navigating.
-   */
   const handleChatNavigation = async (item: TrackingItem) => {
     if (!user) return;
     try {
-        // 1. Search for existing room for this transaction
         const rooms = await databases.listDocuments(
             APPWRITE_DATABASE_ID,
             APPWRITE_CHAT_ROOMS_COLLECTION_ID,
@@ -317,7 +395,6 @@ const TrackingPage = () => {
         if (rooms.documents.length > 0) {
             navigate(`/chat/${rooms.documents[0].$id}`);
         } else {
-            // 2. Create room if it doesn't exist
             const marketItem = item as MarketTransactionItem;
             const buyerId = item.isUserProvider ? (marketItem.buyerId || "unknown") : user.$id;
             const providerId = item.isUserProvider ? user.$id : (marketItem.sellerId || "unknown");
@@ -330,28 +407,39 @@ const TrackingPage = () => {
                 ID.unique(),
                 {
                     transactionId: item.id,
-                    buyerId,
-                    providerId,
-                    buyerUsername: buyerName,
-                    providerUsername: providerName,
+                    buyerId, providerId, buyerUsername: buyerName, providerUsername: providerName,
                     status: "active",
                     collegeName: userProfile?.collegeName || "Campus Peer"
                 }
             );
             navigate(`/chat/${newRoom.$id}`);
         }
-    } catch (e) {
-        toast.error("Failed to sync chat. Please try again.");
-    }
+    } catch (e) { toast.error("Chat sync failed."); }
   };
 
   const handleAction = async (action: string, id: string, payload?: any) => {
     try {
         if (action === "update_errand_price") {
             await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { amount: payload.amount });
-            toast.success("Reward amount synced!");
-            refreshData();
+            toast.success("Bounty updated!");
+        } else if (action === "start_work") {
+            await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "active" });
+            toast.success("Work Started!");
+        } else if (action === "mark_delivered") {
+            await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "seller_confirmed_delivery" });
+            toast.success("Marked Delivered/Done!");
+        } else if (action === "confirm_receipt") {
+            await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "completed" });
+            
+            // Close chat logic
+            const rooms = await databases.listDocuments(APPWRITE_DATABASE_ID, APPWRITE_CHAT_ROOMS_COLLECTION_ID, [Query.equal('transactionId', id)]);
+            if(rooms.documents.length > 0) {
+                await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_CHAT_ROOMS_COLLECTION_ID, rooms.documents[0].$id, { status: 'closed' });
+            }
+            
+            toast.success("Deal Closed! Chat Locked.");
         }
+        refreshData();
     } catch (e: any) { toast.error("Action failed"); }
   };
 
@@ -362,7 +450,7 @@ const TrackingPage = () => {
         productId: doc.productId,
         productTitle: doc.productTitle || "Untitled Deal",
         description: doc.productTitle,
-        status: mapAppwriteStatusToTrackingStatus(doc.status),
+        status: doc.status, // Keep raw status for logic, map in display if needed
         appwriteStatus: doc.status,
         date: new Date(doc.$createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
         timestamp: new Date(doc.$createdAt).getTime(),
