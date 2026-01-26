@@ -161,7 +161,7 @@ const CanteenManagerWidget = () => {
           <div className="space-y-1">
             <CardTitle className="text-3xl font-black italic tracking-tighter flex items-center gap-2 uppercase">
               <Store className={cn("h-7 w-7 transition-colors", isOpen ? "text-secondary-neon" : "text-muted-foreground")} /> 
-              Kitchen<span className="text-secondary-neon">Control</span>
+              Canteen<span className="text-secondary-neon">Control</span>
             </CardTitle>
             <CardDescription className="font-medium text-xs uppercase tracking-widest opacity-70">Live Menu Management</CardDescription>
           </div>
