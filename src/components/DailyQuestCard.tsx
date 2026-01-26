@@ -1,9 +1,10 @@
+/*
 "use client";
 
 import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge"; // FIXED: Added missing import
+import { Badge } from "@/components/ui/badge"; 
 import { ScrollText, Loader2, CheckCircle, Gift, Lock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -254,3 +255,4 @@ const DailyQuestCard = () => {
 };
 
 export default DailyQuestCard;
+*/
