@@ -5,12 +5,12 @@ import { MadeWithDyad } from "@/components/made-with-dyad";
 import ProfileWidget from "@/components/ProfileWidget";
 import QuickUpdatesBar from "@/components/QuickUpdatesBar";
 import CanteenManagerWidget from "@/components/CanteenManagerWidget";
+import DiscoveryFeed from "@/components/DiscoveryFeed"; // 1. Restored Import
 import LoginStreakCard from "@/components/LoginStreakCard";
 import AnalyticsCard from "@/components/AnalyticsCard";
 
-// 1. IMPORTS COMMENTED OUT
-// import DiscoveryFeed from "@/components/DiscoveryFeed"; 
-// import DailyQuestCard from "@/components/DailyQuestCard";
+// 2. Daily Quest Hidden
+// import DailyQuestCard from "@/components/DailyQuestCard"; 
 
 const HomePage = () => {
   return (
@@ -40,10 +40,11 @@ const HomePage = () => {
         {/* Food & Canteen Management */}
         <CanteenManagerWidget />
 
-        {/* 2. DISCOVERY FEED HIBERNATED */}
-        {/* <DiscoveryFeed /> */}
+        {/* 3. DISCOVERY FEED ACTIVE AGAIN */}
+        <DiscoveryFeed />
 
-        {/* 3. GAMIFICATION & REWARDS: DailyQuestCard Removed from layout */}
+        {/* 4. GAMIFICATION & REWARDS */}
+        {/* Grid is set to cols-1 while Daily Quest is hidden to keep Streak Card centered/full width */}
         <div className="grid grid-cols-1 gap-4">
            {/* <DailyQuestCard /> */}
            <LoginStreakCard />
