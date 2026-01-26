@@ -7,9 +7,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
-  Loader2, ArrowLeft, MessageCircle, Percent, 
+  Loader2, ArrowLeft, Percent, 
   MapPin, ShieldCheck, Share2, AlertTriangle, 
-  ShoppingCart, Heart, Handshake
+  Heart, Handshake
 } from "lucide-react";
 import { toast } from "sonner";
 import { 
@@ -51,7 +51,7 @@ const ProductDetailsPage = () => {
         if (user) {
             const bargains = await databases.listDocuments(
                 APPWRITE_DATABASE_ID,
-                'bargain_requests', // Assuming collection ID is literal or imported
+                'bargain_requests', 
                 [
                     Query.equal('productId', productId),
                     Query.equal('buyerId', user.$id)
@@ -96,7 +96,7 @@ const ProductDetailsPage = () => {
       );
 
       if (existing.documents.length > 0) {
-        toast.info("Active chat found! Redirecting...");
+        toast.info("Active deal found! Redirecting...");
         navigate("/tracking");
         return;
       }
@@ -134,7 +134,7 @@ const ProductDetailsPage = () => {
     }
   };
 
-  // --- 3. BARGAIN LOGIC (Preserved) ---
+  // --- 3. BARGAIN LOGIC ---
   const handleMakeOffer = async () => {
     if (!user) return;
     setIsProcessing(true);
@@ -182,7 +182,8 @@ const ProductDetailsPage = () => {
   const discountPrice = (numericPrice * 0.85).toFixed(0);
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-32 relative">
+    // Added generous bottom padding (pb-40) so content scrolls above the fixed footer + navbar
+    <div className="min-h-screen bg-background text-foreground pb-40 relative">
       
       {/* HEADER IMAGE */}
       <div className="relative h-[40vh] w-full bg-muted">
@@ -280,7 +281,7 @@ const ProductDetailsPage = () => {
         </div>
 
         {/* SAFETY WARNING */}
-        <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-blue-900/30 flex gap-3 mb-20">
+        <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-blue-900/30 flex gap-3">
             <AlertTriangle className="h-5 w-5 text-blue-500 shrink-0" />
             <p className="text-xs text-blue-600 dark:text-blue-400 leading-snug">
                 <strong>Safe Trade:</strong> Always chat within the app. Do not transfer money outside the Escrow system.
@@ -289,8 +290,11 @@ const ProductDetailsPage = () => {
 
       </div>
 
-      {/* FOOTER ACTIONS - Z-INDEX BOOSTED TO 50 */}
-      <div className="fixed bottom-0 left-0 w-full bg-background/95 backdrop-blur-xl border-t-2 border-border p-4 pb-6 z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]">
+      {/* FOOTER ACTIONS - FIXED POSITIONING */}
+      {/* bottom-16 pushes it up by 4rem (~64px) which is standard nav height.
+          z-40 ensures it's above content but doesn't conflict with modals (usually z-50).
+      */}
+      <div className="fixed bottom-16 left-0 w-full bg-background/95 backdrop-blur-xl border-t-2 border-border p-4 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]">
          <div className="max-w-3xl mx-auto flex gap-3 items-center">
             {isOwner ? (
                 <Button className="w-full opacity-50 cursor-not-allowed font-bold" variant="secondary">Your Item</Button>
