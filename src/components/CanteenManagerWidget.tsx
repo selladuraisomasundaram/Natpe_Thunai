@@ -224,9 +224,9 @@ const CanteenManagerWidget = () => {
                       <Power className="h-5 w-5 stroke-[3px]" />
                     </div>
                     <div>
-                      <span className="text-[10px] font-black uppercase text-muted-foreground tracking-tighter">Kitchen Master Switch</span>
+                      <span className="text-[10px] font-black uppercase text-muted-foreground tracking-tighter">Canteen Master Switch</span>
                       <p className={cn("text-sm font-black uppercase", isOpen ? "text-secondary-neon" : "text-destructive")}>
-                        {isOpen ? "Online & Serving" : "Kitchen Offline"}
+                        {isOpen ? "Canteen Online" : "Canteen Offline"}
                       </p>
                     </div>
                   </div>
