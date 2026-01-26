@@ -35,6 +35,7 @@ export interface BaseTrackingItem {
   status: string;
   isUserProvider: boolean; // True if current user is Seller/Provider
   timestamp: number;
+  lastUpdated: number; // Needed for 24h expiry logic
 }
 
 export interface MarketTransactionItem extends BaseTrackingItem {
@@ -208,7 +209,8 @@ const TrackingCard = ({ item, onAction, onChat }: { item: TrackingItem, onAction
   else if (status === 'payment_confirmed_to_developer' || status === 'commission_deducted') currentStep = 1;
   else currentStep = 0;
 
-  const isCompleted = status === 'completed' || status === 'failed';
+  // Treat 'failed', 'cancelled', 'disputed' as completed for UI purposes (locks actions)
+  const isCompleted = ['completed', 'failed', 'cancelled', 'disputed'].includes(status.toLowerCase());
 
   const initiatePayment = () => {
       if(!marketItem) return;
@@ -450,10 +452,11 @@ const TrackingPage = () => {
         productId: doc.productId,
         productTitle: doc.productTitle || "Untitled Deal",
         description: doc.productTitle,
-        status: doc.status, // Keep raw status for logic, map in display if needed
+        status: doc.status,
         appwriteStatus: doc.status,
         date: new Date(doc.$createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
         timestamp: new Date(doc.$createdAt).getTime(),
+        lastUpdated: new Date(doc.$updatedAt).getTime(), // Added for expiry logic
         amount: doc.amount || 0,
         sellerName: doc.sellerName,
         buyerName: doc.buyerName,
@@ -478,12 +481,31 @@ const TrackingPage = () => {
         buyerId: doc.buyerId,
         isUserProvider: doc.providerId === currentUserId,
         timestamp: new Date(doc.$createdAt).getTime(),
+        lastUpdated: new Date(doc.$updatedAt).getTime(), // Added for expiry logic
         date: new Date(doc.$createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
     };
   };
 
-  const activeTasks = items.filter(i => !i.status.toLowerCase().includes('completed') && i.status !== 'Cancelled');
-  const historyTasks = items.filter(i => i.status.toLowerCase().includes('completed') || i.status === 'Cancelled');
+  // Logic: 24 Hour Retention for History
+  const now = Date.now();
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+  const activeTasks = items.filter(i => {
+      const s = i.status.toLowerCase();
+      return !s.includes('completed') && s !== 'cancelled' && s !== 'failed' && s !== 'disputed';
+  });
+
+  const historyTasks = items.filter(i => {
+      const s = i.status.toLowerCase();
+      const isFinished = s.includes('completed') || s === 'cancelled' || s === 'failed' || s === 'disputed';
+      
+      // If it is finished, check if it's within the 24-hour window
+      if (isFinished) {
+          const timeSinceCompletion = now - i.lastUpdated;
+          return timeSinceCompletion < ONE_DAY_MS;
+      }
+      return false;
+  });
 
   return (
     <div className="min-h-screen bg-background text-foreground p-4 pb-24 relative overflow-x-hidden font-sans">
@@ -516,6 +538,7 @@ const TrackingPage = () => {
                   <div className="text-center py-20 opacity-30 flex flex-col items-center">
                       <PackageCheck className="h-12 w-12 mb-4" />
                       <p className="text-xs font-black uppercase tracking-widest">History Empty</p>
+                      <p className="text-[9px] text-muted-foreground mt-2">Completed deals vanish after 24 hours.</p>
                   </div>
                ) : (
                   historyTasks.map(item => (
