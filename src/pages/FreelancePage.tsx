@@ -320,6 +320,9 @@ const FreelancePage = () => {
     }
     setIsProcessing(true);
     try {
+        // ENHANCEMENT: Explicitly parse rating to integer to avoid schema issues
+        const ratingInt = Math.floor(Number(reviewRating));
+
         await databases.createDocument(
             APPWRITE_DATABASE_ID,
             APPWRITE_SERVICE_REVIEWS_COLLECTION_ID,
@@ -328,11 +331,11 @@ const FreelancePage = () => {
                 serviceId: reviewTargetGig.$id,
                 reviewerId: user.$id,
                 reviewerName: user.name,
-                rating: reviewRating,
+                rating: ratingInt, // Ensure integer
                 comment: "", 
             }
         );
-        toast.success(`Rated ${reviewTargetGig.title} ${reviewRating} stars!`);
+        toast.success(`Rated ${reviewTargetGig.title} ${ratingInt} stars!`);
         setIsReviewDialogOpen(false);
     } catch (error: any) {
         toast.error("Failed to submit review.");
