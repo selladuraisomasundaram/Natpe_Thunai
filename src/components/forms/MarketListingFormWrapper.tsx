@@ -1,91 +1,107 @@
 "use client";
 
-    import React, { useState } from "react";
-    import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-    import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
-    import SellListingForm from "./SellListingForm";
-    import RentListingForm from "./RentListingForm";
-    import GiftCraftListingForm from "./GiftCraftListingForm";
-    import SportsGearListingForm from "./SportsGearListingForm";
-    import { toast } from "sonner";
-    import { useAuth } from "@/context/AuthContext";
-    import { databases, APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID } from "@/lib/appwrite";
-    import { ID } from 'appwrite';
-    import { cn } from '@/lib/utils';
-    import DeletionInfoMessage from "@/components/DeletionInfoMessage";
+import React, { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import SellListingForm from "./SellListingForm";
+import RentListingForm from "./RentListingForm";
+import GiftCraftListingForm from "./GiftCraftListingForm";
+import SportsGearListingForm from "./SportsGearListingForm";
+import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { databases, APPWRITE_DATABASE_ID, APPWRITE_PRODUCTS_COLLECTION_ID } from "@/lib/appwrite";
+import { ID } from 'appwrite';
+import DeletionInfoMessage from "@/components/DeletionInfoMessage";
+import { Loader2 } from "lucide-react";
 
-    interface MarketListingFormWrapperProps {
-      onClose: () => void;
+interface MarketListingFormWrapperProps {
+  onClose: () => void;
+}
+
+const MarketListingFormWrapper: React.FC<MarketListingFormWrapperProps> = ({ onClose }) => {
+  const [activeTab, setActiveTab] = useState<"sell" | "rent" | "gift" | "sports">("sell");
+  const [isSubmitting, setIsSubmitting] = useState(false); // Submission lock state
+  const { user, userProfile, recordMarketListing } = useAuth();
+
+  const handleListingSubmit = async (data: any, type: "Sell" | "Rent" | "Gift/Craft" | "Sports Gear") => {
+    // Prevent duplicate triggers
+    if (isSubmitting) return;
+
+    if (!user || !userProfile) {
+      toast.error("You must be logged in and have a complete profile to create a listing.");
+      return;
+    }
+    if (!userProfile.collegeName) {
+      toast.error("Your profile is missing college information. Please update your profile first.");
+      return;
     }
 
-    const MarketListingFormWrapper: React.FC<MarketListingFormWrapperProps> = ({ onClose }) => {
-      const [activeTab, setActiveTab] = useState<"sell" | "rent" | "gift" | "sports">("sell");
-      const { user, userProfile, recordMarketListing } = useAuth();
+    setIsSubmitting(true); // Lock submission
 
-      const handleListingSubmit = async (data: any, type: "Sell" | "Rent" | "Gift/Craft" | "Sports Gear") => {
-        if (!user || !userProfile) {
-          toast.error("You must be logged in and have a complete profile to create a listing.");
-          return;
-        }
-        if (!userProfile.collegeName) {
-          toast.error("Your profile is missing college information. Please update your profile first.");
-          return;
-        }
+    const productType = type === "Sell" ? "sell" : type === "Rent" ? "rent" : type === "Gift/Craft" ? "gift" : "sports";
+    
+    const newProductData = {
+      // Core Product Fields
+      title: data.title,
+      price: data.price, // e.g., "₹450.00" or "₹15.00/day"
+      description: data.description,
+      imageUrl: data.imageUrl,
+      type: productType,
+      
+      // Seller Info (from Auth Context)
+      userId: user.$id,
+      sellerName: user.name,
+      sellerUpiId: userProfile.upiId,
+      collegeName: userProfile.collegeName,
+      
+      // Correctly using dynamic location if provided, else default
+      location: data.location && data.location.trim() !== "" ? data.location : "Campus Area", 
+      
+      // Default Fields
+      sellerRating: 5.0, 
+      status: "available", 
+      
+      // Type-specific fields (using null for fields not applicable to the current type)
+      category: data.category || null, // Used by Sell
+      damages: data.damages || null, // Used by Sell/Sports
+      condition: data.condition || null, // Used by Sell/Sports
+      policies: data.policies || null, // Used by Rent
+      
+      // Delivery/Ambassador Info
+      ambassadorDelivery: data.ambassadorDelivery,
+      ambassadorMessage: data.ambassadorMessage || null,
+    };
 
-        const productType = type === "Sell" ? "sell" : type === "Rent" ? "rent" : type === "Gift/Craft" ? "gift" : "sports";
-        
-        const newProductData = {
-          // Core Product Fields
-          title: data.title,
-          price: data.price, // e.g., "₹450.00" or "₹15.00/day"
-          description: data.description,
-          imageUrl: data.imageUrl,
-          type: productType,
-          
-          // Seller Info (from Auth Context)
-          userId: user.$id,
-          sellerName: user.name,
-          sellerUpiId: userProfile.upiId,
-          collegeName: userProfile.collegeName,
-          
-          // Mocked/Default Fields
-          sellerRating: 5.0, // Default high rating for new sellers
-          location: "Campus Area", // Placeholder location
-          status: "available", // NEW: Default status for new listings
-          
-          // Type-specific fields (using null for fields not applicable to the current type)
-          category: data.category || null, // Used by Sell
-          damages: data.damages || null, // Used by Sell/Sports
-          condition: data.condition || null, // Used by Sell/Sports
-          policies: data.policies || null, // Used by Rent
-          
-          // Delivery/Ambassador Info
-          ambassadorDelivery: data.ambassadorDelivery,
-          ambassadorMessage: data.ambassadorMessage || null,
-        };
+    try {
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_PRODUCTS_COLLECTION_ID,
+        ID.unique(),
+        newProductData
+      );
+      
+      toast.success(`New ${type} listing created successfully!`);
+      recordMarketListing();
+      onClose();
+    } catch (error: any) {
+      console.error(`Error creating ${type} listing:`, error);
+      toast.error(error.message || `Failed to create ${type} listing. Check Appwrite permissions and schema.`);
+    } finally {
+      setIsSubmitting(false); // Unlock submission
+    }
+  };
 
-        try {
-          await databases.createDocument(
-            APPWRITE_DATABASE_ID,
-            APPWRITE_PRODUCTS_COLLECTION_ID,
-            ID.unique(),
-            newProductData
-          );
-          
-          toast.success(`New ${type} listing created successfully!`);
-          recordMarketListing();
-          onClose();
-        } catch (error: any) {
-          console.error(`Error creating ${type} listing:`, error);
-          toast.error(error.message || `Failed to create ${type} listing. Check Appwrite permissions and schema.`);
-        }
-      };
-
-      return (
-        <div className="space-y-4">
-          <DialogHeader>
-            <DialogTitle className="text-foreground">Create New Listing</DialogTitle>
-          </DialogHeader>
+  return (
+    <div className="space-y-4">
+      <DialogHeader>
+        <DialogTitle className="text-foreground flex items-center gap-2">
+            Create New Listing 
+            {isSubmitting && <Loader2 className="h-4 w-4 animate-spin text-secondary-neon" />}
+        </DialogTitle>
+      </DialogHeader>
+      
+      {/* Disable tabs during submission to prevent switching contexts mid-request */}
+      <div className={isSubmitting ? "opacity-50 pointer-events-none" : ""}>
           <DeletionInfoMessage />
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "sell" | "rent" | "gift" | "sports")}>
             <TabsList className="flex w-full overflow-x-auto whitespace-nowrap bg-muted p-1 text-muted-foreground rounded-md shadow-sm scrollbar-hide">
@@ -123,8 +139,9 @@
               />
             </TabsContent>
           </Tabs>
-        </div>
-      );
-    };
+      </div>
+    </div>
+  );
+};
 
-    export default MarketListingFormWrapper;
+export default MarketListingFormWrapper;
