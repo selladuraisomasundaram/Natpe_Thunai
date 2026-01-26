@@ -5,12 +5,12 @@ import { MadeWithDyad } from "@/components/made-with-dyad";
 import ProfileWidget from "@/components/ProfileWidget";
 import QuickUpdatesBar from "@/components/QuickUpdatesBar";
 import CanteenManagerWidget from "@/components/CanteenManagerWidget";
-import DailyQuestCard from "@/components/DailyQuestCard";
 import LoginStreakCard from "@/components/LoginStreakCard";
 import AnalyticsCard from "@/components/AnalyticsCard";
 
-// 1. IMPORT COMMENTED OUT TO PREVENT UNNECESSARY LOADING
+// 1. IMPORTS COMMENTED OUT
 // import DiscoveryFeed from "@/components/DiscoveryFeed"; 
+// import DailyQuestCard from "@/components/DailyQuestCard";
 
 const HomePage = () => {
   return (
@@ -34,22 +34,19 @@ const HomePage = () => {
         {/* Real-time App Updates */}
         <QuickUpdatesBar />
         
-        {/* Performance Analytics (New) */}
+        {/* Performance Analytics */}
         <AnalyticsCard /> 
 
         {/* Food & Canteen Management */}
         <CanteenManagerWidget />
 
-        {/* 2. COMPONENT COMMENTED OUT BELOW
-          Discovery Feed logic is being polished. 
-          Uncomment the lines below when the algorithm is ready.
-        */}
+        {/* 2. DISCOVERY FEED HIBERNATED */}
         {/* <DiscoveryFeed /> */}
 
-        {/* Rewards & Daily Engagement */}
-        <div className="grid grid-cols-2 gap-4">
-          <DailyQuestCard />
-          <LoginStreakCard />
+        {/* 3. GAMIFICATION & REWARDS: DailyQuestCard Removed from layout */}
+        <div className="grid grid-cols-1 gap-4">
+           {/* <DailyQuestCard /> */}
+           <LoginStreakCard />
         </div>
         
       </div>
