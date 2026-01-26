@@ -146,6 +146,9 @@ const OnlineRoutes = () => {
         
         {/* TOURNAMENTS */}
         <Route path="/tournaments" element={<TournamentPage />} />
+
+        <Route path="/tracking" element={<TrackingPage />} />
+        
       </Route>
 
       <Route element={<DeveloperLayout />}>
