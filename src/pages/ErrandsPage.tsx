@@ -21,6 +21,7 @@ import { ID, Query } from 'appwrite';
 import { useAuth } from "@/context/AuthContext";
 import * as z from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import Tracking from "@/Pages/TrackingPage";
 import { cn } from "@/lib/utils";
 
 // --- CONFIGURATION ---
