@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MapPin, Eye, ArrowRight } from "lucide-react";
 import { Product } from "@/lib/mockData"; 
-import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 
@@ -22,12 +21,13 @@ const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
   const [imageSrc, setImageSrc] = useState<string>("");
   const [hasError, setHasError] = useState(false);
 
+  // Effect to sync prop changes and reset error state
   useEffect(() => {
     if (product.imageUrl && product.imageUrl.trim() !== "") {
         setImageSrc(product.imageUrl);
-        setHasError(false);
+        setHasError(false); // Reset error if URL changes
     } else {
-        setImageSrc("/app-logo.png");
+        setImageSrc("/app-logo.png"); // Fallback for missing URL
         setHasError(true);
     }
   }, [product.imageUrl]);
@@ -61,11 +61,15 @@ const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
             hasError ? "object-contain p-10 opacity-80" : "object-cover"
           )}
           onError={() => { 
-            setImageSrc("/app-logo.png");
-            setHasError(true);
+            // Only switch if we aren't already on the fallback to prevent infinite loops
+            if (imageSrc !== "/app-logo.png") {
+                setImageSrc("/app-logo.png");
+                setHasError(true);
+            }
           }}
         />
         
+        {/* Gradient Overlay only if valid image */}
         {!hasError && <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-40" />}
 
         <div className="absolute top-3 left-3">
@@ -112,7 +116,7 @@ const ProductListingCard: React.FC<ProductListingCardProps> = ({ product }) => {
         </div>
       </CardContent>
 
-      {/* FOOTER ACTION - Centered and Larger */}
+      {/* FOOTER ACTION */}
       <CardFooter className="p-4 pt-0">
         <Button 
             variant="outline" 
