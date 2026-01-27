@@ -36,7 +36,7 @@ const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}
 // --- ONESIGNAL CONFIG (Direct REST API) ---
 // ⚠️ REPLACE WITH YOUR ACTUAL KEYS
 const ONESIGNAL_APP_ID = "Y65543ba1-d45e-405d-bcf9-0c4e82d73b87"; 
-const ONESIGNAL_REST_KEY = "YOUR_ONESIGNAL_REST_API_KEY";
+const ONESIGNAL_REST_KEY = "os_v2_app_mvkdxioulzaf3phzbrhifvz3q6gu7cu7btietrftnlxbsakcrkm3kq2iycnhrtc2jpxz626uoqp5cz7mfdphu6piavurzxzen6yr5ai";
 
 // --- NOTIFICATION HELPER ---
 const sendChatNotification = async (
