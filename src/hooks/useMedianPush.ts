@@ -13,7 +13,8 @@ interface OneSignalInfo {
 declare global {
   interface Window {
     median_onesignal_info?: (info: OneSignalInfo) => void;
-    // Removed 'median?: any;' to avoid conflict with existing global declaration
+    // We remove 'median' from here to avoid conflicts if it is defined elsewhere,
+    // and instead use (window as any).median inside the hook.
   }
 }
 
@@ -21,36 +22,33 @@ const useMedianPush = () => {
   useEffect(() => {
     // 1. Define the Listener
     // Median calls this function automatically when it gets info from the native layer
-    // ... inside the hook
-window.median_onesignal_info = async (info: OneSignalInfo) => {
-    // 1. VISUAL CONFIRMATION: Did Median talk to React?
-    toast.info("NATIVE DEBUG: OneSignal Info Received"); 
+    window.median_onesignal_info = async (info: OneSignalInfo) => {
+      console.log("📲 Median Info Received:", info);
 
-    if (info && info.pushToken) {
+      if (info && info.pushToken) {
+        // 1. VISUAL CONFIRMATION (Temporary Debug)
+        toast.info("NATIVE DEBUG: OneSignal Info Received");
+
         try {
-            await account.createPushTarget(
-                ID.unique(),
-                info.pushToken,
-                '69788b1f002fcdf4fae1'
-            );
-            // 2. VISUAL CONFIRMATION: Did Appwrite accept it?
-            toast.success("NATIVE DEBUG: Target Created!"); 
-        } catch (error: any) {
-            // 3. VISUAL CONFIRMATION: Did it fail?
-            toast.error("NATIVE DEBUG Error: " + error.message);
-        }
-    }
-};
+          // 2. Register the Token with Appwrite
+          // YOUR SPECIFIC PROVIDER ID: '69788b1f002fcdf4fae1'
+          await account.createPushTarget(
+            ID.unique(),    // Appwrite generates a unique ID for this target link
+            info.pushToken, // The raw FCM token from Google
+            '69788b1f002fcdf4fae1' 
+          );
 
           console.log("✅ Appwrite Push Target Registered!");
-          // Optional: toast.success("Device registered for notifications");
+          toast.success("NATIVE DEBUG: Target Created!");
 
         } catch (error: any) {
-          // 409 means "Conflict" - the device is already registered, which is good.
+          // 409 means "Conflict" - the device is already registered, which is perfectly fine.
           if (error.code === 409) {
             console.log("ℹ️ Device already registered.");
+            // Optional: toast.info("Device already registered");
           } else {
             console.error("❌ Failed to register push target:", error);
+            toast.error("NATIVE DEBUG Error: " + error.message);
           }
         }
       }
@@ -58,8 +56,8 @@ window.median_onesignal_info = async (info: OneSignalInfo) => {
 
     // 2. Force a Request (Trigger)
     // If the app loads fast, we might miss the initial call. This forces Median to send the info again.
-    // Use type assertion to bypass TypeScript's strict checking for the 'onesignal' property.
-    const medianGlobal = (window as any).median; 
+    const medianGlobal = (window as any).median;
+    
     if (medianGlobal && medianGlobal.onesignal) {
         medianGlobal.onesignal.info();
     } else {
