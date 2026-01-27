@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom"; // Added for navigation
+import { useNavigate } from "react-router-dom"; 
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,16 +51,13 @@ const ErrandCard = ({ errand, currentUser }: { errand: any, currentUser: any }) 
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
 
+  // LOGIC: Check if current user is the poster
   const isOwner = currentUser?.$id === errand.posterId;
   const compensationDisplay = errand.compensation;
 
-  /**
-   * ENHANCEMENT: PERSISTENCE CHECK
-   * On mount, check if this user has already 'locked' this errand.
-   * This prevents the "button reappearing after refresh" issue.
-   */
   useEffect(() => {
     const checkDealStatus = async () => {
+      // If user is owner or not logged in, no need to check 'accepted' status against DB for them specifically
       if (!currentUser || isOwner) {
         setIsCheckingStatus(false);
         return;
@@ -94,8 +91,6 @@ const ErrandCard = ({ errand, currentUser }: { errand: any, currentUser: any }) 
 
     setIsProcessing(true);
     try {
-      // 1. Create a Transaction Record (This "Locks" the deal)
-      // Amount is 0 because errands are usually cash/direct settlement or handled in Tracking
       await databases.createDocument(
         APPWRITE_DATABASE_ID,
         APPWRITE_TRANSACTIONS_COLLECTION_ID,
@@ -119,8 +114,6 @@ const ErrandCard = ({ errand, currentUser }: { errand: any, currentUser: any }) 
       setIsAccepted(true);
       setIsConfirmOpen(false);
       toast.success("Hustle Mode: ON! Deal locked.");
-      
-      // 2. NAVIGATE TO TRACKING PAGE IMMEDIATELY
       navigate("/tracking"); 
       
     } catch (error: any) {
@@ -178,8 +171,9 @@ const ErrandCard = ({ errand, currentUser }: { errand: any, currentUser: any }) 
       </CardContent>
 
       <CardFooter className="pt-0">
+        {/* LOGIC: IF OWNER, SHOW 'THIS IS YOUR GIG' INSTEAD OF HUSTLE BUTTON */}
         {isOwner ? (
-          <Button variant="outline" className="w-full cursor-default opacity-80 border-dashed" disabled>
+          <Button variant="outline" className="w-full cursor-default opacity-60 border-dashed bg-muted/20 hover:bg-muted/20" disabled>
             <CheckCircle className="mr-2 h-4 w-4" /> This is your gig
           </Button>
         ) : isAccepted ? (
