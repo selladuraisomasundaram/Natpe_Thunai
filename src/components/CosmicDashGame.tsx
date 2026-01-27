@@ -160,7 +160,12 @@ const CosmicDashGame = () => {
   };
 
   // --- GAME LOGIC ---
-  const resetGame = () => {
+  const startLoop = () => {
+    if (reqRef.current) cancelAnimationFrame(reqRef.current);
+    reqRef.current = requestAnimationFrame(loop);
+  };
+
+  const resetGame = useCallback(() => {
     const st = engine.current;
     st.mode = 'SPACE';
     setCurrentMode('SPACE');
@@ -178,10 +183,9 @@ const CosmicDashGame = () => {
     setScore(0);
     setUiState('PLAYING');
     
-    // Start Loop
-    if (reqRef.current) cancelAnimationFrame(reqRef.current);
-    reqRef.current = requestAnimationFrame(loop);
-  };
+    // Ensure loop is running
+    startLoop();
+  }, []);
 
   const switchMode = () => {
     const st = engine.current;
@@ -497,13 +501,19 @@ const CosmicDashGame = () => {
   useEffect(() => {
     const kd = (e: KeyboardEvent) => {
       if (e.code === 'Space' || e.code === 'ArrowUp') {
-        if(uiState === 'PLAYING') handleInput();
-        else if (uiState !== 'PLAYING') resetGame();
+        e.preventDefault();
+        // FIX: Replaced complex nested checks with straightforward logic
+        // If playing, input; otherwise, reset.
+        if (uiState === 'PLAYING') {
+            handleInput();
+        } else {
+            resetGame();
+        }
       }
     };
     window.addEventListener('keydown', kd);
     return () => window.removeEventListener('keydown', kd);
-  }, [uiState, handleInput]);
+  }, [uiState, handleInput, resetGame]);
 
   return (
     <div 
