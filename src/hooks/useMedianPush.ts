@@ -21,22 +21,26 @@ const useMedianPush = () => {
   useEffect(() => {
     // 1. Define the Listener
     // Median calls this function automatically when it gets info from the native layer
-    window.median_onesignal_info = async (info: OneSignalInfo) => {
-      console.log("📲 Median Info Received:", info);
+    // ... inside the hook
+window.median_onesignal_info = async (info: OneSignalInfo) => {
+    // 1. VISUAL CONFIRMATION: Did Median talk to React?
+    toast.info("NATIVE DEBUG: OneSignal Info Received"); 
 
-      if (info && info.pushToken) {
+    if (info && info.pushToken) {
         try {
-          // 2. Register the Token with Appwrite
-          // This links the device to the currently logged-in user.
-          
-          // YOUR SPECIFIC PROVIDER ID
-          const PROVIDER_ID = '69788b1f002fcdf4fae1'; 
-
-          await account.createPushTarget(
-            ID.unique(),    // Appwrite generates a unique ID for this target link
-            info.pushToken, // The raw FCM token from Google
-            PROVIDER_ID 
-          );
+            await account.createPushTarget(
+                ID.unique(),
+                info.pushToken,
+                '69788b1f002fcdf4fae1'
+            );
+            // 2. VISUAL CONFIRMATION: Did Appwrite accept it?
+            toast.success("NATIVE DEBUG: Target Created!"); 
+        } catch (error: any) {
+            // 3. VISUAL CONFIRMATION: Did it fail?
+            toast.error("NATIVE DEBUG Error: " + error.message);
+        }
+    }
+};
 
           console.log("✅ Appwrite Push Target Registered!");
           // Optional: toast.success("Device registered for notifications");
