@@ -1,6 +1,6 @@
 // CONFIGURATION
 const ONESIGNAL_APP_ID = "Y65543ba1-d45e-405d-bcf9-0c4e82d73b87"; // Get from OneSignal > Settings > Keys & IDs
-const REST_API_KEY = "YOUR_REST_API_KEY";         // Get from OneSignal > Settings > Keys & IDs
+const REST_API_KEY = "os_v2_app_mvkdxioulzaf3phzbrhifvz3q6gu7cu7btietrftnlxbsakcrkm3kq2iycnhrtc2jpxz626uoqp5cz7mfdphu6piavurzxzen6yr5ai";         // Get from OneSignal > Settings > Keys & IDs
 
 /**
  * Sends a Push Notification directly via OneSignal
