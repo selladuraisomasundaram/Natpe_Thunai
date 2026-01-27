@@ -2,60 +2,46 @@ import { useEffect } from 'react';
 import { account, ID } from '@/lib/appwrite';
 import { useAuth } from '@/context/AuthContext';
 
-// We define the interface locally to ensure we handle the data correctly
-// regardless of what other type files say.
-interface OneSignalData {
-  oneSignalUserId: string; 
-  pushToken: string;       
-  subscribed: boolean;
-}
-
 const useOneSignal = () => {
   const { user } = useAuth();
 
   useEffect(() => {
-    // FIX: Cast window to 'any' to bypass the "Subsequent property declarations" TypeScript error.
-    // This effectively overrides any conflicting global type definitions for this specific function.
-    (window as any).median_onesignal_info = async (data: OneSignalData) => {
-      console.log("OneSignal Data:", data);
+    // 1. Force the function to be global so Median can find it
+    (window as any).median_onesignal_info = async (data: any) => {
+      // 🚨 TRUTH SERUM: Alert EVERYTHING we receive
+      alert("🔍 RAW DATA FROM MEDIAN:\n" + JSON.stringify(data, null, 2));
 
-      // CRITICAL: Extract the raw FCM token
-      // We use optional chaining (?.) just in case the data structure differs slightly
-      const fcmToken = data?.pushToken; 
+      // Check specifically for the token
+      const fcmToken = data?.pushToken || data?.token || data?.registrationId; 
 
       if (!fcmToken) {
-        console.warn("OneSignal loaded, but no FCM Token found yet.");
+        alert("❌ FAILURE: OneSignal gave us data, but NO 'pushToken' was found inside.");
         return;
       }
 
+      alert(`✅ SUCCESS: Found Token: ${fcmToken.substring(0, 10)}...`);
+
       if (user?.$id) {
         try {
-          // 2. Send the RAW FCM TOKEN to Appwrite
-          // Replace 'YOUR_FCM_PROVIDER_ID' with the exact ID from Appwrite Console > Messaging > Providers > FCM
           await account.createPushTarget(
             ID.unique(),
             fcmToken, 
-            'YOUR_FCM_PROVIDER_ID' 
+            'YOUR_FCM_PROVIDER_ID' // Check this ID matches Appwrite Console exactly
           );
-          console.log("✅ Appwrite Target Created!");
+          alert("🎉 Appwrite Target Created!");
         } catch (error: any) {
-          // Ignore "Target already exists" errors as they are expected
-          console.log("Target registration:", error.message);
+          alert("⚠️ Appwrite Error: " + error.message);
         }
       }
     };
 
-    // 3. Trigger the request
-    // We check if we are in the app wrapper (WebView)
-    if (navigator.userAgent.includes('wv') || window.location.href.indexOf('median') > -1) {
-        // Give the native plugin a moment to initialize before asking for info
-        const timer = setTimeout(() => {
-            window.location.href = 'median://onesignal/info';
-        }, 3000);
+    // 2. Trigger the request manually after a delay
+    const timer = setTimeout(() => {
+        alert("⏳ Requesting info from Median...");
+        window.location.href = 'median://onesignal/info';
+    }, 5000); // 5 second delay to let OneSignal initialize
 
-        return () => clearTimeout(timer);
-    }
-
+    return () => clearTimeout(timer);
   }, [user]); 
 };
 
