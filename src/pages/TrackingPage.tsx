@@ -478,10 +478,10 @@ const TrackingPage = () => {
         // If your architecture stores user prefs in a profiles collection, this query works.
         // If using standard Appwrite user.prefs, you cannot access this from client side.
         // Assuming 'profiles' or 'users' collection exists and is readable.
-        if (APPWRITE_PROFILES_COLLECTION_ID) {
+        if (APPWRITE_USER_PROFILES_COLLECTION_ID) {
             const profiles = await databases.listDocuments(
                 APPWRITE_DATABASE_ID,
-                APPWRITE_PROFILES_COLLECTION_ID,
+                APPWRITE_USER_PROFILES_COLLECTION_ID,
                 [Query.equal('userId', targetUserId)]
             );
             if (profiles.documents.length > 0) {
