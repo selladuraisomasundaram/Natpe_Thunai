@@ -1,11 +1,17 @@
 import { useEffect, useRef } from 'react';
 import { account } from '@/lib/appwrite';
 import { useAuth } from '@/context/AuthContext';
+import { Models } from 'appwrite';
 
 interface OneSignalData {
   oneSignalUserId: string; // The Player ID
   pushToken?: string;
   subscribed: boolean;
+}
+
+// Define your custom preferences structure
+interface UserPrefs extends Models.Preferences {
+    oneSignalPlayerId?: string;
 }
 
 const useOneSignal = () => {
@@ -31,8 +37,12 @@ const useOneSignal = () => {
       // CRITICAL: Save the Player ID to Appwrite Preferences
       if (user?.$id) {
         try {
+          // Cast user.prefs to our custom type so TS knows 'oneSignalPlayerId' exists
+          const prefs = user.prefs as UserPrefs;
+
           // Only update if it's different to save bandwidth
-          if (user.prefs?.oneSignalPlayerId !== playerId) {
+          if (prefs.oneSignalPlayerId !== playerId) {
+            // We must merge existing prefs with the new ID
             await account.updatePrefs({
               ...user.prefs, 
               oneSignalPlayerId: playerId 
