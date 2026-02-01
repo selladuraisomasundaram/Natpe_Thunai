@@ -2,18 +2,37 @@ import { useEffect, useState, useRef } from 'react';
 import { databases, appwriteConfig } from '@/lib/appwrite'; 
 import { useAuth } from '@/context/AuthContext';
 import { Query } from 'appwrite';
+import { useNavigate } from 'react-router-dom'; // 1. Import Router Hook
 
 const useOneSignal = () => {
   const { user } = useAuth();
+  const navigate = useNavigate(); // 2. Initialize Navigation
   const [isSynced, setIsSynced] = useState(false);
   const attemptCount = useRef(0);
 
   useEffect(() => {
+    // --- PART A: HANDLE NOTIFICATION CLICKS (DEEP LINKING) ---
+    // This function is automatically called by Median when a user taps a notification.
+    (window as any).median_onesignal_opened = (result: any) => {
+        console.log("🔔 [OneSignal] Notification Clicked:", result);
+        
+        // 1. Extract the custom data we sent from Pipedream
+        const payload = result?.notification?.payload;
+        const additionalData = payload?.additionalData;
+        
+        // 2. Check for our 'path' variable (e.g., "/chat/65a...")
+        if (additionalData?.path) {
+            console.log(`🚀 [OneSignal] Navigating to: ${additionalData.path}`);
+            navigate(additionalData.path);
+        }
+    };
+
+    // --- PART B: BACKGROUND SYNC (Device ID) ---
     const syncDevice = async () => {
       // 1. Stop if not logged in or already synced this session
       if (!user?.$id || isSynced) return;
 
-      // 2. Check Environment
+      // 2. Check Environment (Must be Native App)
       const isMedian = navigator.userAgent.includes('wv') || window.location.href.includes('median');
       if (!isMedian) return;
 
@@ -21,7 +40,6 @@ const useOneSignal = () => {
         console.log("🔄 [OneSignal] Starting background sync...");
 
         // 3. WAIT for Median Bridge (The "Debugger" Fix)
-        // We try for up to 3 seconds for the bridge to load
         let bridgeReady = false;
         for (let i = 0; i < 6; i++) {
             if (typeof (window as any).median !== 'undefined') {
@@ -36,7 +54,7 @@ const useOneSignal = () => {
             return;
         }
 
-        // 4. Get Data (Using the Promise method that worked for you)
+        // 4. Get Data (Using the Promise method)
         let data = null;
         if ((window as any).median?.onesignal?.onesignalInfo) {
              data = await (window as any).median.onesignal.onesignalInfo();
@@ -53,7 +71,6 @@ const useOneSignal = () => {
         console.log(`✅ [OneSignal] Found ID: ${playerId}`);
 
         // 5. Database Logic (Idempotent Save)
-        // Check if it's already saved to avoid unnecessary writes
         const profileRes = await databases.listDocuments(
           appwriteConfig.databaseId,
           appwriteConfig.userProfilesCollectionId,
@@ -96,12 +113,12 @@ const useOneSignal = () => {
     // Legacy Callback Listener (Safety Net)
     (window as any).median_onesignal_info = (data: any) => {
         if (data?.oneSignalUserId && !isSynced) {
-            // Recurse with data if callback fires
-            // (Simplified: We just let the logic above handle the main flow)
+             // We let the main syncDevice logic handle the heavy lifting, 
+             // but this catches edge cases in older webviews.
         }
     };
 
-  }, [user, isSynced]);
+  }, [user, isSynced, navigate]); // Added navigate to dependencies
 };
 
 export default useOneSignal;
