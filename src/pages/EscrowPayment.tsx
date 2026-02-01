@@ -7,65 +7,73 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { 
-  ShieldCheck, 
   Copy, 
   CheckCircle2, 
   ArrowLeft,
   Loader2,
   Banknote,
   AlertTriangle,
-  HeartHandshake,
   ExternalLink,
-  Info,
-  Wallet
+  ShieldCheck,
+  Wallet,
+  Smartphone,
+  Download
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { 
     databases, 
     APPWRITE_DATABASE_ID, 
     APPWRITE_TRANSACTIONS_COLLECTION_ID 
 } from "@/lib/appwrite";
+import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 // --- CONFIGURATION ---
 const DEVELOPER_UPI = "8903480105@superyes"; 
 
-// --- PAYMENT APPS CONFIG ---
+// --- SMART APP CONFIGURATION ---
+// We use 'package' for Android Intents (Direct Launch)
+// We use 'scheme' for iOS (Direct Launch)
 const PAYMENT_APPS = [
     { 
-        name: "Google Pay", 
-        scheme: "tez://", 
-        package: "com.google.android.apps.nbu.paisa.user",
-        color: "bg-blue-600 hover:bg-blue-700",
-        icon: "G" 
+        name: "GPay", 
+        package: "com.google.android.apps.nbu.paisa.user", 
+        scheme: "tez://",
+        color: "from-blue-500 to-green-500",
+        hover: "hover:shadow-blue-500/20",
+        icon: "G"
     },
     { 
         name: "PhonePe", 
-        scheme: "phonepe://", 
         package: "com.phonepe.app", 
-        color: "bg-purple-600 hover:bg-purple-700",
+        scheme: "phonepe://",
+        color: "from-purple-600 to-indigo-600",
+        hover: "hover:shadow-purple-500/20",
         icon: "Pe"
     },
     { 
         name: "Paytm", 
-        scheme: "paytmmp://", 
         package: "net.one97.paytm", 
-        color: "bg-sky-500 hover:bg-sky-600",
+        scheme: "paytmmp://",
+        color: "from-sky-400 to-blue-600",
+        hover: "hover:shadow-sky-500/20",
         icon: "Pm"
     },
     { 
-        name: "FamPay", 
-        scheme: "fampay://", // Hypothetical scheme, falls back to generic
-        package: "com.fampay.in", 
-        color: "bg-yellow-500 hover:bg-yellow-600 text-black",
-        icon: "F"
+        name: "BHIM", 
+        package: "in.org.npci.upiapp", 
+        scheme: "upi://",
+        color: "from-orange-500 to-green-600",
+        hover: "hover:shadow-orange-500/20",
+        icon: "B"
     },
     { 
-        name: "Super.Money", 
-        scheme: "supermoney://", // Hypothetical scheme
-        package: "com.super.money", 
-        color: "bg-emerald-600 hover:bg-emerald-700",
-        icon: "S"
+        name: "Cred", 
+        package: "com.dreamplug.androidapp", 
+        scheme: "cred://",
+        color: "from-gray-800 to-black",
+        hover: "hover:shadow-black/20",
+        icon: "C"
     }
 ];
 
@@ -90,52 +98,60 @@ const EscrowPayment = () => {
   const handleCopyVPA = () => {
     navigator.clipboard.writeText(DEVELOPER_UPI);
     setCopiedVPA(true);
-    toast.success("UPI ID Copied!");
+    toast.success("UPI ID Copied!", {
+        description: "App opening... Paste ID to pay."
+    });
     setTimeout(() => setCopiedVPA(false), 2000);
   };
 
-  // --- 2. LAUNCH SPECIFIC APP ---
+  // --- 2. SMART APP LAUNCHER (THE FIX) ---
   const handleLaunchApp = (app: typeof PAYMENT_APPS[0]) => {
-    handleCopyVPA(); // Auto-copy ID when launching
+      // A. Copy ID First (Crucial for UX)
+      handleCopyVPA();
 
-    toast.info(`Opening ${app.name}...`, {
-        description: "ID copied! Paste it to pay."
-    });
+      // B. Determine Environment
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-    try {
-        let intentUrl = app.scheme;
+      let launchUrl = "";
 
-        // Specific handling for Android Intent (works best in Chrome on Android)
-        // This format forces the specific app to open if installed
-        const isAndroid = /Android/i.test(navigator.userAgent);
-        if (isAndroid) {
-            intentUrl = `intent://#Intent;scheme=${app.scheme.replace('://', '')};package=${app.package};end`;
-        }
+      if (isAndroid) {
+          // 🔥 THE MAGIC INTENT 🔥
+          // This syntax tells Android: "Open this package. If not installed, go to Play Store."
+          // It bypasses the 'upi://' validation logic and just launches the app.
+          launchUrl = `intent://#Intent;package=${app.package};scheme=${app.scheme.replace('://', '')};end`;
+      } else {
+          // iOS Fallback: Use the naked scheme
+          launchUrl = app.scheme;
+      }
 
-        // Median Bridge Support
-        if ((window as any).median) {
-            (window as any).median.website.open({ url: app.scheme });
-        } else {
-            window.location.href = intentUrl;
-        }
+      toast.info(`Launching ${app.name}...`);
 
-        // Fallback Check
-        setTimeout(() => {
-             if (!document.hidden) {
-                 setShowManualDialog(true);
-             }
-        }, 2000);
-        
-    } catch (e) {
-        console.error("Launch Error:", e);
-        setShowManualDialog(true);
-    }
+      try {
+          // C. Execute Launch
+          if ((window as any).median) {
+              (window as any).median.website.open({ url: launchUrl });
+          } else {
+              window.location.href = launchUrl;
+          }
+
+          // D. Fallback Check (If app didn't open)
+          setTimeout(() => {
+               if (!document.hidden) {
+                   setShowManualDialog(true);
+               }
+          }, 2500);
+
+      } catch (e) {
+          console.error("Launch failed", e);
+          setShowManualDialog(true);
+      }
   };
 
-  // --- 3. VERIFICATION ---
+  // --- 3. VERIFICATION HANDLER ---
   const handleVerifyPayment = async () => {
     if (!utrNumber || utrNumber.length < 12) {
-        toast.error("Invalid UTR Format", { description: "Must be 12 digits." });
+        toast.error("Invalid UTR / Ref No.", { description: "Transaction ID must be at least 12 digits." });
         return;
     }
 
@@ -158,7 +174,7 @@ const EscrowPayment = () => {
             }
         );
 
-        toast.success("Payment Submitted!", { description: "Processing..." });
+        toast.success("Payment Submitted!", { description: "Verifying with bank..." });
         
         setTimeout(() => { navigate("/tracking"); }, 1500);
 
@@ -170,7 +186,7 @@ const EscrowPayment = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans relative">
+    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans relative pb-10">
       
       {/* --- TOP BAR --- */}
       <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border p-4 flex items-center gap-4">
@@ -178,34 +194,38 @@ const EscrowPayment = () => {
           <ArrowLeft className="h-6 w-6" />
         </Button>
         <div>
-            <h1 className="text-lg font-black tracking-tight leading-none">Payment Gateway</h1>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Escrow Protection Active</p>
+            <h1 className="text-lg font-black tracking-tight leading-none">SECURE PAY</h1>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                <ShieldCheck className="h-3 w-3 text-green-500" /> Escrow Active
+            </p>
         </div>
       </div>
 
-      <div className="flex-1 p-4 pb-24 space-y-6">
+      <div className="flex-1 p-4 space-y-6">
         
         {/* --- AMOUNT CARD --- */}
-        <div className="bg-card border border-border rounded-2xl p-6 text-center shadow-lg relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-secondary-neon to-transparent opacity-50" />
+        <div className="bg-card border border-border rounded-2xl p-6 text-center shadow-lg relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-secondary-neon to-transparent opacity-50 group-hover:opacity-100 transition-opacity" />
             
             <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mb-1">Total Payable</p>
             <div className="text-5xl font-black text-foreground tracking-tighter flex items-center justify-center gap-1">
                 <span className="text-2xl text-muted-foreground mt-2">₹</span>
                 {formattedAmount}
             </div>
-            <div className="mt-4 inline-block bg-muted/50 px-3 py-1 rounded-full border border-border">
-                <p className="text-xs font-medium text-foreground flex items-center gap-2">
-                    <Wallet className="h-3 w-3 text-secondary-neon" /> {itemTitle}
-                </p>
+            <div className="mt-4 inline-flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-full border border-border/50 backdrop-blur-md">
+                <Wallet className="h-3 w-3 text-secondary-neon" /> 
+                <span className="text-xs font-bold text-foreground truncate max-w-[200px]">{itemTitle}</span>
             </div>
         </div>
 
         {/* --- STEP 1: SELECT APP --- */}
         <div className="space-y-3">
-            <div className="flex items-center gap-2 px-1">
-                <div className="h-5 w-5 rounded-full bg-secondary-neon text-primary-foreground flex items-center justify-center text-xs font-bold">1</div>
-                <h3 className="text-sm font-bold uppercase text-muted-foreground">Select App to Pay</h3>
+            <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-secondary-neon text-background text-[10px] font-bold">1</span>
+                    Select Your App
+                </h3>
+                <span className="text-[9px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">ID Auto-Copies</span>
             </div>
 
             <div className="grid grid-cols-3 gap-2">
@@ -213,95 +233,108 @@ const EscrowPayment = () => {
                     <button
                         key={app.name}
                         onClick={() => handleLaunchApp(app)}
-                        className={`flex flex-col items-center justify-center p-3 rounded-xl border border-border/50 shadow-sm transition-all active:scale-95 hover:opacity-90 ${app.color}`}
+                        className={cn(
+                            "relative overflow-hidden rounded-xl p-3 h-20 flex flex-col items-center justify-center gap-1 shadow-md transition-all active:scale-95 group border border-white/5",
+                            "bg-gradient-to-br text-white",
+                            app.color,
+                            app.hover
+                        )}
                     >
-                        <div className="h-8 w-8 bg-white/20 rounded-full flex items-center justify-center text-white font-bold text-lg mb-1 backdrop-blur-sm">
+                        <div className="h-8 w-8 bg-white/20 rounded-full flex items-center justify-center text-white font-bold text-lg mb-1 backdrop-blur-md shadow-inner">
                             {app.icon}
                         </div>
-                        <span className="text-[9px] font-bold text-white uppercase tracking-wide text-center leading-tight">
-                            {app.name}
-                        </span>
+                        <span className="text-[9px] font-bold uppercase tracking-wide z-10">{app.name}</span>
+                        
+                        {/* Shine Effect */}
+                        <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
                     </button>
                 ))}
-                {/* Manual Copy Fallback Button */}
+                
+                {/* Manual Fallback */}
                 <button
                     onClick={handleCopyVPA}
-                    className="flex flex-col items-center justify-center p-3 rounded-xl border-2 border-dashed border-border bg-muted/20 hover:bg-muted/40 transition-all active:scale-95"
+                    className="flex flex-col items-center justify-center p-3 h-20 rounded-xl border-2 border-dashed border-border bg-muted/20 hover:bg-muted/40 transition-all active:scale-95"
                 >
-                    <Copy className="h-6 w-6 text-foreground mb-1" />
-                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Copy ID</span>
+                    <Copy className="h-6 w-6 text-foreground/50 mb-1" />
+                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Manual Copy</span>
                 </button>
             </div>
-            
-            <p className="text-[10px] text-center text-muted-foreground pt-1">
-                *Tapping an app <strong>auto-copies</strong> the ID: <span className="font-mono text-foreground select-all bg-muted px-1 rounded">{DEVELOPER_UPI}</span>
-            </p>
         </div>
 
         {/* --- STEP 2: VERIFY --- */}
         <div className="space-y-3 pt-2">
-            <div className="flex items-center gap-2 px-1">
-                <div className="h-5 w-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">2</div>
-                <h3 className="text-sm font-bold uppercase text-muted-foreground">Confirm Transaction</h3>
-            </div>
+            <h3 className="text-xs font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2 px-1">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-secondary-neon text-background text-[10px] font-bold">2</span>
+                Verify Payment
+            </h3>
 
             <Card className="bg-muted/10 border-border shadow-inner">
-                <CardContent className="p-4 space-y-3">
-                    <Label htmlFor="utr" className="text-xs font-bold text-foreground">Paste 12-Digit UTR / Transaction No. / Ref No .</Label>
-                    <div className="relative">
-                        <Input 
-                            id="utr"
-                            placeholder="e.g. 329481920481" 
-                            className="text-center font-mono font-bold text-lg h-12 border-border focus-visible:border-secondary-neon bg-background rounded-xl pr-10"
-                            value={utrNumber}
-                            onChange={(e) => setUtrNumber(e.target.value.replace(/[^0-9]/g, ''))} 
-                            maxLength={12}
-                        />
-                        {utrNumber.length === 12 && (
-                            <CheckCircle2 className="absolute right-3 top-3 h-6 w-6 text-green-500 animate-in zoom-in" />
-                        )}
+                <CardContent className="p-4 space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="utr" className="text-xs font-bold text-foreground flex justify-between">
+                            <span>Paste 12-Digit UTR / Ref No.</span>
+                            <span className="text-[9px] text-muted-foreground font-normal opacity-70">Check SMS/History</span>
+                        </Label>
+                        <div className="relative">
+                            <Input 
+                                id="utr"
+                                placeholder="0000 0000 0000" 
+                                className="text-center font-mono font-bold text-lg h-14 border-2 border-border focus-visible:border-secondary-neon bg-background rounded-xl pr-10 tracking-[0.1em]"
+                                value={utrNumber}
+                                onChange={(e) => setUtrNumber(e.target.value.replace(/[^0-9]/g, ''))} 
+                                maxLength={12}
+                            />
+                            {utrNumber.length === 12 && (
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 bg-green-500 rounded-full p-1 animate-in zoom-in">
+                                    <CheckCircle2 className="h-4 w-4 text-white" />
+                                </div>
+                            )}
+                        </div>
                     </div>
                     
                     <Button 
-                        className="w-full h-12 bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 font-black text-sm uppercase shadow-neon rounded-xl mt-2"
+                        className="w-full h-12 bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 font-black text-sm uppercase shadow-neon rounded-xl"
                         onClick={handleVerifyPayment}
                         disabled={isSubmitting || utrNumber.length < 12}
                     >
-                        {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Verify Payment"}
+                        {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Verify & Complete"}
                     </Button>
                 </CardContent>
             </Card>
         </div>
 
-        {/* --- FOOTER WARNING --- */}
-        <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-3 flex gap-3 items-center">
-            <AlertTriangle className="h-8 w-8 text-destructive shrink-0 p-1 bg-destructive/10 rounded-full" />
-            <div>
-                <h4 className="text-[10px] font-bold text-destructive uppercase">Zero Tolerance Policy</h4>
-                <p className="text-[9px] text-muted-foreground leading-tight">
-                    Fake UTRs lead to immediate account bans. Funds are held in escrow until verified.
-                </p>
-            </div>
-        </div>
-
       </div>
 
-      {/* --- MANUAL DIALOG --- */}
+      {/* --- MANUAL DIALOG (FALLBACK) --- */}
       <Dialog open={showManualDialog} onOpenChange={setShowManualDialog}>
-        <DialogContent className="w-[90%] rounded-2xl">
+        <DialogContent className="w-[90%] rounded-2xl bg-card border-border">
             <DialogHeader>
-                <DialogTitle>App Didn't Open?</DialogTitle>
-                <DialogDescription>Pay manually using any UPI app.</DialogDescription>
+                <DialogTitle className="flex items-center gap-2">
+                    <Smartphone className="h-5 w-5 text-secondary-neon" /> App didn't open?
+                </DialogTitle>
+                <DialogDescription className="text-xs">
+                    No worries. Pay manually in 3 steps:
+                </DialogDescription>
             </DialogHeader>
-            <div className="bg-muted p-3 rounded-xl text-center space-y-1">
-                <p className="text-xs text-muted-foreground uppercase">Pay to UPI ID</p>
-                <p className="text-lg font-mono font-bold select-all">{DEVELOPER_UPI}</p>
-                <Button size="sm" variant="outline" onClick={handleCopyVPA} className="mt-2 h-8 text-xs w-full">
-                    <Copy className="mr-2 h-3 w-3" /> Copy ID
-                </Button>
+            <div className="space-y-3 py-2">
+                <div className="bg-muted p-3 rounded-xl flex items-center justify-between">
+                    <div>
+                        <p className="text-[10px] text-muted-foreground uppercase">1. Pay to UPI ID</p>
+                        <p className="text-sm font-mono font-bold select-all">{DEVELOPER_UPI}</p>
+                    </div>
+                    <Button size="icon" variant="ghost" onClick={handleCopyVPA}>
+                        <Copy className="h-4 w-4" />
+                    </Button>
+                </div>
+                <div className="text-xs text-muted-foreground space-y-1 px-1">
+                    <p>2. Open your preferred UPI app manually.</p>
+                    <p>3. Select <strong>"To UPI ID"</strong> and paste.</p>
+                    <p>4. Pay <strong>₹{formattedAmount}</strong>.</p>
+                    <p>5. Copy the <strong>12-digit UTR</strong> from payment details.</p>
+                </div>
             </div>
             <DialogFooter>
-                <Button onClick={() => setShowManualDialog(false)} className="w-full">Got it</Button>
+                <Button onClick={() => setShowManualDialog(false)} className="w-full">Okay, I'll Paste UTR</Button>
             </DialogFooter>
         </DialogContent>
       </Dialog>
