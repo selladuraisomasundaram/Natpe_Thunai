@@ -8,7 +8,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { ThemeProvider } from "@/components/theme-provider";
-import useOneSignal from "@/hooks/useOneSignal"; // Ensure this path matches your file structure
+import useOneSignal from "@/hooks/useOneSignal"; // Import the hook we created
 
 // --- Page Imports ---
 import Index from "./pages/Index";
@@ -58,9 +58,10 @@ const queryClient = new QueryClient();
 const AppLayout = () => {
   const { isAuthenticated, isVerified } = useAuth();
 
-  // --- ACTIVATE PUSH NOTIFICATIONS HERE ---
-  // This hooks into the OneSignal plugin to get the Token for Appwrite
-  // Placing it here ensures it only runs when a user session exists.
+  // --- ACTIVATE PUSH NOTIFICATIONS ---
+  // This hooks into the OneSignal plugin to get the Token for Appwrite.
+  // We place it here so it runs automatically for any authenticated user 
+  // entering the main app flow.
   useOneSignal(); 
 
   if (!isAuthenticated) {
