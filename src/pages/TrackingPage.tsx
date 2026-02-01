@@ -22,15 +22,15 @@ import {
   APPWRITE_DATABASE_ID, 
   APPWRITE_TRANSACTIONS_COLLECTION_ID, 
   APPWRITE_CHAT_ROOMS_COLLECTION_ID,
-  APPWRITE_USER_PROFILES_COLLECTION_ID 
+  APPWRITE_USER_PROFILES_COLLECTION_ID,
+  APPWRITE_CHAT_MESSAGES_COLLECTION_ID // Added for system message injection
 } from "@/lib/appwrite";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { Query, ID } from "appwrite";
 import { useFoodOrders, FoodOrder } from "@/hooks/useFoodOrders";
 
-// --- ONESIGNAL CONFIGURATION (Direct REST API) ---
-// ⚠️ REPLACE THESE WITH YOUR ACTUAL KEYS FROM ONESIGNAL DASHBOARD
+// --- ONESIGNAL CONFIGURATION ---
 const ONESIGNAL_APP_ID = "YOUR_ONESIGNAL_APP_ID"; 
 const ONESIGNAL_REST_KEY = "YOUR_ONESIGNAL_REST_API_KEY";
 
@@ -132,7 +132,6 @@ const StatusStepper = ({ currentStep, steps }: { currentStep: number, steps: str
 
 // --- ACTION BUTTON LOGIC ---
 const ActionButtons = ({ item, marketItem, onAction, initiatePayment, isCompleted }: any) => {
-    // FIX: Use item.status fallback if marketItem is null (e.g., Food Orders)
     const status = marketItem?.appwriteStatus || item.status || 'initiated';
     const isProvider = item.isUserProvider; 
     const type = item.type;
@@ -148,9 +147,7 @@ const ActionButtons = ({ item, marketItem, onAction, initiatePayment, isComplete
     // STATE: INITIATED
     if (status === 'initiated' || status === 'negotiating') {
         if (!isProvider) {
-            // FIX: Safely access amount to prevent crash if marketItem is null
             const displayAmount = marketItem?.amount || 0;
-            
             return (
                 <Button 
                     className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-black text-xs uppercase rounded-xl shadow-lg animate-pulse" 
@@ -236,12 +233,10 @@ const TrackingCard = ({ item, onAction, onChat }: { item: TrackingItem, onAction
   const marketItem = isMarket ? (item as MarketTransactionItem) : null;
   const foodItem = !isMarket ? (item as FoodOrderItem) : null;
 
-  // VISUAL FIX: Determine the "Counterparty" Name
   const counterpartyName = item.isUserProvider 
       ? (isMarket ? marketItem?.buyerName : foodItem?.buyerName) 
       : (isMarket ? marketItem?.sellerName : foodItem?.providerName);
 
-  // FIX: Use item.status fallback for non-market items (Food Orders)
   const status = marketItem?.appwriteStatus || item.status || 'initiated';
   
   let currentStep = 0;
@@ -296,8 +291,6 @@ const TrackingCard = ({ item, onAction, onChat }: { item: TrackingItem, onAction
                 <Badge variant="secondary" className="text-[8px] font-black tracking-widest bg-muted/50 px-1.5 py-0">
                   {item.type}
                 </Badge>
-                {/* */}
-                {/* VISUAL FIX: Show WHO the deal is with clearly */}
                 <div className="flex items-center gap-1 text-[10px] text-foreground font-bold bg-muted/30 px-2 py-0.5 rounded-md">
                     <Users className="h-3 w-3" /> 
                     {item.isUserProvider ? "Client: " : "Provider: "}
@@ -474,11 +467,8 @@ const TrackingPage = () => {
     }
   };
 
-  // --- HELPER: FIND COUNTERPARTY ONE SIGNAL ID ---
   const getCounterpartyPlayerId = async (targetUserId: string) => {
     try {
-        // If 'APPWRITE_PROFILES_COLLECTION_ID' is defined in your config, use it.
-        // If not, ensure this logic matches your database structure for fetching user prefs.
         if (APPWRITE_USER_PROFILES_COLLECTION_ID) {
             const profiles = await databases.listDocuments(
                 APPWRITE_DATABASE_ID,
@@ -497,7 +487,8 @@ const TrackingPage = () => {
 
   const handleAction = async (action: string, id: string, payload?: any) => {
     try {
-        // 1. Identify current item context for notification logic
+        // --- INTELLIGENT NOTIFICATION LOGIC ---
+        // 1. Identify current item context
         const currentItem = items.find(i => i.id === id);
         let notificationMsg = "";
         let notificationTitle = "";
@@ -520,20 +511,20 @@ const TrackingPage = () => {
         if (action === "update_errand_price") {
             await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { amount: payload.amount });
             toast.success("Bounty updated!");
-            notificationTitle = "Bounty Update";
-            notificationMsg = `The errand bounty has been updated to ₹${payload.amount}.`;
+            notificationTitle = "💰 Bounty Updated";
+            notificationMsg = `The errand bounty has been updated to ₹${payload.amount}. Check it out!`;
         } 
         else if (action === "start_work") {
             await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "active" });
             toast.success("Work Started!");
-            notificationTitle = "Action Started";
-            notificationMsg = "The provider has started working on your request.";
+            notificationTitle = "🚀 Work Started";
+            notificationMsg = "The provider has started working on your request. Expect updates soon.";
         } 
         else if (action === "mark_delivered") {
             await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "seller_confirmed_delivery" });
             toast.success("Marked Delivered/Done!");
-            notificationTitle = "Task Completed";
-            notificationMsg = "Provider marked the task as completed. Please confirm receipt.";
+            notificationTitle = "📦 Order Delivered";
+            notificationMsg = "Provider marked the task as completed. Please confirm receipt to release funds.";
         } 
         else if (action === "confirm_receipt") {
             await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { status: "completed" });
@@ -541,15 +532,33 @@ const TrackingPage = () => {
             const rooms = await databases.listDocuments(APPWRITE_DATABASE_ID, APPWRITE_CHAT_ROOMS_COLLECTION_ID, [Query.equal('transactionId', id)]);
             if(rooms.documents.length > 0) {
                 await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_CHAT_ROOMS_COLLECTION_ID, rooms.documents[0].$id, { status: 'closed' });
+                
+                // Optional: Inject System Message into Chat to trigger existing webhook
+                try {
+                    await databases.createDocument(
+                        APPWRITE_DATABASE_ID,
+                        APPWRITE_CHAT_MESSAGES_COLLECTION_ID,
+                        ID.unique(),
+                        {
+                            chatRoomId: rooms.documents[0].$id,
+                            senderId: "system",
+                            senderUsername: "System",
+                            content: "Transaction Completed. Funds Released.",
+                            type: "system",
+                            receiverId: targetUserId // Triggers existing webhook if set up
+                        }
+                    );
+                } catch(e) { console.log("System msg failed", e); }
             }
             
-            toast.success("Deal Closed! Chat Locked.");
-            notificationTitle = "Payment Released";
-            notificationMsg = "Client confirmed receipt. Funds have been released to your wallet.";
+            toast.success("Deal Closed! Funds Released.");
+            notificationTitle = "💸 Payment Released";
+            notificationMsg = "Client confirmed receipt. Funds have been released to your wallet!";
         }
 
-        // 3. Send Notification (Fire & Forget)
-        if (targetUserId && notificationMsg) {
+        // 3. Send Notification (Intelligent & Role-Aware)
+        // We only send if we have a title (meaning it was a significant event)
+        if (targetUserId && notificationTitle && notificationMsg) {
             getCounterpartyPlayerId(targetUserId).then(playerId => {
                 if (playerId) {
                     sendTransactionNotification(playerId, notificationTitle, notificationMsg, { transactionId: id });
@@ -558,7 +567,10 @@ const TrackingPage = () => {
         }
 
         refreshData();
-    } catch (e: any) { toast.error("Action failed"); }
+    } catch (e: any) { 
+        console.error(e);
+        toast.error("Action failed"); 
+    }
   };
 
   const processTransactionDoc = (doc: any, currentUserId: string): MarketTransactionItem => {
