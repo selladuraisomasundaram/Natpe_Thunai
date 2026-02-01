@@ -23,7 +23,7 @@ import {
   APPWRITE_TRANSACTIONS_COLLECTION_ID, 
   APPWRITE_CHAT_ROOMS_COLLECTION_ID,
   APPWRITE_USER_PROFILES_COLLECTION_ID,
-  APPWRITE_CHAT_MESSAGES_COLLECTION_ID // Added for system message injection
+  APPWRITE_CHAT_MESSAGES_COLLECTION_ID
 } from "@/lib/appwrite";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
@@ -147,6 +147,7 @@ const ActionButtons = ({ item, marketItem, onAction, initiatePayment, isComplete
     // STATE: INITIATED
     if (status === 'initiated' || status === 'negotiating') {
         if (!isProvider) {
+            // CLIENT VIEW (Poster)
             const displayAmount = marketItem?.amount || 0;
             return (
                 <Button 
@@ -162,6 +163,7 @@ const ActionButtons = ({ item, marketItem, onAction, initiatePayment, isComplete
                 </Button>
             );
         } else {
+            // PROVIDER VIEW (Worker)
             return (
                 <Button variant="secondary" disabled className="w-full h-11 opacity-70">
                     <Hourglass className="mr-2 h-4 w-4 animate-spin" /> Waiting for Client
@@ -210,6 +212,7 @@ const ActionButtons = ({ item, marketItem, onAction, initiatePayment, isComplete
             let label = "Confirm Receipt";
             if (type === 'Food Order') label = "Food Received - Yummy!";
             if (type === 'Service') label = "Job Done - Release Pay";
+            if (type === 'Errand') label = "Task Done - Release Pay";
 
             return (
                 <Button className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-black text-xs uppercase rounded-xl shadow-lg" onClick={() => onAction('confirm_receipt', item.id)}>
@@ -281,6 +284,7 @@ const TrackingCard = ({ item, onAction, onChat }: { item: TrackingItem, onAction
                 {item.type === "Rental" ? <Clock className="h-5 w-5 text-purple-500" /> : 
                  item.type === "Food Order" ? <Utensils className="h-5 w-5 text-orange-500" /> :
                  item.type === "Service" ? <Briefcase className="h-5 w-5 text-indigo-500" /> :
+                 item.type === "Errand" ? <Target className="h-5 w-5 text-secondary-neon" /> :
                  <ShoppingBag className="h-5 w-5 text-blue-500" />}
             </div>
             <div>
@@ -309,6 +313,7 @@ const TrackingCard = ({ item, onAction, onChat }: { item: TrackingItem, onAction
 
         {!isCompleted && <StatusStepper currentStep={currentStep} steps={getStepsLabels()} />}
 
+        {/* --- BOUNTY REWARD SECTION (SPECIFIC FOR ERRANDS) --- */}
         {!isCompleted && item.type === 'Errand' && marketItem && (
           <div className="mb-5 p-4 bg-secondary-neon/5 rounded-2xl border border-secondary-neon/10 space-y-3">
               <div className="flex items-center justify-between">
@@ -338,6 +343,11 @@ const TrackingCard = ({ item, onAction, onChat }: { item: TrackingItem, onAction
                   </Button>
                 )}
               </div>
+              {item.isUserProvider && status === 'initiated' && (
+                  <p className="text-[10px] text-muted-foreground">
+                      * Negotiate in chat, update the price here, then wait for the Client to pay.
+                  </p>
+              )}
           </div>
         )}
 
@@ -487,15 +497,12 @@ const TrackingPage = () => {
 
   const handleAction = async (action: string, id: string, payload?: any) => {
     try {
-        // --- INTELLIGENT NOTIFICATION LOGIC ---
-        // 1. Identify current item context
         const currentItem = items.find(i => i.id === id);
         let notificationMsg = "";
         let notificationTitle = "";
         let targetUserId = "";
 
         if (currentItem) {
-            // Determine Target (The Counterparty)
             const isMarket = currentItem.type !== "Food Order";
             const marketItem = isMarket ? (currentItem as MarketTransactionItem) : null;
             const foodItem = !isMarket ? (currentItem as FoodOrderItem) : null;
@@ -507,7 +514,6 @@ const TrackingPage = () => {
             }
         }
 
-        // 2. Perform Database Update
         if (action === "update_errand_price") {
             await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_TRANSACTIONS_COLLECTION_ID, id, { amount: payload.amount });
             toast.success("Bounty updated!");
@@ -533,7 +539,6 @@ const TrackingPage = () => {
             if(rooms.documents.length > 0) {
                 await databases.updateDocument(APPWRITE_DATABASE_ID, APPWRITE_CHAT_ROOMS_COLLECTION_ID, rooms.documents[0].$id, { status: 'closed' });
                 
-                // Optional: Inject System Message into Chat to trigger existing webhook
                 try {
                     await databases.createDocument(
                         APPWRITE_DATABASE_ID,
@@ -545,7 +550,7 @@ const TrackingPage = () => {
                             senderUsername: "System",
                             content: "Transaction Completed. Funds Released.",
                             type: "system",
-                            receiverId: targetUserId // Triggers existing webhook if set up
+                            receiverId: targetUserId 
                         }
                     );
                 } catch(e) { console.log("System msg failed", e); }
@@ -556,8 +561,6 @@ const TrackingPage = () => {
             notificationMsg = "Client confirmed receipt. Funds have been released to your wallet!";
         }
 
-        // 3. Send Notification (Intelligent & Role-Aware)
-        // We only send if we have a title (meaning it was a significant event)
         if (targetUserId && notificationTitle && notificationMsg) {
             getCounterpartyPlayerId(targetUserId).then(playerId => {
                 if (playerId) {
@@ -574,9 +577,16 @@ const TrackingPage = () => {
   };
 
   const processTransactionDoc = (doc: any, currentUserId: string): MarketTransactionItem => {
+    // 🔥 CRITICAL FIX: Handle case-insensitive types to catch "Errand" vs "errand"
+    const rawType = (doc.type || "").toLowerCase();
+    
     return {
         id: doc.$id,
-        type: doc.type === 'rent' ? 'Rental' : doc.type === 'errand' ? 'Errand' : doc.type === 'service' ? 'Service' : 'Transaction',
+        // Map both lowercase and title case to the standard UI types
+        type: rawType === 'rent' ? 'Rental' 
+              : rawType === 'errand' ? 'Errand' 
+              : rawType === 'service' ? 'Service' 
+              : 'Transaction',
         productId: doc.productId,
         productTitle: doc.productTitle || "Untitled Deal",
         description: doc.productTitle,
