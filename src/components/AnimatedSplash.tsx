@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface SplashProps {
@@ -42,7 +42,7 @@ const AnimatedSplash: React.FC<SplashProps> = ({ onComplete }) => {
   // 2. Transition from Construct to Reveal
   useEffect(() => {
     if (stage === "construct") {
-      const timer = setTimeout(() => setStage("reveal"), 1800); // Wait for SVG drawing
+      const timer = setTimeout(() => setStage("reveal"), 1800); 
       return () => clearTimeout(timer);
     }
   }, [stage]);
@@ -105,7 +105,8 @@ const AnimatedSplash: React.FC<SplashProps> = ({ onComplete }) => {
             exit={{ opacity: 0, y: -20 }}
             className="z-10 font-mono text-xs text-secondary-neon/70 tracking-widest"
           >
-            <p className="animate-pulse">> {bootText}</p>
+            {/* FIXED: Replaced '>' with '&gt;' to fix syntax error */}
+            <p className="animate-pulse">&gt; {bootText}</p>
           </motion.div>
         )}
 
@@ -119,79 +120,61 @@ const AnimatedSplash: React.FC<SplashProps> = ({ onComplete }) => {
             exit={{ scale: 1.5, opacity: 0, filter: "blur(10px)" }}
             transition={{ duration: 0.5 }}
           >
-            {/* THE ICON: WIREFRAME HANDSHAKE */}
-            {/* This SVG animates the path stroke to look like it's being drawn by a laser */}
-            <div className="relative w-40 h-40">
+            {/* THE ICON: LOGO REACTOR */}
+            <div className="relative w-48 h-48 flex items-center justify-center">
                 {/* Glow Effect behind icon */}
                 <div className="absolute inset-0 bg-secondary-neon/20 blur-[60px] rounded-full animate-pulse" />
                 
-                <svg viewBox="0 0 200 200" className="w-full h-full text-secondary-neon drop-shadow-[0_0_8px_rgba(0,243,255,0.8)]">
-                    {/* Hand 1 (Left) */}
-                    <motion.path 
-                        d="M 40 100 L 80 100 L 100 80 L 100 60"
-                        fill="transparent"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: 1 }}
-                        transition={{ duration: 1, ease: "easeInOut" }}
-                    />
-                    <motion.path 
-                        d="M 40 120 L 80 120 L 100 140"
-                        fill="transparent"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: 1 }}
-                        transition={{ duration: 1, delay: 0.2, ease: "easeInOut" }}
-                    />
-                    
-                    {/* Hand 2 (Right - Interlocking) */}
-                    <motion.path 
-                        d="M 160 100 L 120 100 L 100 120 L 100 140"
-                        fill="transparent"
-                        stroke="white" 
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: 1 }}
-                        transition={{ duration: 1, delay: 0.1, ease: "easeInOut" }}
-                    />
-                    <motion.path 
-                        d="M 160 80 L 120 80 L 100 60"
-                        fill="transparent"
-                        stroke="white"
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: 1 }}
-                        transition={{ duration: 1, delay: 0.3, ease: "easeInOut" }}
-                    />
-
-                    {/* Connection Nodes (The Dots) */}
-                    <motion.circle cx="100" cy="100" r="6" fill="currentColor"
-                        initial={{ scale: 0 }}
-                        animate={{ scale: [0, 1.5, 1] }}
-                        transition={{ delay: 1.2, duration: 0.5 }}
-                    />
-                    
-                    {/* Orbiting Ring */}
-                    <motion.circle cx="100" cy="100" r="70" 
-                        fill="transparent" stroke="currentColor" strokeWidth="1" strokeDasharray="10 10" opacity="0.3"
+                {/* Rotating Tech Rings (SVG Overlay) */}
+                <svg viewBox="0 0 200 200" className="absolute w-full h-full text-secondary-neon drop-shadow-[0_0_8px_rgba(0,243,255,0.8)] z-20 pointer-events-none">
+                    {/* Outer Dashed Ring */}
+                    <motion.circle cx="100" cy="100" r="85" 
+                        fill="transparent" stroke="currentColor" strokeWidth="1" strokeDasharray="10 5" opacity="0.5"
                         initial={{ rotate: 0, scale: 0.8, opacity: 0 }}
-                        animate={{ rotate: 360, scale: 1, opacity: 0.3 }}
-                        transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                        animate={{ rotate: 360, scale: 1, opacity: 0.5 }}
+                        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                    />
+                    
+                    {/* Inner Solid Ring Segment */}
+                    <motion.circle cx="100" cy="100" r="75" 
+                        fill="transparent" stroke="currentColor" strokeWidth="2" strokeDasharray="60 400"
+                        initial={{ rotate: 360 }}
+                        animate={{ rotate: 0 }}
+                        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
                     />
                 </svg>
+
+                {/* THE LOGO IMAGE */}
+                <motion.div
+                    className="relative z-10 w-32 h-32 rounded-full overflow-hidden border-2 border-secondary-neon/50 shadow-[0_0_20px_rgba(0,243,255,0.2)] bg-black"
+                    initial={{ scale: 0, rotate: -90, filter: "grayscale(100%)" }}
+                    animate={{ scale: 1, rotate: 0, filter: "grayscale(0%)" }}
+                    transition={{ 
+                        type: "spring", 
+                        stiffness: 100, 
+                        damping: 20,
+                        duration: 1.5 
+                    }}
+                >
+                    <img 
+                        src="/app-logo.png" 
+                        alt="Natpe Thunai Logo" 
+                        className="w-full h-full object-cover"
+                    />
+                    {/* Scanning overlay effect */}
+                    <motion.div 
+                        className="absolute inset-0 bg-gradient-to-b from-transparent via-secondary-neon/20 to-transparent w-full h-full"
+                        animate={{ top: ["-100%", "100%"] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                    />
+                </motion.div>
             </div>
 
             {/* THE TEXT: DECODING EFFECT */}
             <div className="text-center h-16">
                 <motion.h1 
-                    className="text-4xl md:text-5xl font-black tracking-widest text-white"
-                    style={{ fontFamily: "'Orbitron', sans-serif" }} // Using the specific font here
+                    className="text-3xl md:text-5xl font-black tracking-widest text-white"
+                    style={{ fontFamily: "'Orbitron', sans-serif" }} 
                 >
                     {decodedText}
                 </motion.h1>
