@@ -247,7 +247,7 @@ const EscrowPayment = () => {
 
             <Card className="bg-muted/10 border-border shadow-inner">
                 <CardContent className="p-4 space-y-3">
-                    <Label htmlFor="utr" className="text-xs font-bold text-foreground">Paste 12-Digit UTR / Ref No.</Label>
+                    <Label htmlFor="utr" className="text-xs font-bold text-foreground">Paste 12-Digit UTR / Transaction No. / Ref No .</Label>
                     <div className="relative">
                         <Input 
                             id="utr"
