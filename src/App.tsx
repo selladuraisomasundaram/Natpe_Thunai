@@ -3,12 +3,18 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { ThemeProvider } from "@/components/theme-provider";
-import useOneSignal from "@/hooks/useOneSignal"; // Import the hook we created
+import useOneSignal from "@/hooks/useOneSignal"; 
+
+// --- Component Imports ---
+import AnimatedSplash from "@/components/AnimatedSplash"; // Import the Splash Screen
+import BottomNavbar from "./components/layout/BottomNavbar";
+import Header from "./components/layout/Header";
+import VerificationBanner from "./components/VerificationBanner";
 
 // --- Page Imports ---
 import Index from "./pages/Index";
@@ -20,9 +26,6 @@ import ServicesPage from "./pages/ServicesPage";
 import ActivityPage from "./pages/ActivityPage";
 import ProfilePage from "./pages/ProfilePage";
 import TournamentPage from "./pages/TournamentPage";
-import BottomNavbar from "./components/layout/BottomNavbar";
-import Header from "./components/layout/Header";
-import VerificationBanner from "./components/VerificationBanner";
 
 // Sub-pages imports
 import TrackingPage from "./pages/TrackingPage";
@@ -59,9 +62,6 @@ const AppLayout = () => {
   const { isAuthenticated, isVerified } = useAuth();
 
   // --- ACTIVATE PUSH NOTIFICATIONS ---
-  // This hooks into the OneSignal plugin to get the Token for Appwrite.
-  // We place it here so it runs automatically for any authenticated user 
-  // entering the main app flow.
   useOneSignal(); 
 
   if (!isAuthenticated) {
@@ -172,6 +172,21 @@ const OnlineRoutes = () => {
 
 const App = () => {
   const isOnline = useOnlineStatus();
+  const [showSplash, setShowSplash] = useState(true);
+
+  // --- SPLASH SCREEN LOGIC ---
+  useEffect(() => {
+    // Check if splash has been shown in this session
+    const hasSeenSplash = sessionStorage.getItem("hasSeenSplash");
+    if (hasSeenSplash) {
+        setShowSplash(false);
+    }
+  }, []);
+
+  const handleSplashComplete = () => {
+    setShowSplash(false);
+    sessionStorage.setItem("hasSeenSplash", "true");
+  };
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -179,12 +194,19 @@ const App = () => {
         <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
           <Toaster />
           <Sonner />
-          <BrowserRouter>
-            <AuthProvider>
-              {/* If online: Show App Routes. If offline: Show Cosmic Dash Game. */}
-              {isOnline ? <OnlineRoutes /> : <OfflinePage />}
-            </AuthProvider>
-          </BrowserRouter>
+          
+          {/* LOGIC: Show Splash OR Show App */}
+          {showSplash ? (
+            <AnimatedSplash onComplete={handleSplashComplete} />
+          ) : (
+            <BrowserRouter>
+              <AuthProvider>
+                {/* If online: Show App Routes. If offline: Show Cosmic Dash Game. */}
+                {isOnline ? <OnlineRoutes /> : <OfflinePage />}
+              </AuthProvider>
+            </BrowserRouter>
+          )}
+
         </ThemeProvider>
       </TooltipProvider>
     </QueryClientProvider>
