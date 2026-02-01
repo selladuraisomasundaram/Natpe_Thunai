@@ -19,7 +19,6 @@ export const APPWRITE_CANTEEN_COLLECTION_ID = import.meta.env.VITE_APPWRITE_CANT
 export const APPWRITE_FOOD_ORDERS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_FOOD_ORDERS_COLLECTION_ID || 'YOUR_FOOD_ORDERS_COLLECTION_ID';
 export const APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID || 'YOUR_BARGAIN_REQUESTS_COLLECTION_ID';
 export const APPWRITE_TOURNAMENTS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_TOURNAMENTS_COLLECTION_ID || 'YOUR_TOURNAMENTS_COLLECTION_ID';
-// --- ADDED THIS LINE FOR REGISTRATIONS ---
 export const APPWRITE_REGISTRATIONS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_REGISTRATIONS_COLLECTION_ID || 'registrations'; 
 
 export const APPWRITE_CASH_EXCHANGE_COLLECTION_ID = import.meta.env.VITE_APPWRITE_CASH_EXCHANGE_COLLECTION_ID || 'YOUR_CASH_EXCHANGE_COLLECTION_ID';
@@ -48,7 +47,18 @@ export const databases = new Databases(client);
 export const storage = new Storage(client);
 export const functions = new Functions(client);
 
-// --- HELPER EXPORTS (FIXES YOUR IMPORT ERRORS) ---
+// --- HELPER EXPORTS ---
 export { ID, Query };
+
+// --- CONFIG OBJECT EXPORT (The Fix) ---
+// This groups everything into one object so useOneSignal can access it cleanly.
+export const appwriteConfig = {
+  endpoint: APPWRITE_ENDPOINT,
+  projectId: APPWRITE_PROJECT_ID,
+  databaseId: APPWRITE_DATABASE_ID,
+  userProfilesCollectionId: APPWRITE_USER_PROFILES_COLLECTION_ID,
+  chatMessagesCollectionId: APPWRITE_CHAT_MESSAGES_COLLECTION_ID,
+  // Add others here if you need them in object form later
+};
 
 export default client;
