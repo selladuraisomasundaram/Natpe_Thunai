@@ -32,8 +32,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 const DEVELOPER_UPI = "8903480105@superyes"; 
 
 // --- SMART APP CONFIGURATION ---
-// We use 'package' for Android Intents (Direct Launch)
-// We use 'scheme' for iOS (Direct Launch)
 const PAYMENT_APPS = [
     { 
         name: "GPay", 
@@ -60,20 +58,20 @@ const PAYMENT_APPS = [
         icon: "Pm"
     },
     { 
-        name: "BHIM", 
-        package: "in.org.npci.upiapp", 
-        scheme: "upi://",
-        color: "from-orange-500 to-green-600",
-        hover: "hover:shadow-orange-500/20",
-        icon: "B"
+        name: "Super.Money", 
+        package: "com.super.money", 
+        scheme: "supermoney://", 
+        color: "from-emerald-500 to-teal-600",
+        hover: "hover:shadow-emerald-500/20",
+        icon: "S"
     },
     { 
-        name: "Cred", 
-        package: "com.dreamplug.androidapp", 
-        scheme: "cred://",
-        color: "from-gray-800 to-black",
-        hover: "hover:shadow-black/20",
-        icon: "C"
+        name: "FamPay", 
+        package: "com.fampay.in", 
+        scheme: "fampay://",
+        color: "from-yellow-400 to-orange-500",
+        hover: "hover:shadow-yellow-500/20",
+        icon: "F"
     }
 ];
 
@@ -104,24 +102,21 @@ const EscrowPayment = () => {
     setTimeout(() => setCopiedVPA(false), 2000);
   };
 
-  // --- 2. SMART APP LAUNCHER (THE FIX) ---
+  // --- 2. SMART APP LAUNCHER ---
   const handleLaunchApp = (app: typeof PAYMENT_APPS[0]) => {
       // A. Copy ID First (Crucial for UX)
       handleCopyVPA();
 
       // B. Determine Environment
       const isAndroid = /Android/i.test(navigator.userAgent);
-      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
+      
       let launchUrl = "";
 
       if (isAndroid) {
-          // 🔥 THE MAGIC INTENT 🔥
-          // This syntax tells Android: "Open this package. If not installed, go to Play Store."
-          // It bypasses the 'upi://' validation logic and just launches the app.
+          // 🔥 MAGIC INTENT: Forces app to open if installed, else Play Store
           launchUrl = `intent://#Intent;package=${app.package};scheme=${app.scheme.replace('://', '')};end`;
       } else {
-          // iOS Fallback: Use the naked scheme
+          // iOS Fallback
           launchUrl = app.scheme;
       }
 
@@ -223,7 +218,7 @@ const EscrowPayment = () => {
             <div className="flex items-center justify-between px-1">
                 <h3 className="text-xs font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
                     <span className="flex items-center justify-center w-5 h-5 rounded-full bg-secondary-neon text-background text-[10px] font-bold">1</span>
-                    Select Your App
+                    Select Payment App
                 </h3>
                 <span className="text-[9px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">ID Auto-Copies</span>
             </div>
@@ -265,7 +260,7 @@ const EscrowPayment = () => {
         <div className="space-y-3 pt-2">
             <h3 className="text-xs font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2 px-1">
                 <span className="flex items-center justify-center w-5 h-5 rounded-full bg-secondary-neon text-background text-[10px] font-bold">2</span>
-                Verify Payment
+                Verify Transaction
             </h3>
 
             <Card className="bg-muted/10 border-border shadow-inner">
@@ -305,7 +300,7 @@ const EscrowPayment = () => {
 
       </div>
 
-      {/* --- MANUAL DIALOG (FALLBACK) --- */}
+      {/* --- MANUAL GUIDE DIALOG (STEP-BY-STEP) --- */}
       <Dialog open={showManualDialog} onOpenChange={setShowManualDialog}>
         <DialogContent className="w-[90%] rounded-2xl bg-card border-border">
             <DialogHeader>
@@ -313,24 +308,36 @@ const EscrowPayment = () => {
                     <Smartphone className="h-5 w-5 text-secondary-neon" /> App didn't open?
                 </DialogTitle>
                 <DialogDescription className="text-xs">
-                    No worries. Pay manually in 3 steps:
+                    Pay manually using any UPI app in 3 steps:
                 </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-2">
                 <div className="bg-muted p-3 rounded-xl flex items-center justify-between">
                     <div>
-                        <p className="text-[10px] text-muted-foreground uppercase">1. Pay to UPI ID</p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold">1. Pay to UPI ID</p>
                         <p className="text-sm font-mono font-bold select-all">{DEVELOPER_UPI}</p>
                     </div>
                     <Button size="icon" variant="ghost" onClick={handleCopyVPA}>
                         <Copy className="h-4 w-4" />
                     </Button>
                 </div>
-                <div className="text-xs text-muted-foreground space-y-1 px-1">
-                    <p>2. Open your preferred UPI app manually.</p>
-                    <p>3. Select <strong>"To UPI ID"</strong> and paste.</p>
-                    <p>4. Pay <strong>₹{formattedAmount}</strong>.</p>
-                    <p>5. Copy the <strong>12-digit UTR</strong> from payment details.</p>
+                <div className="text-xs text-muted-foreground space-y-2 px-1">
+                    <p className="flex gap-2">
+                        <span className="font-bold text-secondary-neon">2.</span> 
+                        <span>Open your preferred UPI app manually.</span>
+                    </p>
+                    <p className="flex gap-2">
+                        <span className="font-bold text-secondary-neon">3.</span> 
+                        <span>Select <strong>"To UPI ID"</strong> and paste the ID.</span>
+                    </p>
+                    <p className="flex gap-2">
+                        <span className="font-bold text-secondary-neon">4.</span> 
+                        <span>Enter amount <strong>₹{formattedAmount}</strong> and Pay.</span>
+                    </p>
+                    <p className="flex gap-2">
+                        <span className="font-bold text-secondary-neon">5.</span> 
+                        <span>Copy the <strong>12-digit UTR</strong> from payment details & paste here.</span>
+                    </p>
                 </div>
             </div>
             <DialogFooter>
