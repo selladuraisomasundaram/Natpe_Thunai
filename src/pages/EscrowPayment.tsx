@@ -55,34 +55,40 @@ const EscrowPayment = () => {
     setTimeout(() => setCopiedVPA(false), 2000);
   };
 
-  // --- 2. OPEN UPI APP HANDLER (GENERIC LAUNCH) ---
+  // --- 2. OPEN UPI APP HANDLER (ROBUST FIX) ---
   const handleOpenUPI = () => {
-    // GENERIC INTENT: Just "upi://pay" without parameters.
-    // This triggers the OS to open any installed UPI app to its home screen.
-    // The user must then manually navigate to "Pay to ID" and paste.
-    const upiLink = "upi://pay";
-    
-    const link = document.createElement('a');
-    link.href = upiLink;
-    link.rel = 'noreferrer';
-    document.body.appendChild(link);
-    
-    try {
-        link.click();
-        
-        toast.info("Opening App...", {
-            description: "Please paste the copied ID and pay manually."
-        });
+    // A. Construct a VALID UPI Intent
+    // Even if we want them to paste manually, providing valid params
+    // forces the OS to recognize this as a payment link.
+    const upiLink = `upi://pay?pa=${DEVELOPER_UPI}&am=${amount}&cu=INR`;
 
-        // Fallback check if app didn't open
+    toast.info("Opening Payment App...", {
+        description: "Select your preferred app (GPay, PhonePe, etc.)"
+    });
+
+    try {
+        // B. Check for Median (GoNative) Environment
+        // This is the native bridge command to open external URLs/Schemes
+        if ((window as any).median) {
+            (window as any).median.website.open({ url: upiLink });
+        } else {
+            // C. Standard Browser Fallback
+            window.location.href = upiLink;
+        }
+
+        // D. Safety Fallback
+        // If the user stays on the page for >2 seconds, it likely failed.
         setTimeout(() => {
-             setShowManualDialog(true);
-        }, 1500);
+             // We don't want to show the error if they actually switched apps,
+             // checking document visibility helps guess if they left the screen.
+             if (!document.hidden) {
+                 setShowManualDialog(true);
+             }
+        }, 2500);
         
     } catch (e) {
+        console.error("Payment Launch Error:", e);
         setShowManualDialog(true);
-    } finally {
-        document.body.removeChild(link);
     }
   };
 
