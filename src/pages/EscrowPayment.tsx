@@ -13,11 +13,11 @@ import {
   ArrowLeft,
   Loader2,
   Banknote,
-  Smartphone,
   AlertTriangle,
   HeartHandshake,
   ExternalLink,
-  Info
+  Info,
+  Wallet
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -29,6 +29,45 @@ import {
 
 // --- CONFIGURATION ---
 const DEVELOPER_UPI = "8903480105@superyes"; 
+
+// --- PAYMENT APPS CONFIG ---
+const PAYMENT_APPS = [
+    { 
+        name: "Google Pay", 
+        scheme: "tez://", 
+        package: "com.google.android.apps.nbu.paisa.user",
+        color: "bg-blue-600 hover:bg-blue-700",
+        icon: "G" 
+    },
+    { 
+        name: "PhonePe", 
+        scheme: "phonepe://", 
+        package: "com.phonepe.app", 
+        color: "bg-purple-600 hover:bg-purple-700",
+        icon: "Pe"
+    },
+    { 
+        name: "Paytm", 
+        scheme: "paytmmp://", 
+        package: "net.one97.paytm", 
+        color: "bg-sky-500 hover:bg-sky-600",
+        icon: "Pm"
+    },
+    { 
+        name: "FamPay", 
+        scheme: "fampay://", // Hypothetical scheme, falls back to generic
+        package: "com.fampay.in", 
+        color: "bg-yellow-500 hover:bg-yellow-600 text-black",
+        icon: "F"
+    },
+    { 
+        name: "Super.Money", 
+        scheme: "supermoney://", // Hypothetical scheme
+        package: "com.super.money", 
+        color: "bg-emerald-600 hover:bg-emerald-700",
+        icon: "S"
+    }
+];
 
 const EscrowPayment = () => {
   const { transactionId: pathId } = useParams<{ transactionId: string }>(); 
@@ -47,64 +86,61 @@ const EscrowPayment = () => {
   const itemTitle = searchParams.get("title") || "Order";
   const formattedAmount = parseFloat(amount).toFixed(2);
 
-  // --- 1. MANUAL COPY HANDLER ---
+  // --- 1. COPY HANDLER ---
   const handleCopyVPA = () => {
     navigator.clipboard.writeText(DEVELOPER_UPI);
     setCopiedVPA(true);
-    toast.success("UPI ID Copied to Clipboard");
+    toast.success("UPI ID Copied!");
     setTimeout(() => setCopiedVPA(false), 2000);
   };
 
-  // --- 2. OPEN UPI APP HANDLER (ROBUST FIX) ---
-  const handleOpenUPI = () => {
-    // A. Construct a VALID UPI Intent
-    // Even if we want them to paste manually, providing valid params
-    // forces the OS to recognize this as a payment link.
-    const upiLink = `upi://pay?pa=${DEVELOPER_UPI}`;
+  // --- 2. LAUNCH SPECIFIC APP ---
+  const handleLaunchApp = (app: typeof PAYMENT_APPS[0]) => {
+    handleCopyVPA(); // Auto-copy ID when launching
 
-    toast.info("Opening Payment App...", {
-        description: "Select your preferred app (GPay, PhonePe, etc.)"
+    toast.info(`Opening ${app.name}...`, {
+        description: "ID copied! Paste it to pay."
     });
 
     try {
-        // B. Check for Median (GoNative) Environment
-        // This is the native bridge command to open external URLs/Schemes
-        if ((window as any).median) {
-            (window as any).median.website.open({ url: upiLink });
-        } else {
-            // C. Standard Browser Fallback
-            window.location.href = upiLink;
+        let intentUrl = app.scheme;
+
+        // Specific handling for Android Intent (works best in Chrome on Android)
+        // This format forces the specific app to open if installed
+        const isAndroid = /Android/i.test(navigator.userAgent);
+        if (isAndroid) {
+            intentUrl = `intent://#Intent;scheme=${app.scheme.replace('://', '')};package=${app.package};end`;
         }
 
-        // D. Safety Fallback
-        // If the user stays on the page for >2 seconds, it likely failed.
+        // Median Bridge Support
+        if ((window as any).median) {
+            (window as any).median.website.open({ url: app.scheme });
+        } else {
+            window.location.href = intentUrl;
+        }
+
+        // Fallback Check
         setTimeout(() => {
-             // We don't want to show the error if they actually switched apps,
-             // checking document visibility helps guess if they left the screen.
              if (!document.hidden) {
                  setShowManualDialog(true);
              }
-        }, 2500);
+        }, 2000);
         
     } catch (e) {
-        console.error("Payment Launch Error:", e);
+        console.error("Launch Error:", e);
         setShowManualDialog(true);
     }
   };
 
-  // --- 3. VERIFICATION HANDLER ---
+  // --- 3. VERIFICATION ---
   const handleVerifyPayment = async () => {
     if (!utrNumber || utrNumber.length < 12) {
-        toast.error("Invalid UTR Format", {
-            description: "UTR numbers are typically 12 digits long. Please check your SMS/Banking History."
-        });
+        toast.error("Invalid UTR Format", { description: "Must be 12 digits." });
         return;
     }
 
     if (!transactionId) {
-        toast.error("System Error: Order ID Missing", {
-            description: "Please return to the Activity Log and retry."
-        });
+        toast.error("Error: Order ID Missing");
         return;
     }
 
@@ -122,181 +158,154 @@ const EscrowPayment = () => {
             }
         );
 
-        toast.success("Verification Submitted!", {
-            description: "Order is processing. Thank you for your honesty!"
-        });
+        toast.success("Payment Submitted!", { description: "Processing..." });
         
-        setTimeout(() => {
-            navigate("/tracking"); 
-        }, 1500);
+        setTimeout(() => { navigate("/tracking"); }, 1500);
 
     } catch (error: any) {
-        console.error("Verification Error:", error);
-        toast.error("Error: " + (error.message || "Connection failed"));
+        toast.error("Submission Failed");
     } finally {
         setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 flex flex-col items-center justify-center font-sans">
+    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans relative">
       
-      {/* Navbar */}
-      <div className="w-full max-w-md flex items-center mb-6 absolute top-4 left-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+      {/* --- TOP BAR --- */}
+      <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border p-4 flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="-ml-2">
           <ArrowLeft className="h-6 w-6" />
         </Button>
+        <div>
+            <h1 className="text-lg font-black tracking-tight leading-none">Payment Gateway</h1>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Escrow Protection Active</p>
+        </div>
       </div>
 
-      <div className="w-full max-w-md space-y-6 mt-12 mb-10">
+      <div className="flex-1 p-4 pb-24 space-y-6">
         
-        {/* === HEADER === */}
-        <div className="text-center space-y-2 animate-in fade-in slide-in-from-top-4 duration-500">
-            <div className="inline-flex items-center justify-center p-4 bg-secondary-neon/10 rounded-full mb-2 border border-secondary-neon/20 shadow-[0_0_15px_rgba(0,243,255,0.2)]">
-                <Banknote className="h-8 w-8 text-secondary-neon" />
-            </div>
-            <h1 className="text-4xl font-black tracking-tighter text-foreground">
-                ₹{formattedAmount}
-            </h1>
-            <p className="text-sm text-muted-foreground font-medium truncate px-4">
-                Escrow for: <span className="text-foreground font-bold">{itemTitle}</span>
-            </p>
-            {!transactionId && <p className="text-[10px] text-red-500 font-mono">Error: Transaction ID Missing</p>}
-        </div>
-
-        {/* === PAYMENT DESK CARD === */}
-        <Card className="border-border/60 shadow-xl overflow-hidden animate-in slide-in-from-bottom-8 duration-700 bg-card/80 backdrop-blur-sm">
-          <CardContent className="p-0">
+        {/* --- AMOUNT CARD --- */}
+        <div className="bg-card border border-border rounded-2xl p-6 text-center shadow-lg relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-secondary-neon to-transparent opacity-50" />
             
-            {/* Step 1: Pay to Developer */}
-            <div className="p-6 space-y-5 border-b border-border/50">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-black uppercase text-muted-foreground tracking-widest">Step 1: Pay to Developer</h3>
-                    <ShieldCheck className="h-4 w-4 text-green-500" />
-                </div>
-
-                {/* COPY ID SECTION - Prominent */}
-                <div 
-                    onClick={handleCopyVPA}
-                    className="group relative flex items-center justify-between bg-muted/40 border-2 border-dashed border-border hover:border-secondary-neon hover:bg-secondary-neon/5 rounded-xl p-4 cursor-pointer transition-all active:scale-[0.98]"
-                >
-                    <div>
-                        <p className="text-[10px] text-muted-foreground font-bold uppercase mb-1">Tap to Copy ID</p>
-                        <p className="text-sm font-mono font-bold text-foreground tracking-wide select-all">{DEVELOPER_UPI}</p>
-                    </div>
-                    <div className="h-10 w-10 bg-background rounded-full flex items-center justify-center border border-border shadow-sm group-hover:scale-110 transition-transform">
-                        {copiedVPA ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <Copy className="h-5 w-5 text-foreground" />}
-                    </div>
-                </div>
-
-                {/* OPEN APP BUTTON */}
-                <Button 
-                    onClick={handleOpenUPI}
-                    className="w-full h-12 bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 font-black text-sm uppercase shadow-lg shadow-secondary-neon/20 transition-transform active:scale-[0.98] rounded-xl"
-                >
-                    <Smartphone className="mr-2 h-4 w-4" /> Open Payment App
-                </Button>
-                
-                <p className="text-[10px] text-center text-muted-foreground leading-tight px-2">
-                    <strong>1. Copy ID</strong> above. <strong>2. Open App</strong>. <strong>3. Paste & Pay ₹{formattedAmount}</strong>.
+            <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mb-1">Total Payable</p>
+            <div className="text-5xl font-black text-foreground tracking-tighter flex items-center justify-center gap-1">
+                <span className="text-2xl text-muted-foreground mt-2">₹</span>
+                {formattedAmount}
+            </div>
+            <div className="mt-4 inline-block bg-muted/50 px-3 py-1 rounded-full border border-border">
+                <p className="text-xs font-medium text-foreground flex items-center gap-2">
+                    <Wallet className="h-3 w-3 text-secondary-neon" /> {itemTitle}
                 </p>
             </div>
+        </div>
 
-            {/* Step 2: The Verification */}
-            <div className="p-6 space-y-5 bg-background/30">
-                <div className="flex items-center gap-2 mb-1">
-                    <div className="h-6 w-6 rounded-full bg-blue-500/10 flex items-center justify-center">
-                        <span className="text-xs font-bold text-blue-500">2</span>
-                    </div>
-                    <h3 className="text-xs font-black uppercase text-muted-foreground tracking-widest">Verify Transaction</h3>
-                </div>
+        {/* --- STEP 1: SELECT APP --- */}
+        <div className="space-y-3">
+            <div className="flex items-center gap-2 px-1">
+                <div className="h-5 w-5 rounded-full bg-secondary-neon text-primary-foreground flex items-center justify-center text-xs font-bold">1</div>
+                <h3 className="text-sm font-bold uppercase text-muted-foreground">Select App to Pay</h3>
+            </div>
 
-                <div className="space-y-3">
-                    <Label htmlFor="utr" className="sr-only">UTR</Label>
-                    <Input 
-                        id="utr"
-                        placeholder="ENTER 12-DIGIT UTR ID" 
-                        className="text-center font-mono font-bold tracking-widest text-lg h-14 border-2 border-border/60 focus-visible:border-secondary-neon focus-visible:ring-0 bg-background uppercase rounded-xl"
-                        value={utrNumber}
-                        onChange={(e) => setUtrNumber(e.target.value.replace(/[^0-9]/g, ''))} 
-                        maxLength={12}
-                    />
-                    <p className="text-[10px] text-muted-foreground text-center px-4 leading-tight">
-                        Switch back here and enter the <strong>UTR / UPI Ref No</strong> from your payment receipt.
-                    </p>
-                </div>
-
-                <Button 
-                    className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold text-sm shadow-md transition-all active:scale-[0.98] rounded-xl"
-                    onClick={handleVerifyPayment}
-                    disabled={isSubmitting || utrNumber.length < 12}
+            <div className="grid grid-cols-3 gap-2">
+                {PAYMENT_APPS.map((app) => (
+                    <button
+                        key={app.name}
+                        onClick={() => handleLaunchApp(app)}
+                        className={`flex flex-col items-center justify-center p-3 rounded-xl border border-border/50 shadow-sm transition-all active:scale-95 hover:opacity-90 ${app.color}`}
+                    >
+                        <div className="h-8 w-8 bg-white/20 rounded-full flex items-center justify-center text-white font-bold text-lg mb-1 backdrop-blur-sm">
+                            {app.icon}
+                        </div>
+                        <span className="text-[9px] font-bold text-white uppercase tracking-wide text-center leading-tight">
+                            {app.name}
+                        </span>
+                    </button>
+                ))}
+                {/* Manual Copy Fallback Button */}
+                <button
+                    onClick={handleCopyVPA}
+                    className="flex flex-col items-center justify-center p-3 rounded-xl border-2 border-dashed border-border bg-muted/20 hover:bg-muted/40 transition-all active:scale-95"
                 >
-                    {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "VERIFY & COMPLETE"}
-                </Button>
+                    <Copy className="h-6 w-6 text-foreground mb-1" />
+                    <span className="text-[9px] font-bold text-muted-foreground uppercase">Copy ID</span>
+                </button>
             </div>
-
-          </CardContent>
-        </Card>
-
-        {/* === MANUAL FALLBACK DIALOG === */}
-        <Dialog open={showManualDialog} onOpenChange={setShowManualDialog}>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-amber-500">
-                        <Info className="h-5 w-5" /> Launch Failed?
-                    </DialogTitle>
-                    <DialogDescription>
-                        If your app didn't open automatically, please pay manually:
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-2">
-                    <ol className="list-decimal list-inside text-sm space-y-2 text-muted-foreground">
-                        <li><strong>Copy</strong> the UPI ID: <span className="font-mono text-foreground bg-muted px-1 rounded select-all">{DEVELOPER_UPI}</span></li>
-                        <li>Open GPay/PhonePe/Paytm manually.</li>
-                        <li>Select <strong>"To UPI ID"</strong> and paste.</li>
-                        <li>Enter amount <strong>₹{formattedAmount}</strong> and pay.</li>
-                        <li>Copy the <strong>UTR</strong> and paste it here.</li>
-                    </ol>
-                </div>
-                <DialogFooter>
-                    <Button onClick={() => setShowManualDialog(false)} className="w-full">I Understand</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-
-        {/* === TRUST & ALPHA NOTES === */}
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-200">
             
-            <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-4 flex gap-3 items-start">
-                <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                    <h4 className="text-xs font-bold text-destructive uppercase">Verification Warning</h4>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        We are building a trusted student infrastructure. Please <strong>do not enter random or incorrect UTRs</strong>. 
-                        Accounts flagged for fake verifications will be permanently suspended.
-                    </p>
-                </div>
+            <p className="text-[10px] text-center text-muted-foreground pt-1">
+                *Tapping an app <strong>auto-copies</strong> the ID: <span className="font-mono text-foreground select-all bg-muted px-1 rounded">{DEVELOPER_UPI}</span>
+            </p>
+        </div>
+
+        {/* --- STEP 2: VERIFY --- */}
+        <div className="space-y-3 pt-2">
+            <div className="flex items-center gap-2 px-1">
+                <div className="h-5 w-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">2</div>
+                <h3 className="text-sm font-bold uppercase text-muted-foreground">Confirm Transaction</h3>
             </div>
 
-            <div className="flex gap-3 items-start px-2">
-                <HeartHandshake className="h-5 w-5 text-secondary-neon shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                    <h4 className="text-xs font-bold text-secondary-neon uppercase">Dev Note: Alpha Phase</h4>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        Our goal isn't to make you work for payments! We are currently in the Alpha Stability Phase. 
-                        Once stable, this entire process will be fully automated. Thank you for cooperating with the manual UTR entry.
-                    </p>
-                    <div className="pt-2">
-                        <Button variant="link" className="h-auto p-0 text-[10px] text-primary" onClick={() => navigate("/developer-messages")}>
-                            Facing issues? Message Developer <ExternalLink className="ml-1 h-3 w-3" />
-                        </Button>
+            <Card className="bg-muted/10 border-border shadow-inner">
+                <CardContent className="p-4 space-y-3">
+                    <Label htmlFor="utr" className="text-xs font-bold text-foreground">Paste 12-Digit UTR / Ref No.</Label>
+                    <div className="relative">
+                        <Input 
+                            id="utr"
+                            placeholder="e.g. 329481920481" 
+                            className="text-center font-mono font-bold text-lg h-12 border-border focus-visible:border-secondary-neon bg-background rounded-xl pr-10"
+                            value={utrNumber}
+                            onChange={(e) => setUtrNumber(e.target.value.replace(/[^0-9]/g, ''))} 
+                            maxLength={12}
+                        />
+                        {utrNumber.length === 12 && (
+                            <CheckCircle2 className="absolute right-3 top-3 h-6 w-6 text-green-500 animate-in zoom-in" />
+                        )}
                     </div>
-                </div>
-            </div>
+                    
+                    <Button 
+                        className="w-full h-12 bg-secondary-neon text-primary-foreground hover:bg-secondary-neon/90 font-black text-sm uppercase shadow-neon rounded-xl mt-2"
+                        onClick={handleVerifyPayment}
+                        disabled={isSubmitting || utrNumber.length < 12}
+                    >
+                        {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Verify Payment"}
+                    </Button>
+                </CardContent>
+            </Card>
+        </div>
 
+        {/* --- FOOTER WARNING --- */}
+        <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-3 flex gap-3 items-center">
+            <AlertTriangle className="h-8 w-8 text-destructive shrink-0 p-1 bg-destructive/10 rounded-full" />
+            <div>
+                <h4 className="text-[10px] font-bold text-destructive uppercase">Zero Tolerance Policy</h4>
+                <p className="text-[9px] text-muted-foreground leading-tight">
+                    Fake UTRs lead to immediate account bans. Funds are held in escrow until verified.
+                </p>
+            </div>
         </div>
 
       </div>
+
+      {/* --- MANUAL DIALOG --- */}
+      <Dialog open={showManualDialog} onOpenChange={setShowManualDialog}>
+        <DialogContent className="w-[90%] rounded-2xl">
+            <DialogHeader>
+                <DialogTitle>App Didn't Open?</DialogTitle>
+                <DialogDescription>Pay manually using any UPI app.</DialogDescription>
+            </DialogHeader>
+            <div className="bg-muted p-3 rounded-xl text-center space-y-1">
+                <p className="text-xs text-muted-foreground uppercase">Pay to UPI ID</p>
+                <p className="text-lg font-mono font-bold select-all">{DEVELOPER_UPI}</p>
+                <Button size="sm" variant="outline" onClick={handleCopyVPA} className="mt-2 h-8 text-xs w-full">
+                    <Copy className="mr-2 h-3 w-3" /> Copy ID
+                </Button>
+            </div>
+            <DialogFooter>
+                <Button onClick={() => setShowManualDialog(false)} className="w-full">Got it</Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 };
