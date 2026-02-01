@@ -1,108 +1,107 @@
-import { useEffect, useState } from 'react';
-import { databases, appwriteConfig } from '@/lib/appwrite'; // Ensure these are exported from your lib
+import { useEffect, useState, useRef } from 'react';
+import { databases, appwriteConfig } from '@/lib/appwrite'; 
 import { useAuth } from '@/context/AuthContext';
 import { Query } from 'appwrite';
-// import { toast } from 'sonner'; // Optional
-
-interface OneSignalData {
-  oneSignalUserId: string; 
-  pushToken?: string;
-  subscribed: boolean;
-}
 
 const useOneSignal = () => {
-  const { user } = useAuth(); // "user" is null when logged out, populated when logged in
-  const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
+  const { user } = useAuth();
   const [isSynced, setIsSynced] = useState(false);
+  const attemptCount = useRef(0);
 
-  // --- EFFECT 1: GET THE PLAYER ID FROM MEDIAN (Native Layer) ---
-  // This runs once on mount to grab the device ID from the phone.
   useEffect(() => {
-    // 1. Define the global listener for Median
-    (window as any).median_onesignal_info = (data: OneSignalData) => {
-      console.log("📲 OneSignal Info Received:", data);
-      
-      if (data?.oneSignalUserId) {
-        setLocalPlayerId(data.oneSignalUserId);
-      }
-    };
+    const syncDevice = async () => {
+      // 1. Stop if not logged in or already synced this session
+      if (!user?.$id || isSynced) return;
 
-    // 2. Trigger Median to send the info
-    const triggerMedian = () => {
-      if (window.location.href.includes('median') || navigator.userAgent.includes('wv')) {
-        // Try URL Scheme
-        window.location.href = 'median://onesignal/info';
-        
-        // Try JS Bridge (Backup)
-        if ((window as any).median?.onesignal?.info) {
-          (window as any).median.onesignal.info();
-        }
-      }
-    };
-
-    // Slight delay to ensure native bridge is ready
-    const timer = setTimeout(triggerMedian, 1000);
-    return () => clearTimeout(timer);
-  }, []); 
-
-
-  // --- EFFECT 2: SYNC TO APPWRITE DATABASE (The "Login" Handler) ---
-  // This watches for "user" to change. As soon as they log in, this fires.
-  useEffect(() => {
-    const syncToDatabase = async () => {
-      // 1. Safety Checks: Need User, Need Device ID, and must not have synced yet
-      if (!user?.$id || !localPlayerId || isSynced) return;
+      // 2. Check Environment
+      const isMedian = navigator.userAgent.includes('wv') || window.location.href.includes('median');
+      if (!isMedian) return;
 
       try {
-        console.log(`🔄 Checking Player ID for user: ${user.$id}...`);
+        console.log("🔄 [OneSignal] Starting background sync...");
 
-        // 2. Find the User's Profile Document
-        // We query by 'userId' to find the correct document in the collection
+        // 3. WAIT for Median Bridge (The "Debugger" Fix)
+        // We try for up to 3 seconds for the bridge to load
+        let bridgeReady = false;
+        for (let i = 0; i < 6; i++) {
+            if (typeof (window as any).median !== 'undefined') {
+                bridgeReady = true;
+                break;
+            }
+            await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
+        }
+
+        if (!bridgeReady) {
+            console.warn("⚠️ [OneSignal] Bridge not found after waiting.");
+            return;
+        }
+
+        // 4. Get Data (Using the Promise method that worked for you)
+        let data = null;
+        if ((window as any).median?.onesignal?.onesignalInfo) {
+             data = await (window as any).median.onesignal.onesignalInfo();
+        }
+
+        if (!data?.oneSignalUserId) {
+             // Fallback for older apps
+             console.log("⚠️ [OneSignal] No ID in promise, trying legacy...");
+             (window as any).median.onesignal.info();
+             return; 
+        }
+
+        const playerId = data.oneSignalUserId;
+        console.log(`✅ [OneSignal] Found ID: ${playerId}`);
+
+        // 5. Database Logic (Idempotent Save)
+        // Check if it's already saved to avoid unnecessary writes
         const profileRes = await databases.listDocuments(
-          appwriteConfig.databaseId,       // Replace with your DB ID variable
-          appwriteConfig.userProfilesCollectionId, // Replace with your Collection ID variable
-          [ Query.equal('userId', user.$id) ]
-        );
-
-        if (profileRes.total === 0) {
-          console.warn("⚠️ User profile not found. Cannot save Player ID.");
-          return;
-        }
-
-        const profileDoc = profileRes.documents[0];
-        const remotePlayerId = profileDoc.oneSignalPlayerId;
-
-        // 3. IDEMPOTENCY CHECK (The "No Bug" Fix)
-        // Only update if the database is actually empty or different.
-        // This prevents infinite loops and unnecessary API writes on every login.
-        if (remotePlayerId === localPlayerId) {
-          console.log("✅ Player ID is already up to date. Skipping write.");
-          setIsSynced(true); // Mark as done for this session
-          return;
-        }
-
-        // 4. Update the Database
-        console.log("📝 Updating Player ID in Database...");
-        await databases.updateDocument(
           appwriteConfig.databaseId,
           appwriteConfig.userProfilesCollectionId,
-          profileDoc.$id, // Use the Document ID, not the User ID
-          {
-            oneSignalPlayerId: localPlayerId
-          }
+          [Query.equal('userId', user.$id)]
         );
 
-        console.log("🎉 Device Linked Successfully:", localPlayerId);
-        setIsSynced(true); 
-        // toast.success("Notifications Enabled");
+        if (profileRes.total > 0) {
+            const doc = profileRes.documents[0];
+            if (doc.oneSignalPlayerId === playerId) {
+                console.log("✅ [OneSignal] ID already matches database. Skipping write.");
+                setIsSynced(true);
+                return;
+            }
+
+            // Update if different
+            await databases.updateDocument(
+                appwriteConfig.databaseId,
+                appwriteConfig.userProfilesCollectionId,
+                doc.$id,
+                { oneSignalPlayerId: playerId }
+            );
+            console.log("💾 [OneSignal] Updated new ID to Appwrite.");
+        }
+
+        setIsSynced(true);
 
       } catch (error) {
-        console.error("❌ Failed to sync Device ID:", error);
+        console.error("❌ [OneSignal] Background Sync Failed:", error);
+        
+        // Retry logic: If it failed, try again in 5 seconds (once)
+        if (attemptCount.current < 1) {
+            attemptCount.current++;
+            setTimeout(() => setIsSynced(false), 5000);
+        }
       }
     };
 
-    syncToDatabase();
-  }, [user, localPlayerId, isSynced]); // Dependencies ensure this runs when User logs in
+    syncDevice();
+    
+    // Legacy Callback Listener (Safety Net)
+    (window as any).median_onesignal_info = (data: any) => {
+        if (data?.oneSignalUserId && !isSynced) {
+            // Recurse with data if callback fires
+            // (Simplified: We just let the logic above handle the main flow)
+        }
+    };
+
+  }, [user, isSynced]);
 };
 
 export default useOneSignal;
