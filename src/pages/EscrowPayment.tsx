@@ -60,7 +60,7 @@ const EscrowPayment = () => {
     // A. Construct a VALID UPI Intent
     // Even if we want them to paste manually, providing valid params
     // forces the OS to recognize this as a payment link.
-    const upiLink = `upi://pay?;
+    const upiLink = 'upi://pay?';
 
     toast.info("Opening Payment App...", {
         description: "Select your preferred app (GPay, PhonePe, etc.)"
