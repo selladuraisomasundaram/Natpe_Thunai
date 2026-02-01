@@ -8,7 +8,6 @@ import CanteenManagerWidget from "@/components/CanteenManagerWidget";
 import DiscoveryFeed from "@/components/DiscoveryFeed"; 
 import LoginStreakCard from "@/components/LoginStreakCard";
 import AnalyticsCard from "@/components/AnalyticsCard";
-import OneSignalDebug from "@/components/OneSignalDebug"; // 1. IMPORT DEBUGGER
 
 // 2. Daily Quest Hidden
 // import DailyQuestCard from "@/components/DailyQuestCard"; 
@@ -29,9 +28,6 @@ const HomePage = () => {
 
       <div className="max-w-md mx-auto space-y-6">
         
-        {/* 🔥 DEBUGGER: ONLY VISIBLE IF IMPORTED CORRECTLY 🔥 */}
-        <OneSignalDebug />
-
         {/* Identity & Profile Stats */}
         <ProfileWidget />
 
@@ -44,7 +40,7 @@ const HomePage = () => {
         {/* Food & Canteen Management */}
         <CanteenManagerWidget />
 
-        {/* DISCOVERY FEED ACTIVE AGAIN */}
+        {/* DISCOVERY FEED */}
         <DiscoveryFeed />
 
         {/* GAMIFICATION & REWARDS */}
