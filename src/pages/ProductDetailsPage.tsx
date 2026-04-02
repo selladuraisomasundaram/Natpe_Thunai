@@ -17,7 +17,7 @@ import {
   APPWRITE_DATABASE_ID, 
   APPWRITE_PRODUCTS_COLLECTION_ID,
   APPWRITE_TRANSACTIONS_COLLECTION_ID,
-  APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID // <-- Added import
+  APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID
 } from "@/lib/appwrite";
 import { ID, Query } from "appwrite";
 import { useAuth } from "@/context/AuthContext";
@@ -52,7 +52,7 @@ const ProductDetailsPage = () => {
         if (user) {
             const bargains = await databases.listDocuments(
                 APPWRITE_DATABASE_ID,
-                APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID, // <-- Using correct variable
+                APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID,
                 [
                     Query.equal('productId', productId),
                     Query.equal('buyerId', user.$id)
@@ -141,11 +141,11 @@ const ProductDetailsPage = () => {
     setIsProcessing(true);
     try {
         const originalPriceParsed = parseFloat(product.price.replace(/[^0-9.]/g, ''));
-        const discountPriceParsed = Math.round(originalPriceParsed * 0.85); // Math.round to prevent float errors if DB expects Integers
+        const discountPriceParsed = Math.round(originalPriceParsed * 0.85);
 
         await databases.createDocument(
             APPWRITE_DATABASE_ID,
-            APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID, // <-- Using correct variable
+            APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID,
             ID.unique(),
             {
                 productId: product.$id,
@@ -153,12 +153,12 @@ const ProductDetailsPage = () => {
                 buyerId: user.$id,
                 buyerName: user.name || "Unknown Buyer",
                 sellerId: product.userId,
-                // THE FIX: Changed from originalAmount to originalPrice
                 originalPrice: originalPriceParsed, 
-                // THE FIX: Changed from requestedAmount to requestedPrice
                 requestedPrice: discountPriceParsed, 
                 status: 'pending',
-                type: 'product'
+                type: 'product',
+                // THE FIX: Added collegeName to satisfy the required attribute error
+                collegeName: product.collegeName || "Unknown College"
             }
         );
         setBargainStatus('pending');
