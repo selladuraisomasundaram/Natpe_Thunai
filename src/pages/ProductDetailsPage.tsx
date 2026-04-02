@@ -16,7 +16,8 @@ import {
   databases, 
   APPWRITE_DATABASE_ID, 
   APPWRITE_PRODUCTS_COLLECTION_ID,
-  APPWRITE_TRANSACTIONS_COLLECTION_ID 
+  APPWRITE_TRANSACTIONS_COLLECTION_ID,
+  APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID // <-- Added import
 } from "@/lib/appwrite";
 import { ID, Query } from "appwrite";
 import { useAuth } from "@/context/AuthContext";
@@ -51,7 +52,7 @@ const ProductDetailsPage = () => {
         if (user) {
             const bargains = await databases.listDocuments(
                 APPWRITE_DATABASE_ID,
-                'bargain_requests', 
+                APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID, // <-- Using correct variable
                 [
                     Query.equal('productId', productId),
                     Query.equal('buyerId', user.$id)
@@ -139,21 +140,23 @@ const ProductDetailsPage = () => {
     if (!user) return;
     setIsProcessing(true);
     try {
-        const originalPrice = parseFloat(product.price.replace(/[^0-9.]/g, ''));
-        const discountPrice = originalPrice * 0.85; // 15% rule
+        const originalPriceParsed = parseFloat(product.price.replace(/[^0-9.]/g, ''));
+        const discountPriceParsed = Math.round(originalPriceParsed * 0.85); // Math.round to prevent float errors if DB expects Integers
 
         await databases.createDocument(
             APPWRITE_DATABASE_ID,
-            'bargain_requests',
+            APPWRITE_BARGAIN_REQUESTS_COLLECTION_ID, // <-- Using correct variable
             ID.unique(),
             {
                 productId: product.$id,
-                productTitle: product.title,
+                productTitle: product.title || "Untitled Product",
                 buyerId: user.$id,
-                buyerName: user.name,
+                buyerName: user.name || "Unknown Buyer",
                 sellerId: product.userId,
-                originalAmount: originalPrice,
-                requestedAmount: discountPrice,
+                // THE FIX: Changed from originalAmount to originalPrice
+                originalPrice: originalPriceParsed, 
+                // THE FIX: Changed from requestedAmount to requestedPrice
+                requestedPrice: discountPriceParsed, 
                 status: 'pending',
                 type: 'product'
             }
@@ -161,8 +164,9 @@ const ProductDetailsPage = () => {
         setBargainStatus('pending');
         toast.success("Offer sent to seller!");
         setIsBargainOpen(false);
-    } catch (error) {
-        toast.error("Failed to send offer.");
+    } catch (error: any) {
+        console.error("Appwrite Error:", error.message);
+        toast.error("Failed to send offer. Check console.");
     } finally {
         setIsProcessing(false);
     }
@@ -182,7 +186,6 @@ const ProductDetailsPage = () => {
   const discountPrice = (numericPrice * 0.85).toFixed(0);
 
   return (
-    // Added generous bottom padding (pb-40) so content scrolls above the fixed footer + navbar
     <div className="min-h-screen bg-background text-foreground pb-40 relative">
       
       {/* HEADER IMAGE */}
@@ -290,10 +293,7 @@ const ProductDetailsPage = () => {
 
       </div>
 
-      {/* FOOTER ACTIONS - FIXED POSITIONING */}
-      {/* bottom-16 pushes it up by 4rem (~64px) which is standard nav height.
-          z-40 ensures it's above content but doesn't conflict with modals (usually z-50).
-      */}
+      {/* FOOTER ACTIONS */}
       <div className="fixed bottom-16 left-0 w-full bg-background/95 backdrop-blur-xl border-t-2 border-border p-4 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]">
          <div className="max-w-3xl mx-auto flex gap-3 items-center">
             {isOwner ? (
