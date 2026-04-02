@@ -150,15 +150,15 @@ const ProductDetailsPage = () => {
             {
                 productId: product.$id,
                 productTitle: product.title || "Untitled Product",
+                // Appwrite Schema demands Strings for these price values
+                originalPrice: originalPriceParsed.toString(), 
+                requestedPrice: discountPriceParsed.toString(), 
                 buyerId: user.$id,
                 buyerName: user.name || "Unknown Buyer",
                 sellerId: product.userId,
-                originalPrice: originalPriceParsed, 
-                requestedPrice: discountPriceParsed, 
                 status: 'pending',
-                type: 'product',
-                // THE FIX: Added collegeName to satisfy the required attribute error
                 collegeName: product.collegeName || "Unknown College"
+                // Removed 'type: product' as it is not an attribute in your Appwrite schema
             }
         );
         setBargainStatus('pending');
